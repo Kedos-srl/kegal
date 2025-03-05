@@ -1,0 +1,22 @@
+#  with reset: conda env update --file ./ke_llm_env.yml --prune
+# without reset: conda env update --file base.yml
+name: ke_llm
+channels:
+  - conda-forge
+dependencies:
+  - python==3.12
+  - fastapi==0.115.5
+  - pydantic=2.9.2
+  - python-dotenv==1.0.1
+  - uvicorn==0.32.1
+  - numpy==1.26.4
+  - openai==1.61.0
+  - tiktoken==0.8.0
+  - pip==24.3.1
+  - boto3==1.36.16
+  - networkx==3.4.2
+  - pip:
+      - ollama==0.4.7
+      - json_repair==0.35.0
+
+

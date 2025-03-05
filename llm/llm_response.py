@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from tools_manager import ToolsManager, ToolConfig
+
 
 class LlmResponse(BaseModel):
     """
@@ -23,12 +25,27 @@ def validate_llm_response(response_: LlmResponse) -> bool:
     else:
         raise ValueError("Invalid response format")
 
+def stringify_tool_result(value):
+    """
+    Convert any non-string value to a string.
+    If the value is already a string, return it unchanged.
+    """
+    if isinstance(value, str):
+        return value
+    else:
+        return str(value)
+
+
 def get_response_message(response_: LlmResponse) -> str:
     if "response_txt" in response_.response_content:
         return response_.response_content["response_txt"]
     elif "response_obj" in response_.response_content:
         return response_.response_content["response_obj"]
     elif "response_tool" in response_.response_content:
-        return response_.response_content["response_tool"]
+        response_tool = response_.response_content["response_tool"]
+        config = ToolConfig(**response_tool)
+        manager = ToolsManager()
+        result = manager.execute_from_config(config)
+        return stringify_tool_result(result)
     else:
         return ""

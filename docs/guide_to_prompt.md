@@ -85,7 +85,7 @@
           "type": "object",
           "description": "Configuration for executing a tool function with its parameters",
           "properties": {
-            "tools": {
+            "tool": {
               "type": "string",
               "description": "The tool identifier in 'module_name.function_name' format that specifies which tool to execute",
               "examples": "image_processor.resize_image"

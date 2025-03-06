@@ -90,8 +90,7 @@ class NodeGraph:
             if "user_role" in placeholders:
                 placeholders["history"] += f"\n{placeholders['user_role']}: {placeholders['post']}"
             if "assistant_role" in placeholders:
-                placeholders[
-                    "history"] += f"\n{placeholders['assistant_role']}: {get_response_message(self.response)}"
+                placeholders["history"] += f"\n{placeholders['assistant_role']}: {get_response_message(self.response)}"
 
         try:
             response = validate_llm_response(self.response)

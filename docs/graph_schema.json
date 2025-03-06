@@ -170,6 +170,24 @@
                     "type": "integer"
                 },
                 "placeholders": {
+                    "type": "object",
+                    "title": "Placeholders",
+                    "description": "Key-value dictionary of placeholders",
+                    "properties": {
+                        "history": {
+                            "type": "boolean",
+                            "description": "Indicates if node maintains chat history",
+                            "default": false
+                        },
+                        "user_role": {
+                            "type": "string",
+                            "description": "The type of user interacting with the node"
+                        },
+                        "assistant_role": {
+                            "type": "string",
+                            "description": "The role interpreted by the node agent"
+                        }
+                    },
                     "additionalProperties": {
                         "anyOf": [
                             {
@@ -188,14 +206,11 @@
                                 "type": "object"
                             },
                             {
-                                "items": {},
-                                "type": "array"
+                                "type": "array",
+                                "items": {}
                             }
                         ]
-                    },
-                    "description": "Key-value dictionary of placeholders",
-                    "title": "Placeholders",
-                    "type": "object"
+                    }
                 }
             },
             "required": [

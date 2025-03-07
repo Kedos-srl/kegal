@@ -1,7 +1,7 @@
 import openai
 import tiktoken
 
-from ke_llm.llm.llm_handler import LlmHandler
+from llm.llm_handler import LlmHandler
 
 
 class GptHandler(LlmHandler):

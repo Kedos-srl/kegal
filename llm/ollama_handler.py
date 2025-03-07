@@ -1,5 +1,7 @@
-from ke_llm.llm.llm_handler import LlmHandler, LlmResponse
 from ollama import Client
+
+from llm.llm_handler import LlmHandler
+
 
 class OllamaHandler(LlmHandler):
     def __init__(self, model_: str, host_: str = 'http://localhost:11434'):

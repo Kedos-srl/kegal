@@ -170,14 +170,6 @@ class GraphData(BaseModel):
     """
     A Pydantic model representing the Graph Configuration schema.
 
-    # UTILS
-    - Convert graph to json
-      graph_.model_dump_json()
-
-    - Initialize graph from json
-      GraphData(**json_raw)
-
-
     :param models: Array containing configurations of large language models.
     :param systems: Array containing systems configurations.
     :param nodes: Array containing configurations of agents (graph nodes).

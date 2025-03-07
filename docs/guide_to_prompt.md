@@ -29,30 +29,33 @@
 ## POSTER
 ```
 
-# 6. Output configuration
+# 6. Tool
+## TOOL
+
+# 7. Output configuration
 
 ```markdown
 ## OUTPUT
 - Generate final output by following the steps below:
 1. Read the following schema:
     ```json 
-    {
-      "type": "object",
-      "properties": {
-        "validation": {
-          "type": "boolean",
-          "description": ""
-        },
-        "response_txt": {
-          "type": "string",
-          "description": ""
+        {
+          "type": "object",
+          "properties": {
+            "validation": {
+              "type": "boolean",
+              "description": ""
+            },
+            "response_txt": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          "required": [
+            "validation",
+            "response_txt"
+          ]
         }
-      },
-      "required": [
-        "validation",
-        "response_txt"
-      ]
-    }
     ```
 2. For each element of the schema generate a corresponding valid key according to its description
 3. Generate a draft json

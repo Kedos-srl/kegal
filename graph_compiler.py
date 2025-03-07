@@ -4,6 +4,7 @@ from llm.llm_response import LlmResponse, validate_llm_response, get_response_me
 from llm_dispenser import LlmDispenser
 from graph_data import *
 import networkx as nx
+import yaml
 
 
 
@@ -226,3 +227,17 @@ class GraphCompiler:
     def log_nodes_ids(self):
         for node in self.graph.nodes:
             print(node)
+
+    @staticmethod
+    def from_json(file_path):
+        """Create instance from JSON config file"""
+        with open(file_path, 'r') as file:
+            config = json.load(file)
+        return GraphCompiler(**config)
+
+    @staticmethod
+    def from_yaml(file_path):
+        """Create instance from YAML config file"""
+        with open(file_path, 'r') as file:
+            config = yaml.safe_load(file)
+        return GraphCompiler(**config)

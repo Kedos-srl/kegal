@@ -98,7 +98,7 @@ class PromptData(BaseModel):
 
     placeholders: dict[str, Union[str, float, int, bool, dict, list]] = Field(
         ...,
-        description="Key-value dictionary of placeholders"
+        description="Key-value dictionary of placeholders, "
     )
 
 
@@ -207,11 +207,4 @@ class GraphData(BaseModel):
 
 
 
-
-def save_schema(schema, name):
-    with open( Path(__file__).parent / "docs" / f"{name}.json", "w") as f:
-        f.write((json.dumps(schema, indent=4, sort_keys=False)))
-
-if __name__ == '__main__':
-    save_schema(GraphData.model_json_schema(), "graph_schema")
 

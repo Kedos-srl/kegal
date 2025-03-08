@@ -36,7 +36,7 @@ def compile_from_json_file(json_file_path_: Path):
 
     try:
         with json_file_path_.open('r', encoding='utf-8') as json_file:
-            return GraphCompiler.compile_from_json(json_file)
+            return compile_from_json(json_file)
     except FileNotFoundError:
         raise FileNotFoundError(f"JSON file not found: {json_file_path_}")
     except Exception as e:
@@ -45,7 +45,7 @@ def compile_from_json_file(json_file_path_: Path):
 
 # COMMPILE YAML
 
-def compile_from_yaml(yaml_src_: str | bytes):
+def compile_from_yaml(yaml_src_):
     """Create instance from YAML"""
     try:
         config = yaml.safe_load(yaml_src_)
@@ -68,7 +68,7 @@ def compile_form_yaml_file(yaml_file_path_: Path):
 
     try:
         with yaml_file_path_.open('r', encoding='utf-8') as yaml_file:
-            return GraphCompiler.compile_from_yaml(yaml_file)
+            return compile_from_yaml(yaml_file)
     except FileNotFoundError:
         raise FileNotFoundError(f"YAML file not found: {yaml_file_path_}")
     except Exception as e:

@@ -341,3 +341,8 @@ edges:
     target: node_id_f
     attrib: empty
 ```
+
+### ⚠️ CRITICAL REQUIREMENT
+The graph compilation starts from the first node of the graph.
+So if the connections of the edges start from Node A, the new user message must be inserted
+in the post field in the node placeholder before passing the configuration to the compiler.

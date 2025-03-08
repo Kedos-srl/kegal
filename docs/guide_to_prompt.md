@@ -163,7 +163,7 @@ without any modifications to structure or content.
 
 ```markdown
 ## OUTPUT
-- Generate final output by following the steps below:
+Generate final output by following the steps below:
 1. Read the following schema:
     ```json 
         {

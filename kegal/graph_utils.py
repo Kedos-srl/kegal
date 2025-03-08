@@ -1,3 +1,7 @@
+import json
+import yaml
+from pathlib import Path
+
 from kegal.graph_data import GraphData
 from kegal.llm.llm_response import LlmResponse
 
@@ -44,7 +48,7 @@ def insert_citations_to_graph_data(graph_data: GraphData, chunks: list[str]):
     return graph_data
 
 
-def update_graph_data__history(graph_data: GraphData, responses: [LlmResponse]):
+def update_graph_data_history(graph_data: GraphData, responses: [LlmResponse]):
     """
     Updates the graph data with conversation history from LLM responses.
 
@@ -85,5 +89,14 @@ def update_graph_data__history(graph_data: GraphData, responses: [LlmResponse]):
     return graph_data
 
 
+def export_graph_as_json(graph_data: GraphData, file_path: Path):
+    json_str = graph_data.model_dump_json(indent=4)
+    with file_path.open('w', encoding='utf-8') as f:
+        f.write(json_str)
+
+def export_graph_as_yaml(graph_data: GraphData, file_path: Path):
+    yaml_str = yaml.dump(graph_data.model_dump(), default_flow_style=False)
+    with file_path.open('w', encoding='utf-8') as f:
+        f.write(yaml_str)
 
 

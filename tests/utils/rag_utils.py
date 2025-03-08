@@ -1,7 +1,6 @@
 from pathlib import Path
 import pymupdf4llm
 
-#     return [{"id": c["metadata"]["title"], "page": c["metadata"]["page"], "text": c["text"]} for c in chunks]
 
 def create_chroma_payload(document_path: Path):
     chunks = pymupdf4llm.to_markdown(doc=document_path,page_chunks=True)

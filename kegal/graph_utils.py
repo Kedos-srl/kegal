@@ -3,7 +3,22 @@ from kegal.llm.llm_response import LlmResponse
 
 
 def insert_user_message_to_graph_data(graph_data: GraphData, user_message: str):
+    """
+    Inserts a user message into the first node of the graph data.
+
+    :param graph_data: The graph data object to be updated
+    :type graph_data: GraphData
+    :param user_message: The user's message to be inserted
+    :type user_message: str
+    :return: The updated graph data object with the user message in the first node
+    :rtype: GraphData
+    :raises KeyError: If 'post' placeholder is not found in the first node's prompt
+    """
+    if "post" not in graph_data.nodes[0].prompt.placeholders:
+        raise KeyError("Required placeholder 'post' not found in the first node's prompt")
+
     graph_data.nodes[0].prompt.placeholders["post"] = user_message
+    return graph_data
 
 
 def insert_citations_to_graph_data(graph_data: GraphData, chunks: list[str]):
@@ -20,7 +35,6 @@ def insert_citations_to_graph_data(graph_data: GraphData, chunks: list[str]):
      :type chunks: list[str]
      :return: The updated graph data object with citations added to relevant nodes
      :rtype: GraphData
-
      """
     nodes = graph_data.nodes
     for node in nodes:

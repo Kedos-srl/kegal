@@ -1,6 +1,5 @@
 from PIL import Image
 
-from llm.llm_response import LlmResponse
 from abc import ABC, abstractmethod
 import json
 import re

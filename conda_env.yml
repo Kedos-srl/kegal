@@ -1,6 +1,6 @@
-#  with reset: conda env update --file ./ke_llm_env.yml --prune
+#  with reset: conda env update --file ./conda_env.yml --prune
 # without reset: conda env update --file base.yml
-name: ke_llm
+name: kegal
 channels:
   - conda-forge
 dependencies:

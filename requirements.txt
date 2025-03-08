@@ -1,0 +1,15 @@
+openai~=1.59.7
+tiktoken~=0.8.0
+pillow~=11.0.0
+pydantic~=2.10.4
+ollama~=0.4.7
+boto3~=1.36.6
+botocore~=1.36.6
+python-dotenv~=1.0.1
+uvicorn~=0.34.0
+fastapi~=0.115.11
+starlette~=0.46.0
+typing~=3.7.4.3
+networkx~=3.4.2
+yaml~=0.2.5
+pyyaml~=6.0.2

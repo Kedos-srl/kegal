@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from tools_manager import ToolsManager, ToolConfig
+from kegal.tools_manager import ToolsManager, ToolConfig
 
 
 class LlmResponse(BaseModel):

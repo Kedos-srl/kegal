@@ -4,7 +4,6 @@ from llm.llm_response import LlmResponse, validate_llm_response, get_response_me
 from llm_dispenser import LlmDispenser
 from graph_data import *
 import networkx as nx
-import yaml
 
 
 
@@ -229,64 +228,3 @@ class GraphCompiler:
             print(node)
 
 
-    # COMMPILE JSON
-    @staticmethod
-    def compile_from_json(json_src_):
-        """
-        Create instance from JSON
-        """
-        try:
-            config = json.load(json_src_)
-            if not config:
-                raise ValueError("Empty JSON configuration file")
-            return GraphCompiler(**config)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON configuration file: {str(e)}")
-        except TypeError as e:
-            raise ValueError(f"Invalid configuration structure: {str(e)}")
-
-    @staticmethod
-    def compile_from_json_file(json_file_path_: Path):
-        """
-        Create a GraphCompiler instance from a JSON description file.
-        """
-        if not isinstance(json_file_path_, Path):
-            raise TypeError("json_file_path must be a Path object")
-
-        try:
-            with json_file_path_.open('r', encoding='utf-8') as json_file:
-                return GraphCompiler.compile_from_json(json_file)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"JSON file not found: {json_file_path_}")
-        except Exception as e:
-            raise RuntimeError(f"Error reading JSON file {json_file_path_}: {str(e)}")
-
-    # COMMPILE YAML
-    @staticmethod
-    def compile_from_yaml(yaml_src_: str | bytes):
-        """Create instance from YAML"""
-        try:
-            config = yaml.safe_load(yaml_src_)
-            if not config:
-                raise ValueError("Empty YAML configuration file")
-            return GraphCompiler(**config)
-        except yaml.YAMLError as yaml_err:
-            raise ValueError(f"Failed to parse YAML configuration: {yaml_err}")
-        except Exception as e:
-            raise ValueError(f"Error creating GraphCompiler from config: {e}")
-
-    @staticmethod
-    def compile_form_yaml_file(yaml_file_path_: Path):
-        """
-        Create a GraphCompiler instance from a YAL description file.
-        """
-        if not isinstance(yaml_file_path_, Path):
-            raise TypeError("yaml_file_path must be a Path object")
-
-        try:
-            with yaml_file_path_.open('r', encoding='utf-8') as yaml_file:
-                return GraphCompiler.compile_from_yaml(yaml_file)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"YAML file not found: {yaml_file_path_}")
-        except Exception as e:
-            raise RuntimeError(f"Error reading YAML file {yaml_file_path_}: {str(e)}")

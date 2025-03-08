@@ -1,4 +1,4 @@
-from llm.llm_handler import LlmHandler, LlmResponse
+from kegal.llm.llm_handler import LlmHandler, LlmResponse
 
 import boto3
 from botocore.exceptions import ClientError

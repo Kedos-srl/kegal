@@ -74,11 +74,6 @@ Directed edges clarify the relationships and data dependencies between tasks, si
 4. **Scalable Design**
 Additional nodes can be seamlessly introduced to the graph. Because each node is responsible for a single task, new functionality can be integrated without upheaval to the rest of the system.
 
-## Conclusion
-This documentation outlines a flexible and modular approach to building, configuring, and executing a graph of computational nodes. 
-By combining node-centric design with prompt-based execution, the architecture makes it straightforward to maintain, adapt, and extend complex workflows. 
-As the system evolves, new nodes and connections can be integrated with minimal disruption, ensuring that the graph remains transparent, traceable, and easy to manage.
-
 
 ---
 # Graph Data Structure
@@ -125,7 +120,7 @@ Each item in the **models** collection represents a configuration defining how t
 - **host** (string or null): A location or endpoint for the service.
 - **api_key** (string or null): An additional key for authentication or authorization purposes.
 
-When a particular interaction does not require a given property (for instance, no host or access credentials), that field can be left blank or unset.
+When a particular interaction does not require a given property (for instance, no host or access credentials), that field can be left blank or set null.
 
 
 ```json
@@ -186,12 +181,11 @@ models:
 
 ## 3. Systems
 
-Each item under **systems** represents some form of prompt or system directive. Different attributes may be used, depending on whether the prompt includes text for direct display, a file path to load, or a remote location:
+Each item under **systems** represents some form of prompt or system directive. Different attributes may be used, 
+depending on whether the prompt includes text for direct display, a file path to load, or a remote location:
 - **text** (string): Contains textual instructions or content used directly.
 - **path** (string): Points to a file or resource to read from the local environment.
 - **url** (string): Points to an external resource to fetch remotely.
-
-Not all items must have all three properties filled; each system may specialize in one or more of these attributes.
 
 ```json
 {
@@ -229,18 +223,18 @@ Each item under **nodes** represents a discrete unit of processing or interactio
 A node typically specifies:
 
 - **id** (string): A unique identifier.
-- **llm** (numeric index or identifier): References which model configuration or service this node uses.
+- **llm** (numeric index): References which model configuration or service this node uses.
 - **temperature** (numeric): A floating-point adjustment for variability or sampling in content generation.
-- **show** (boolean): Indicates if this node output is visible or active.
+- **show** (boolean): Indicates if this node output is visible or is only used within the graph.
 - **prompt** (object): Holds details about the prompt used for this node, typically referencing:
-    - **system** (numeric index): Points to one of the previously defined system entries.
-    - **placeholders** (object): Carries key-value pairs that fill or refine the prompt’s structure. Examples might be:
+    - **system** (numeric index): Points to one of the previously defined system template entries.
+    - **placeholders** (object): Carries key-value pairs that fill the prompt’s structure.  The default ones are:
         - **post** (string): Content to be processed.
         - **history** (string): Prior interactions or context.
         - **citations** (string): External references or accreditation.
         - **user_role** (string): Indicates the role or perspective of a user.
         - **assistant_role** (string): Indicates the role or perspective of an assistant or automated agent.
-        - ***specialized prompt***: specific placeholders for a prompt
+      
 
 
 

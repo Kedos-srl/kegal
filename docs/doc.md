@@ -205,7 +205,8 @@ depending on whether the prompt includes text for direct display, a file path to
 
 ```yaml
     systems:
-      - text: ""
+      - text: |
+          log text prompt
         path: null
         url: null
       - text: null
@@ -346,3 +347,5 @@ edges:
 The graph compilation starts from the first node of the graph.
 So if the connections of the edges start from Node A, the new user message must be inserted
 in the post field in the node placeholder before passing the configuration to the compiler.
+
+

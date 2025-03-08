@@ -242,7 +242,6 @@ For structured object responses
     ```json 
         "response_tool": {
           "type": "object",
-          "description": "Configuration for executing a tool function with its parameters",
           "properties": {
             "tool": {
               "type": "string",

@@ -41,18 +41,3 @@ def add_documents_to_chroma(chroma_db_path: Path, collection_name: str, document
         print(f"Collection {collection_name} does not exists")
 
 
-def get_chunks_from_chroma(chroma_db_path: Path, collection_name: str, message: str, n_results: int = 5):
-    client = chromadb.PersistentClient(path=str(chroma_db_path))
-    if collection_name in client.list_collections():
-        # Use SentenceTransformer directly
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        message_vector = model.encode([message]).tolist()
-
-        collection = client.get_collection(name=collection_name)
-
-        return collection.query(
-            query_embeddings=message_vector,
-            n_results=n_results
-        )
-    else:
-        print(f"Collection {collection_name} does not exists")

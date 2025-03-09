@@ -75,6 +75,7 @@ class NodeGraph:
         agent_prompt = system.substitute_placeholders(placeholders)
 
         # complete prompt
+        print(agent_prompt)
         completion = llm.complete(agent_prompt, self.data.temperature)
 
         # set response Object

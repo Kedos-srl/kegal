@@ -2,6 +2,7 @@ import openai
 import tiktoken
 
 from kegal.llm.llm_handler import LlmHandler
+from kegal.llm.llm_response import LlmResponse
 
 
 class GptHandler(LlmHandler):

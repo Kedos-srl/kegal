@@ -168,6 +168,7 @@ Generate final output by following the steps below:
     ```json 
         {
           "type": "object",
+          "description": "This is the schema of the response object",
           "properties": {
             "validation": {
               "type": "boolean",
@@ -185,9 +186,10 @@ Generate final output by following the steps below:
         }
     ```
 2. For each element of the schema generate a corresponding valid key according to its description
-3. Generate a draft json
-4. Validate and fixing it
-5. Now generate only the valid json object with NO comments or additional text
+3. Make sure you generate a json and not a schema
+4. Generate a draft json 
+5. Validate and fixing it
+6. Now generate only the valid json object with NO comments or additional text
 ```
 
 **Purpose and Requirements:**
@@ -242,6 +244,7 @@ For structured object responses
     ```json 
         "response_tool": {
           "type": "object",
+          "description": "This is the schema of the tool object",
           "properties": {
             "tool": {
               "type": "string",

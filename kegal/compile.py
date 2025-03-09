@@ -11,7 +11,7 @@ custom_file_handler()
 
 # COMMPILE JSON
 
-def compile_from_json(json_src_):
+def compile_from_json(json_src_, message: str | None = None):
     """
     Create instance from JSON
     """
@@ -19,7 +19,10 @@ def compile_from_json(json_src_):
         config = json.load(json_src_)
         if not config:
             raise ValueError("Empty JSON configuration file")
-        return GraphCompiler(**config)
+        if message:
+            config["nodes"][0]["prompt"]["placeholders"]["post"] = message
+        graph =  GraphCompiler(GraphData(**config))
+        return graph()
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON configuration file: {str(e)}")
     except TypeError as e:
@@ -27,7 +30,7 @@ def compile_from_json(json_src_):
 
 
 
-def compile_from_json_file(json_file_path_: Path):
+def compile_from_json_file(json_file_path_: Path, message: str | None = None):
     """
     Create a GraphCompiler instance from a JSON description file.
     """
@@ -36,7 +39,7 @@ def compile_from_json_file(json_file_path_: Path):
 
     try:
         with json_file_path_.open('r', encoding='utf-8') as json_file:
-            return compile_from_json(json_file)
+            return compile_from_json(json_file, message=message)
     except FileNotFoundError:
         raise FileNotFoundError(f"JSON file not found: {json_file_path_}")
     except Exception as e:
@@ -45,13 +48,16 @@ def compile_from_json_file(json_file_path_: Path):
 
 # COMMPILE YAML
 
-def compile_from_yaml(yaml_src_):
+def compile_from_yaml(yaml_src_, message: str | None = None):
     """Create instance from YAML"""
     try:
         config = yaml.safe_load(yaml_src_)
+        if message:
+            config["nodes"][0]["prompt"]["placeholders"]["post"] = message
         if not config:
             raise ValueError("Empty YAML configuration file")
-        return GraphCompiler(**config)
+        graph =  GraphCompiler(GraphData(**config))
+        return graph()
     except yaml.YAMLError as yaml_err:
         raise ValueError(f"Failed to parse YAML configuration: {yaml_err}")
     except Exception as e:
@@ -59,7 +65,7 @@ def compile_from_yaml(yaml_src_):
 
 
 
-def compile_form_yaml_file(yaml_file_path_: Path):
+def compile_form_yaml_file(yaml_file_path_: Path, message: str | None = None):
     """
     Create a GraphCompiler instance from a YAL description file.
     """
@@ -68,7 +74,7 @@ def compile_form_yaml_file(yaml_file_path_: Path):
 
     try:
         with yaml_file_path_.open('r', encoding='utf-8') as yaml_file:
-            return compile_from_yaml(yaml_file)
+            return compile_from_yaml(yaml_file, message=message)
     except FileNotFoundError:
         raise FileNotFoundError(f"YAML file not found: {yaml_file_path_}")
     except Exception as e:

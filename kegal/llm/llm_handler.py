@@ -25,19 +25,19 @@ class LlmHandler(ABC):
         """
         pass
 
-    @abstractmethod
-    def interpret(self, prompt_: str, image_: Image, max_size: int,  temperature_: float = 0.0) -> dict:
-        """
-        Generates an interpretation of an image based on the provided prompt.
-
-        :param prompt_: The input prompt string for the LLM to process.
-        :param temperature_: A float controlling the randomness of the completion:
-                             - Higher values (e.g., 0.8) create more random responses.
-                             - Lower values (e.g., 0.2) generate more focused responses. Default is 0.5.
-
-        :return: response_content, prompt_size, response_size
-        """
-        pass
+    # @abstractmethod
+    # def interpret(self, prompt_: str, image_: Image, max_size: int,  temperature_: float = 0.0) -> dict:
+    #     """
+    #     Generates an interpretation of an image based on the provided prompt.
+    #
+    #     :param prompt_: The input prompt string for the LLM to process.
+    #     :param temperature_: A float controlling the randomness of the completion:
+    #                          - Higher values (e.g., 0.8) create more random responses.
+    #                          - Lower values (e.g., 0.2) generate more focused responses. Default is 0.5.
+    #
+    #     :return: response_content, prompt_size, response_size
+    #     """
+    #     pass
 
     @staticmethod
     def _cleanup_json_string(json_string) -> dict:

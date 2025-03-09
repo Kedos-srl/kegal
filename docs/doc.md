@@ -75,6 +75,14 @@ Directed edges clarify the relationships and data dependencies between tasks, si
 Additional nodes can be seamlessly introduced to the graph. Because each node is responsible for a single task, new functionality can be integrated without upheaval to the rest of the system.
 
 
+### Smal models tested
+
+**OLLAMA**
+- llama3.1:8b-instruct-q4_K_M
+- llama3.1:8b
+- deepseek-r1:8b 
+- deepseek-r1:7b
+
 ---
 # Graph Data Structure
 

@@ -1,6 +1,6 @@
 models:
   - llm: ollama
-    version: "llama3.1:8b-instruct-q4_K_M"
+    version: "deepseek-r1:7b"
     aws_config: null
     host: "http://localhost:11434"
     api_key: null
@@ -192,7 +192,7 @@ nodes:
     temperature: 0.0
     show: true
     prompt:
-      system: 0
+      system: 1
       placeholders:
         post: ""
         topics: |
@@ -202,7 +202,7 @@ nodes:
     temperature: 0.0
     show: true
     prompt:
-      system: 0
+      system: 2
       placeholders:
         post: ""
         user_role: "Student"
@@ -222,7 +222,7 @@ nodes:
     temperature: 0.0
     show: true
     prompt:
-      system: 0
+      system: 3
       placeholders:
         post: ""
         user_role: "Student"

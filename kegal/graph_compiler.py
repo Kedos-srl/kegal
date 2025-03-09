@@ -70,16 +70,17 @@ class NodeGraph:
         # prompt message
         if post_from_graph_ is not None and "post" in placeholders:
             placeholders["post"] = post_from_graph_
+            self.response.message_content = post_from_graph_
+        elif post_from_graph_ is None and  "post" in placeholders:
+            self.response.message_content = placeholders["post"]
 
         # compose the message to be passed to the llm
         agent_prompt = system.substitute_placeholders(placeholders)
 
         # complete prompt
-        print(agent_prompt)
         completion = llm.complete(agent_prompt, self.data.temperature)
 
         # set response Object
-        self.response.message_content = post_from_graph_
         self.response.response_content = completion["content"]
         self.response.prompt_size = completion["input_size"]
         self.response.response_size = completion["output_size"]

@@ -186,7 +186,7 @@ Generate final output by following the steps below:
         }
     ```
 2. For each element of the schema generate a corresponding valid key according to its description
-3. Make sure you generate a json and not a schema
+3. Make sure you generate a json,  Avoid to output json schema
 4. Generate a draft json 
 5. Validate and fixing it
 6. Now generate only the valid json object with NO comments or additional text

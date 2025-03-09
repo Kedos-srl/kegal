@@ -145,11 +145,13 @@ systems:
       # CONTEXT
       You are a support agent with the role of $assistant_role, helping poster by following directives and answering questions  
       # INSTRUCTIONS
-      Carefully read the post containing a user's message and the response from the assistant responsible for information retrieval.
+      Carefully read the post containing a poster's message and the response from the assistant responsible for information retrieval.
       Select the most relevant information and develop an accurate and professional response
       If you are not able to generate a valid response, explay why
       # POST
       $post
+      # POSTER
+      $user_role
       ## OUTPUT
       Generate final output by following the steps below:
       1. Read the following schema:
@@ -160,11 +162,11 @@ systems:
                 "properties": {
                   "validation": {
                     "type": "boolean",
-                    "description": "If you are not able to elaborate a response set ture, Esle set false"
+                    "description": "If you are not able to elaborate a response set false, Esle set true"
                   },
                   "response_txt": {
                     "type": "string",
-                    "description": "Your final response"
+                    "description": "Your final response using the language in which the poster's message is written "
                   }
                 },
                 "required": [

@@ -1,0 +1,201 @@
+questions:
+ - question: "Which five autochthonous Apulian grapevine cultivars were studied in this research?"
+   validation: True
+ - question: "What is the significance of the paper's title 'Good Wine Makes Good Blood'?"
+   validation: True
+ - question: "What is the relationship between grape seed extract consumption and cardiovascular health?"
+   validation: False
+ - question: "How did the researchers evaluate the antioxidant effects of the non-alcoholic wine extracts?"
+   validation: True
+ - question: "Which cell lines were used to test the potential antioxidant effects of the non-alcoholic wine extracts?"
+   validation: True
+ - question: "How do different soil types affect the expression of genes related to anthocyanin biosynthesis in grapevines?"
+   validation: False
+ - question: "What was the main chemical composition parameter analyzed in both wines and their non-alcoholic extracts?"
+   validation: True
+ - question: "Which cultivar showed the highest content of anthocyanins according to the study?"
+   validation: True
+ - question: "What are the differences in phenolic content between organic and conventionally grown grapes?"
+   validation: False
+ - question: "What role did malvidin-3-glucoside play in the analyzed wine extracts?"
+   validation: True
+ - question: "How did researchers prepare the non-alcoholic extracts from the wines?"
+   validation: True
+ - question: "How does climate change affect the anthocyanin content in Mediterranean grapevines?"
+   validation: False
+ - question: "Which transcriptomic analysis technology was used to analyze gene expression in grape berries?"
+   validation: True
+ - question: "Which three cultivars were selected for transcriptomic analysis and why?"
+   validation: True
+ - question: "What role do endophytic microorganisms play in enhancing grapevine resistance to pathogens?"
+   validation: False
+ - question: "What effect did the non-alcoholic extracts from SM, NT, and NA have on ROS levels induced by tBHP?"
+   validation: True
+ - question: "How did the treatment with non-alcoholic extracts affect NF-kB phosphorylation in the tested cell lines?"
+   validation: True
+ - question: "How does the resveratrol content vary between different Sicilian grape varieties?"
+   validation: False
+ - question: "Which genes involved in anthocyanin biosynthesis were identified and further analyzed?"
+   validation: True
+ - question: "What was the relative expression trend of F3'H and F3'5'H genes in the three cultivars?"
+   validation: True
+ - question: "What is the impact of different pruning techniques on anthocyanin accumulation in red grape varieties?"
+   validation: False
+ - question: "How did the expression of MYBA1 and MYBA2 genes differ between the three analyzed cultivars?"
+   validation: True
+ - question: "What was the significance of p38-MAPK phosphorylation in this study?"
+   validation: True
+ - question: "How does ultrasound-assisted extraction compare to conventional methods for obtaining phenolic compounds from grapes?"
+   validation: False
+ - question: "Which of the studied cultivars had the highest total phenol content in their non-alcoholic extracts?"
+   validation: True
+ - question: "What is the economic importance of wine production in Apulia as mentioned in the paper?"
+   validation: True
+ - question: "What are the main differences in anthocyanin profiles between Vitis vinifera and American Vitis species?"
+   validation: False
+ - question: "How does the paper describe the health effects of grapes and related products?"
+   validation: True
+ - question: "What was the micro-vinification protocol used to produce the monovarietal wines?"
+   validation: True
+ - question: "How do different yeast strains affect the preservation of anthocyanins during wine fermentation?"
+   validation: False
+ - question: "How many biological replicates were considered for the chemical characterization of wines?"
+   validation: True
+ - question: "What analytical method was used to determine the anthocyanin profile in the extracts?"
+   validation: True
+ - question: "How does grape pomace composition differ between white and red wine production waste?"
+   validation: False
+ - question: "What were the main findings regarding cell viability when cells were exposed to non-alcoholic extracts?"
+   validation: True
+ - question: "How did the PCA analysis results reflect the relationship between the cultivars?"
+   validation: True
+ - question: "What are the emerging technologies for anthocyanin extraction that minimize environmental impact?"
+   validation: False
+ - question: "What were the main differences in biological processes between SM and the other cultivars according to gene ontology?"
+   validation: True
+ - question: "How did the researchers validate the transcriptomic data?"
+   validation: True
+ - question: "How does the antioxidant capacity of grape stem extracts compare to grape skin extracts?"
+   validation: False
+ - question: "Which enzyme was responsible for the methylation of anthocyanins in the studied cultivars?"
+   validation: True
+ - question: "What was the role of anthocyanin acyltransferases (ANAT) in the analyzed biosynthetic pathway?"
+   validation: True
+ - question: "What is the role of microRNAs in regulating anthocyanin biosynthesis in grapevines?"
+   validation: False
+ - question: "What does the paper suggest about the genetic background of grape cultivars and its effect on bioactive compounds?"
+   validation: True
+ - question: "How were the berries sampled for transcriptomic analysis?"
+   validation: True
+ - question: "How do different maceration techniques affect the extraction of phenolic compounds from grapes?"
+   validation: False
+ - question: "What were the differences in molecular function between NT and SM compared to NA according to the gene ontology classification?"
+   validation: True
+ - question: "Which cultivars showed comparable expression levels for F3'H gene?"
+   validation: True
+ - question: "What is the effect of pulsed electric field treatment on anthocyanin extraction from grape skins?"
+   validation: False
+ - question: "What was the highest expression value of F3'5'H gene observed in?"
+   validation: True
+ - question: "How many DEGs were found in NA vs NT, NA vs SM, and NT vs SM comparisons?"
+   validation: True
+ - question: "How does grape ripening under different light conditions affect gene expression related to flavonoid biosynthesis?"
+   validation: False
+ - question: "What is the significance of valorizing minor cultivars according to the conclusion of the paper?"
+   validation: True
+ - question: "What was the highest value of pH found in which cultivar?"
+   validation: True
+ - question: "What are the recent advances in using grape byproducts for cosmetic applications?"
+   validation: False
+ - question: "How many PDO wines can be produced using Negramaro according to the paper?"
+   validation: True
+ - question: "What purpose did the Crystal violet assay serve in this study?"
+   validation: True
+ - question: "How does freeze-drying affect the preservation of bioactive compounds in grape products?"
+   validation: False
+ - question: "How did the researchers detect Reactive Oxygen Species (ROS) in the cell assays?"
+   validation: True
+ - question: "What were the funding sources for this research?"
+   validation: True
+ - question: "What are the variations in anthocyanin content across different vintages of the same grape variety?"
+   validation: False
+ - question: "What role do the VvMybA1 and VvMybA2 genes play in anthocyanin accumulation?"
+   validation: True
+ - question: "How many million paired-end reads were generated on average per sample during sequencing?"
+   validation: True
+ - question: "How do grapevine rootstocks influence the phenolic composition of grape berries?"
+   validation: False
+ - question: "What was the function of the elongation factor 1γ (EF1γ) in the qRT-PCR analysis?"
+   validation: True
+ - question: "What was the pH range of the harvested berry samples used in this study?"
+   validation: True
+ - question: "What are the effects of different cluster thinning intensities on anthocyanin accumulation in grapes?"
+   validation: False
+ - question: "Which method was used to analyze the expression levels of the selected genes?"
+   validation: True
+ - question: "How did the authors define the term 'autochthonous' in relation to the studied grape varieties?"
+   validation: True
+ - question: "How does water stress affect the expression of genes related to secondary metabolite production in grapevines?"
+   validation: False
+ - question: "What was the experimental field location where the five cultivars were grown?"
+   validation: True
+ - question: "How were the wines stored and for how long before analysis?"
+   validation: True
+ - question: "What is the current understanding of how epigenetic factors affect grape berry development?"
+   validation: False
+ - question: "What was the specific concentration of non-alcoholic extracts used in the cell treatment experiments?"
+   validation: True
+ - question: "Which three cultivars were identified as 'most promising' based on the study results?"
+   validation: True
+ - question: "How do different bottle closures affect the preservation of anthocyanins during wine aging?"
+   validation: False
+ - question: "How do grape-derived anthocyanins interact with the gut microbiome?"
+   validation: False
+ - question: "What is the role of chitosan treatments in preserving grape quality post-harvest?"
+   validation: False
+ - question: "What are the newest findings regarding grape seed extract and cancer prevention?"
+   validation: False
+ - question: "How do different grape varieties respond to the application of plant growth regulators?"
+   validation: False
+ - question: "What are the differences in metabolomic profiles between conventional and biodynamic viticulture?"
+   validation: False
+ - question: "How does UV-B radiation affect anthocyanin biosynthesis in grape berries?"
+   validation: False
+ - question: "What are the potential applications of grape phenolics in food preservation?"
+   validation: False
+ - question: "How does leaf removal timing affect the phenolic composition of grape berries?"
+   validation: False
+ - question: "What are the emerging techniques for rapid authentication of grape variety based on phenolic fingerprinting?"
+   validation: False
+ - question: "How do different fining agents affect the preservation of phenolic compounds in wine?"
+   validation: False
+ - question: "What is the current understanding of terroir effects on grape anthocyanin profiles?"
+   validation: False
+ - question: "How do different canopy management strategies affect grape berry quality parameters?"
+   validation: False
+ - question: "What is the relationship between berry size and anthocyanin concentration in different grape varieties?"
+   validation: False
+ - question: "How do traditional versus modern winemaking techniques compare in preserving bioactive compounds?"
+   validation: False
+ - question: "What are the effects of different barrel types on wine phenolic evolution during aging?"
+   validation: False
+ - question: "How does the addition of oenological tannins affect wine color stability?"
+   validation: False
+ - question: "What is the potential of using grape phenolics as natural food colorants?"
+   validation: False
+ - question: "How do different storage temperatures affect anthocyanin stability in grape products?"
+   validation: False
+ - question: "What are the recent developments in using CRISPR-Cas9 for improving grape quality traits?"
+   validation: False
+ - question: "How does copper spraying in vineyards affect grape phenolic composition?"
+   validation: False
+ - question: "What are the differences in anthocyanin extractability between machine harvested and hand-harvested grapes?"
+   validation: False
+ - question: "How does altitude affect the accumulation of phenolic compounds in mountain viticulture?"
+   validation: False
+ - question: "What is the impact of different pressing techniques on phenolic extraction from grapes?"
+   validation: False
+ - question: "How do different filtration methods affect the phenolic content of wines?"
+   validation: False
+ - question: "What are the effects of grape seed extract supplementation on exercise performance and recovery?"
+   validation: False

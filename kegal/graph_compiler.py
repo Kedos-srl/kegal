@@ -110,12 +110,14 @@ class NodeGraph:
 
     def get_chat_messages(self) -> str:
         placeholders = self.data.prompt.placeholders
+        message = placeholders["post"]
         if "post" in placeholders:
-            message =  self.data.prompt.placeholders["post"]
             if "user_role" in placeholders:
-                message += f"{placeholders['post']}"
+                user_role = placeholders["user_role"]
+                message += f"{user_role}: {message}"
             if "assistant_role" in placeholders:
-                message += f"{get_response_message(self.response)}"
+                assistant_role = placeholders["assistant_role"]
+                message += f"{assistant_role}: {get_response_message(self.response)}"
             return message
         else:
             return ""

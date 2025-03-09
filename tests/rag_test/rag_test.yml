@@ -231,3 +231,9 @@ edges:
     - source: toxic_guard
       target: context_guard
       attrib: user_message
+    - source: context_guard
+      target: rag_tool
+      attrib: user_message
+    - source: rag_tool
+      target: assistant
+      attrib: chat_messages

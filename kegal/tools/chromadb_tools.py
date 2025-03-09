@@ -9,6 +9,8 @@ def get_chunks_from_chroma(**kwargs):
     collection_name: str = kwargs["collection_name"]
     message: str = kwargs["message"]
     n_results: int = kwargs["n_results"]
+
+
     if n_results == 0 or n_results > 5:
         n_results = 3
 

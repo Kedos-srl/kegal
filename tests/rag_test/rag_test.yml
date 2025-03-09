@@ -196,7 +196,9 @@ nodes:
       placeholders:
         post: ""
         topics: |
-          Italian Wines
+          Apulian Wines,
+          Apulian Grapevine,
+          Apulian Grapes and related products
   - id: "rag_tool"
     llm: 0
     temperature: 0.0

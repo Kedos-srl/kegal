@@ -1,0 +1,103 @@
+questions:
+ - question: "Quali cinque vitigni autoctoni pugliesi sono stati studiati in questa ricerca?"
+   validation: True
+ - question: "Qual è il significato del titolo dell'articolo 'Good Wine Makes Good Blood'?"
+   validation: True
+ - question: "Qual è la relazione tra il consumo di estratto di semi d'uva e la salute cardiovascolare?"
+   validation: False
+ - question: "Come hanno valutato i ricercatori gli effetti antiossidanti degli estratti di vino non alcolici?"
+   validation: True
+ - question: "Quali linee cellulari sono state utilizzate per testare i potenziali effetti antiossidanti degli estratti di vino non alcolici?"
+   validation: True
+ - question: "Come influiscono i diversi tipi di suolo sull'espressione dei geni legati alla biosintesi delle antocianine nelle viti?"
+   validation: False
+ - question: "Qual è stato il principale parametro di composizione chimica analizzato sia nei vini che nei loro estratti non alcolici?"
+   validation: True
+ - question: "Quale cultivar ha mostrato il più alto contenuto di antocianine secondo lo studio?"
+   validation: True
+ - question: "Quali sono le differenze nel contenuto fenolico tra uve coltivate biologicamente e convenzionalmente?"
+   validation: False
+ - question: "Quale ruolo ha avuto la malvidina-3-glucoside negli estratti di vino analizzati?"
+   validation: True
+ - question: "In che modo l'istituto CRSFA ha contribuito alla ricerca sulle varietà autoctone pugliesi?"
+   validation: True
+ - question: "Come si confrontano i risultati di questo studio con altre ricerche condotte sui vitigni internazionali?"
+   validation: False
+ - question: "Quali sono state le condizioni precise di cromatografia utilizzate per identificare le antocianine?"
+   validation: True
+ - question: "Come è stata determinata la maturità ottimale delle uve al momento della raccolta?"
+   validation: True
+ - question: "Qual è l'importanza della Puglia come regione viticola nel panorama italiano secondo l'articolo?"
+   validation: True
+ - question: "Perché i ricercatori hanno scelto di studiare specificamente Negramaro, Nero di Troia e Susumaniello per l'analisi trascrittomica?"
+   validation: True
+ - question: "Come funziona il meccanismo molecolare attraverso cui le antocianine esercitano i loro effetti benefici sulla salute?"
+   validation: False
+ - question: "Quali caratteristiche organolettiche distinguono i vini prodotti dai cinque cultivar studiati?"
+   validation: True
+ - question: "Perché è stato necessario evaporare l'alcol per gli esperimenti sulle linee cellulari?"
+   validation: True
+ - question: "Quali prospettive future per la commercializzazione dei vini autoctoni pugliesi emergono dalla ricerca?"
+   validation: True
+ - question: "Come varia la composizione del terreno nelle diverse aree viticole della Puglia?"
+   validation: False
+ - question: "Quali sono le relazioni tra la struttura genetica delle varietà autoctone pugliesi e altre varietà mediterranee?"
+   validation: True
+ - question: "Qual è la relazione tra il contenuto di antocianine e l'effetto anti-infiammatorio osservato negli esperimenti cellulari?"
+   validation: True
+ - question: "Quali fattori climatici specifici della Puglia influenzano la biosintesi delle antocianine nei vitigni studiati?"
+   validation: False
+ - question: "Come è cambiata l'espressione dei geni coinvolti nel pathway delle antocianine durante le diverse fasi di maturazione dell'uva?"
+   validation: True
+ - question: "Quali tecniche di vinificazione alternative potrebbero migliorare l'estrazione dei composti bioattivi nelle varietà studiate?"
+   validation: False
+ - question: "Come sono state selezionate le concentrazioni degli estratti non alcolici utilizzate negli esperimenti cellulari?"
+   validation: True
+ - question: "Quali altri metaboliti secondari, oltre alle antocianine, sono stati identificati negli estratti studiati?"
+   validation: True
+ - question: "Quanto incide la presenza di antocianine acilate sulla stabilità del colore nei vini prodotti dalle varietà studiate?"
+   validation: True
+ - question: "Come sono state ottimizzate le condizioni di estrazione per massimizzare il contenuto fenolico totale?"
+   validation: True
+ - question: "Quali caratteristiche pedoclimatiche della regione Puglia contribuiscono alla qualità dei vitigni autoctoni?"
+   validation: False
+ - question: "Come è stata valutata la purezza degli estratti non alcolici prima degli esperimenti cellulari?"
+   validation: True
+ - question: "In che modo l'espressione dei fattori di trascrizione MYBA1 e MYBA2 correla con il contenuto finale di antocianine nelle diverse varietà?"
+   validation: True
+ - question: "Quali sono le principali minacce alla conservazione della biodiversità viticola pugliese?"
+   validation: False
+ - question: "Come sono stati normalizzati i dati di qRT-PCR nell'analisi dell'espressione genica?"
+   validation: True
+ - question: "Quali vantaggi economici potrebbero derivare dalla valorizzazione dei vitigni minori come il Susumaniello?"
+   validation: True
+ - question: "Quali modifiche post-traduzionali delle antocianine influenzano la loro biodisponibilità?"
+   validation: False
+ - question: "Come sono state verificate le correlazioni tra i dati trascrittomici e le analisi chimiche nei tre cultivar selezionati?"
+   validation: True
+ - question: "Quali biomarcatori sono stati utilizzati per valutare lo stress ossidativo nelle cellule trattate con gli estratti?"
+   validation: True
+ - question: "Come si relaziona questo studio con le politiche di valorizzazione dei prodotti tipici pugliesi?"
+   validation: True
+ - question: "Qual è l'effetto della potatura verde sulla concentrazione di composti fenolici nei vitigni autoctoni pugliesi?"
+   validation: False
+ - question: "Come è stata determinata la specificità degli anticorpi utilizzati negli esperimenti di Western blot?"
+   validation: True
+ - question: "Quali aspetti della ricerca potrebbero essere applicati per lo sviluppo di nutraceutici derivati dall'uva?"
+   validation: True
+ - question: "Come si comportano le antocianine degli estratti studiati in condizioni di pH variabile?"
+   validation: False
+ - question: "Quali software bioinformatici sono stati utilizzati per l'analisi dei dati di RNA-seq?"
+   validation: True
+ - question: "Come è stata valutata la significatività statistica nei confronti tra i diversi cultivar?"
+   validation: True
+ - question: "Quali resistenze naturali ai patogeni sono state osservate nei vitigni autoctoni pugliesi studiati?"
+   validation: False
+ - question: "Quale impatto ha avuto la ricerca sulla percezione dei vini pugliesi nei mercati internazionali?"
+   validation: True
+ - question: "Come sono stati selezionati i geni candidati per la validazione mediante qRT-PCR?"
+   validation: True
+ - question: "Quali tecniche innovative di marketing potrebbero essere applicate per promuovere i vini da vitigni minori pugliesi?"
+   validation: False
+ - question: "Come influisce l'età delle viti sulla qualità dei composti bioattivi nelle uve studiate?"
+   validation: False

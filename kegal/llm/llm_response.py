@@ -43,9 +43,17 @@ def get_response_message(response_: LlmResponse) -> str:
         return response_.response_content["response_obj"]
     elif "response_tool" in response_.response_content:
         response_tool = response_.response_content["response_tool"]
-        config = ToolConfig(**response_tool)
-        manager = ToolsManager()
-        result = manager.execute_from_config(config)
-        return stringify_tool_result(result)
+        # Add validation to ensure response_tool is properly formatted
+        if not response_tool or not isinstance(response_tool, dict):
+            return ""
+        try:
+            config = ToolConfig(**response_tool)
+            manager = ToolsManager()
+            result = manager.execute_from_config(config)
+            return stringify_tool_result(result)
+        except Exception as e:
+            # Handle validation errors gracefully
+            print(f"Error processing tool response: {e}")
+            return ""
     else:
         return ""

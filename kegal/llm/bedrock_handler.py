@@ -34,8 +34,8 @@ class BedrockHandler(LlmHandler):
 
 
             return { "content": self._cleanup_json_string(content),
-                     "input_size":  usage["outputTokens"],
-                     "output_size": usage["inputTokens"] }
+                     "input_size": usage["inputTokens"] ,
+                     "output_size":  usage["outputTokens"]}
 
         except (ClientError, Exception) as e:
             print(f"ERROR: Can't invoke '{self.model}'. Reason:\n {e}")

@@ -45,6 +45,7 @@ def get_response_message(response_: LlmResponse) -> str:
         response_tool = response_.response_content["response_tool"]
         # Add validation to ensure response_tool is properly formatted
         if not response_tool or not isinstance(response_tool, dict):
+            print(f"Empty tool: {str(response_tool)}")
             return ""
         try:
             config = ToolConfig(**response_tool)
@@ -54,6 +55,7 @@ def get_response_message(response_: LlmResponse) -> str:
         except Exception as e:
             # Handle validation errors gracefully
             print(f"Error processing tool response: {e}")
+            print(f"Tool response: {response_tool}")
             return ""
     else:
         return ""

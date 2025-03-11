@@ -58,10 +58,12 @@ class ToolsManager:
 
 
         # Split module and function names
+        if not config.tool or config.tool == "":
+            raise ValueError("Tool is empty")
         try:
             module_name, func_name = config.tool.rsplit(".", 1)
         except ValueError:
-            raise ValueError("Tool must be in format 'module_name.function_name'")
+            raise ValueError(f"Tool must be in format 'module_name.function_name {config.tool}")
 
         # Load module
         module = self.load_module(module_name)

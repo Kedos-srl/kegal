@@ -241,30 +241,54 @@ For structured object responses
 #### 4. Tool Response Schema
 
 ```markdown
-    ```json 
-        "response_tool": {
-          "type": "object",
-          "description": "This is the schema of the tool object",
-          "properties": {
-            "tool": {
-              "type": "string",
-              "description": "The tool identifier in 'module_name.function_name' format that specifies which tool to execute",
-              "examples": "image_processor.resize_image"
-            },
-            "parameters": {
-              "type": "object",
-              "description": "Dictionary containing the parameters to be passed to the tool function",
-              "additionalProperties": true,
-              "examples": {
-                "width": 800,
-                "height": 600,
-                "path": "image.jpg"
-              }
+       ```json 
+           {
+                "type": "object",
+                "description": "This is the schema of the response object",
+                "properties": {
+                  "validation": {
+                    "type": "boolean",
+                    "description": "if there are no relevant tools set false, Else set true"
+                  },
+                  "response_tool": {
+                    "type": "object",
+                    "description": "This is the schema of the tool object"
+                    "properties": {
+                     "tool_id": {
+                        "type": "string",
+                        "description": "The identifier of the tool most relevant to the post"
+                      },
+                     "documentation:{
+                       "type": "string",
+                        "description": "the documentation useful for identifying the usefulness of a tool"
+                     },
+                      "tool": {
+                        "type": "string",
+                        "description": "The python function to invoke as tool. Tool must be in format module_name.function_name",
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "description": "Object containing the parameters to be passed to the tool function"
+                      }
+                    },
+                    "example:" {
+                        "tool_id": "some_tool",
+                        "documentation": "This tool is used to do things"
+                        "tool": "module_name.function_name",
+                        "parameters": {
+                              "param1": "value1",
+                              "param2": "value2",
+                       }
+                    },
+                    "required": ["tool", "parameters"],
+                  }
+                },
+                "required": [
+                  "validation",
+                  "response_tool"
+                ]
             }
-          },
-          "required": ["tool", "parameters"],
-        }
-    ```
+       ```
 ```
 
 **Purpose and Requirements:**

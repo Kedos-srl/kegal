@@ -1,6 +1,6 @@
 models:
   - llm: ollama
-    version: "llama3.1:8b"
+    version: "llama3.1:8b-instruct-q4_K_M"
     aws_config: null
     host: "http://localhost:11434"
     api_key: null
@@ -47,7 +47,7 @@ systems:
               }
           ```
       2. For each element of the schema generate a corresponding valid key according to its description
-      3. Make sure you generate a json,  Avoid to output json schema
+      3. Make sure you generate a valid json,  you must avoid to output json schema
       4. Generate a draft json 
       5. Validate and fixing it
       6. Now generate only the valid json object with NO comments or additional text
@@ -86,7 +86,7 @@ systems:
               }
           ```
       2. For each element of the schema generate a corresponding valid key according to its description
-      3. Make sure you generate a json,  Avoid to output json schema
+      3. Make sure you generate a valid json,  you must avoid to output json schema
       4. Generate a draft json 
       5. Validate and fixing it
       6. Now generate only the valid json object with NO comments or additional text
@@ -114,18 +114,32 @@ systems:
                     "description": "if there are no relevant tools set false, Else set true"
                   },
                   "response_tool": {
-                    "type": "object",
-                    "description": "This is the schema of the tool object",
-                    "properties": {
-                      "tool": {
-                        "type": "string",
-                        "description": "The identifier of the tool most relevant to the post",
-                        "examples": "module_name.function_name"
-                      },
-                      "parameters": {
-                        "type": "object",
-                        "description": "Object containing the parameters to be passed to the tool function"
-                      }
+                      "type": "object",
+                      "description": "This is the schema to follow for tool object",
+                      "properties": {
+                         "tool_id": {
+                          "type": "string",
+                          "description": "The identifier of the tool most relevant to the post"
+                        },
+                       "documentation:{
+                         "type": "string",
+                          "description": "The documentation useful for identifying the usefulness of a tool"
+                       },
+                        "tool": {
+                          "type": "string",
+                          "description": "The identifier of the tool most relevant to the post. Tool must be in format module_name.function_name",
+                        },
+                        "parameters": {
+                          "type": "object",
+                          "description": "Object containing the parameters to be passed to the tool function"
+                        }
+                    },
+                    "example:" {
+                        "tool": "module_name.function_name",
+                        "parameters": {
+                              "param1": "value1",
+                              "param2": "value2",
+                       }
                     },
                     "required": ["tool", "parameters"],
                   }
@@ -137,7 +151,7 @@ systems:
             }
         ```
       2. For each element of the schema generate a corresponding valid key according to its description
-      3. Make sure you generate a json,  Avoid to output json schema
+      3. Make sure you generate a valid json,  you must avoid to output json schema
       4. Generate a draft json 
       5. Validate and fixing it
       6. Now generate only the valid json object with NO comments or additional text
@@ -176,7 +190,7 @@ systems:
               }
           ```
       2. For each element of the schema generate a corresponding valid key according to its description
-      3. Make sure you generate a json,  Avoid to output json schema
+      3. Make sure you generate a valid json,  you must avoid to output json schema
       4. Generate a draft json 
       5. Validate and fixing it
       6. Now generate only the valid json object with NO comments or additional text
@@ -212,15 +226,17 @@ nodes:
         user_role: "Student"
         assistant_role: "RAG Manager"
         tools: |
-          - chromadb_tools.get_chunks_from_chroma
-              * description: python call to invoke the vector database containing 
-                             information about wines and wines in Italy
-              * parameters: {
-                    "chroma_db_path": "vdb",
-                    "collection_name": "wine_data",
-                    "n_results": 3,
-                    "message": $post
-                }
+          - {
+                "tool_id": "wine_db_retriever",
+                "documentation": "Invoke the vector chromadb vector database to retrieve informations about wines and wines in Italy"
+                "tool": chromadb_tools.get_chunks_from_chroma, 
+                "parameters": {
+                        "chroma_db_path": "vdb",
+                        "collection_name": "wine_data",
+                        "n_results": 3,
+                        "message": $post
+                    }
+            }
   - id: "assistant"
     llm: 0
     temperature: 0.0

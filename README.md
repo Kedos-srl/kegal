@@ -9,7 +9,7 @@ Additionally, each agent can utilize tools written in Python to connect to
 external knowledge sources. Moreover, agents can invoke external services via HTTP,
 allowing seamless integration with various systems.
 
-The core concept of KeGal is to leverage one or more LLMs to manage workflow
+The core concept of KeGAL is to leverage one or more LLMs to manage workflow
 execution within the architecture. Agents contain no traditional code; instead,
 everything is controlled by the LLM through its tooling capabilities.
 

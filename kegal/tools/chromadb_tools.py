@@ -21,16 +21,16 @@ def get_chunks_from_chroma(**kwargs):
             # Try to use GPU if available
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-            # Initialize model with specific device and lower memory usage
+            # Initialize model with specific device and lower memories usage
             try:
                 model.to(device)
             except RuntimeError:
-                # If GPU memory error occurs, fall back to CPU
-                print("GPU memory insufficient, falling back to CPU")
+                # If GPU memories error occurs, fall back to CPU
+                print("GPU memories insufficient, falling back to CPU")
                 device = torch.device('cpu')
                 model.to(device)
 
-            # Process input in a memory-efficient way
+            # Process input in a memories-efficient way
             with torch.no_grad():  # Disable gradient calculation
                 message_vector = model.encode([message],
                                               device=device,
@@ -44,7 +44,7 @@ def get_chunks_from_chroma(**kwargs):
                 n_results=n_results
             )
 
-            # Clear GPU memory if it was used
+            # Clear GPU memories if it was used
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
 

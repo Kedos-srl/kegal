@@ -65,7 +65,7 @@ def compile_from_yaml(yaml_src_, message: str | None = None):
 
 
 
-def compile_form_yaml_file(yaml_file_path_: Path, message: str | None = None):
+def compile_from_yaml_file(yaml_file_path_: Path, message: str | None = None):
     """
     Create a GraphCompiler instance from a YAL description file.
     """

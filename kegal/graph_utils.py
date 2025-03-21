@@ -100,3 +100,30 @@ def export_graph_as_yaml(graph_data: GraphData, file_path: Path):
         f.write(yaml_str)
 
 
+def update_yml_file_data_history(yaml_file_path_: Path, responses: [LlmResponse]):
+    if not isinstance(yaml_file_path_, Path):
+        raise TypeError("yaml_file_path must be a Path object")
+    try:
+        with yaml_file_path_.open('r', encoding='utf-8') as yaml_file:
+            config = yaml.safe_load(yaml_file)
+            graph = update_graph_data_history( GraphData(**config), responses)
+            export_graph_as_yaml(graph, yaml_file_path_)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"YAML file not found: {yaml_file_path_}")
+    except Exception as e:
+        raise RuntimeError(f"Error reading YAML file {yaml_file_path_}: {str(e)}")
+
+
+def update_json_file_data_history(json_file_path_: Path, responses: [LlmResponse]):
+    if not isinstance(json_file_path_, Path):
+        raise TypeError("json_file_path must be a Path object")
+    try:
+        with json_file_path_.open('r', encoding='utf-8') as json_file:
+            config = json.load(json_file)
+            graph = update_graph_data_history( GraphData(**config), responses)
+            export_graph_as_json(graph, json_file_path_)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"JSON file not found: {json_file_path_}")
+    except Exception as e:
+        raise RuntimeError(f"Error reading JSON file {json_file_path_}: {str(e)}")
+

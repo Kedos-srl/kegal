@@ -2,7 +2,7 @@ from pathlib import Path
 from datetime import datetime
 
 
-from kegal.compile import compile_form_yaml_file
+from kegal.generate_graph import compile_from_yaml_file
 from kegal.llm.ollama_handler import OllamaHandler
 from tests.rag_test.questions.questions import load_question_file_en, load_question_file_it
 from tests.utils.reports import save_markdown_report
@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
 
         report += f"### Response\n"
-        response = compile_form_yaml_file(Path("test_rag.yml"),
+        response = compile_from_yaml_file(Path("test_rag.yml"),
                                           message=question)
         for r in response:
             node_id = f"\n\n**{r.id}**\n"

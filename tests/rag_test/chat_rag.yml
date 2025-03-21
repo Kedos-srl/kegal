@@ -91,9 +91,9 @@ systems:
       5. Validate and fixing it
       6. Now generate only the valid json object with NO comments or additional text
   - text: |
-      # CONTEXT
+      ## CONTEXT
       You are $assistant_role with access to various tools that extend your capabilities. 
-      # INSTRUCTIONS
+      ## INSTRUCTIONS
       - You have access to the following tools to best respond to the poster query:
         $tools
       - Analyze the post and choose which tool is the most relevant
@@ -156,15 +156,17 @@ systems:
       5. Validate and fixing it
       6. Now generate only the valid json object with NO comments or additional text
   - text: |
-      # CONTEXT
+      ## CONTEXT
       You are a support agent with the role of $assistant_role, helping poster by following directives and answering questions  
-      # INSTRUCTIONS
+      ## INSTRUCTIONS
       Carefully read the post containing a poster's message and the response from the assistant responsible for information retrieval.
       Select the most relevant information and develop an accurate and professional response
       If you are not able to generate a valid response, explay why
-      # POST
+      ## CONVERSATION HISTORY
+      $hisotry
+      ## POST
       $post
-      # POSTER
+      ## POSTER
       $user_role
       ## OUTPUT
       Generate final output by following the steps below:
@@ -245,6 +247,7 @@ nodes:
       system: 3
       placeholders:
         post: ""
+        history: ""
         user_role: "Student"
         assistant_role: " Professor of Oenology"
 edges:

@@ -10,15 +10,6 @@ The architecture prioritizes reusability, modularity, and transparency in the fl
 Each node is a self-contained unit performing a single specific task in the computational graph. 
 This modular design ensures that the responsibilities of a node remain focused, making the workflow easy to maintain and expand.
 
-[//]: # (### Handling Self-Referential Nodes)
-
-[//]: # (In some cases, a node might need to reference its own output &#40;e.g., iterative processing&#41;.)
-
-[//]: # (The architecture supports self-referencing by allowing edges to feed a node’s output back into itself. )
-
-[//]: # (This should be configured carefully to avoid unintended loops or excessive recursion. )
-
-[//]: # (Typically, a node’s prompt definitions and the data flow management system must incorporate logic to handle iteration stops or convergence criteria.)
 
 ### Prompt-Based Execution
 Rather than embedding functionality directly into the application, each node’s logic is dictated by prompts. 

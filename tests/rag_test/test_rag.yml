@@ -92,11 +92,10 @@ systems:
       6. Now generate only the valid json object with NO comments or additional text
   - text: |
       # CONTEXT
-      You are $assistant_role with access to various tools that extend your capabilities. 
+      You are $assistant_role with access to ChromaDB tools that extend your capabilities. 
       # INSTRUCTIONS
-      - You have access to the following tools to best respond to the poster query:
+      - You have access to the following tool:
         $tools
-      - Analyze the post and choose which tool is the most relevant
       ## POST
       $post
       ## POSTER
@@ -111,7 +110,7 @@ systems:
                 "properties": {
                   "validation": {
                     "type": "boolean",
-                    "description": "if there are no relevant tools set false, Else set true"
+                    "description": "Always set true"
                   },
                   "response_tool": {
                       "type": "object",
@@ -119,15 +118,15 @@ systems:
                       "properties": {
                          "tool_id": {
                           "type": "string",
-                          "description": "The identifier of the tool most relevant to the post"
+                          "description": "The identifier of the tool"
                         },
                        "documentation:{
                          "type": "string",
-                          "description": "The documentation useful for identifying the usefulness of a tool"
+                          "description": "The documentation useful for identifying the tool"
                        },
                         "tool": {
                           "type": "string",
-                          "description": "The identifier of the tool most relevant to the post. Tool must be in format module_name.function_name",
+                          "description": "The tool to call. Tool must be in format module_name.function_name",
                         },
                         "parameters": {
                           "type": "object",

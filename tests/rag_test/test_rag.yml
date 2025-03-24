@@ -1,6 +1,6 @@
 models:
   - llm: ollama
-    version: "llama3.1:8b-instruct-q4_K_M"
+    version: "qwen2.5:7b-instruct-q4_K_M"
     aws_config: null
     host: "http://localhost:11434"
     api_key: null

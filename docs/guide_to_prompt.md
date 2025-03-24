@@ -163,7 +163,7 @@ without any modifications to structure or content.
 
 ```markdown
 ## OUTPUT
-Generate final output by following the steps below:
+Generate the final json output by following the steps below:
 1. Read the following schema:
     ```json 
         {
@@ -186,24 +186,25 @@ Generate final output by following the steps below:
         }
     ```
 2. For each element of the schema generate a corresponding valid key according to its description
-3. Make sure you generate a json,  Avoid to output json schema
-4. Generate a draft json 
-5. Validate and fixing it
-6. Now generate only the valid json object with NO comments or additional text
+3. Make sure you generate a valid json,  you must avoid to output json schema
+4. Example of what I want:
+   Schema: { "type": "object", "properties": { "response": { "type": "string" }, "validation": { "type": "validation" } } }
+   Expected response: { "response": "loren ipusm", "validation": true }
+5. Now generate only the valid json object with NO comments or additional text
 ```
 
 **Purpose and Requirements:**
 Both of the following fields are REQUIRED in every response
 - `validation`: Boolean field for response validity. 
               This value is used in the python code to continue or not in the graph view
-- `response_txt`, `response_obj`, `response_tool`:  response management field
+- `response_txt`, `response_obj`, `response_tool`, `response_selected_tools`:  response management field
 
 
 ***|N.B.|***
 For each schema object the "description" field is extremely important to give the right reference
 s on what the terms for validation should be or what and how a response should be sent.
 
-#### Text Response Schema
+#### 2. Text Response Schema
 
 ```markdown
     ```json 
@@ -237,8 +238,65 @@ For structured object responses
 - Must maintain valid JSON structure
 - Properties vary by context
 
+### 4. Selected tools 
 
-#### 4. Tool Response Schema
+```markdown
+       ```json 
+           {
+                "type": "object",
+                "description": "This is the schema of the response object",
+                "properties": {
+                  "validation": {
+                    "type": "boolean",
+                    "description": "Always set true"
+                  },
+                  "response_tool": {
+                      "type": "object",
+                      "description": "This is the schema to follow for tool object",
+                      "properties": {
+                         "tool_id": {
+                          "type": "string",
+                          "description": "The identifier of the tool"
+                        }
+                        "tool": {
+                          "type": "string",
+                          "description": "The tool to call. Tool must be in format module_name.function_name",
+                        },
+                        "parameters": {
+                          "type": "object",
+                          "description": "Object containing the parameters to be passed to the tool function"
+                        }
+                    },
+                    "example:" {
+                        "tool": "module_name.function_name",
+                        "parameters": {
+                              "param1": "value1",
+                              "param2": "value2",
+                       }
+                    },
+                    "required": ["tool", "parameters"],
+                  }
+                },
+                "required": [
+                  "validation",
+                  "response_tool"
+                ]
+            }
+        ```
+```
+
+**Purpose and Requirements:**
+Defines tool execution configuration
+- `tool`:
+  * MUST use 'module_name.function_name' format
+  * Specifies tool function to execute
+  * String type only
+- `parameters`:
+  * Contains tool-specific parameters
+  * Must be valid JSON object
+  * Values must match tool requirements 
+
+### 5. Tool Response Schema
 
 ```markdown
        ```json 
@@ -250,26 +308,25 @@ For structured object responses
                     "type": "boolean",
                     "description": "if there are no relevant tools set false, Else set true"
                   },
-                  "response_tool": {
-                    "type": "object",
-                    "description": "This is the schema of the tool object"
-                    "properties": {
-                     "tool_id": {
-                        "type": "string",
-                        "description": "The identifier of the tool most relevant to the post"
-                      },
-                     "documentation:{
-                       "type": "string",
-                        "description": "the documentation useful for identifying the usefulness of a tool"
-                     },
-                      "tool": {
-                        "type": "string",
-                        "description": "The python function to invoke as tool. Tool must be in format module_name.function_name",
-                      },
-                      "parameters": {
-                        "type": "object",
-                        "description": "Object containing the parameters to be passed to the tool function"
-                      }
+                  "response_selected_tools": {
+                    "type": "array",
+                    "description": "This is the schema of the tool arrays"
+                    "items": {
+                        "types: "object",
+                        "properties": {
+                           "tool_id": {
+                              "type": "string",
+                              "description": "The identifier of the tool most relevant to the post"
+                            }
+                            "tool": {
+                              "type": "string",
+                              "description": "The python function to invoke as tool. Tool must be in format module_name.function_name",
+                            },
+                            "parameters": {
+                              "type": "object",
+                              "description": "Object containing the parameters to be passed to the tool function"
+                            }
+                        }
                     },
                     "example:" {
                         "tool_id": "some_tool",
@@ -291,19 +348,9 @@ For structured object responses
        ```
 ```
 
-**Purpose and Requirements:**
-Defines tool execution configuration
-- `tool`:
-  * MUST use 'module_name.function_name' format
-  * Specifies tool function to execute
-  * String type only
-- `parameters`:
-  * Contains tool-specific parameters
-  * Must be valid JSON object
-  * Values must match tool requirements 
 
 
-### Schema Validation Rules
+### 6. Schema Validation Rules
 - Valid JSON syntax required
 - All required fields must exist
 - Exact data type matching

@@ -5,6 +5,8 @@ from pathlib import Path
 def save_markdown_report(md_dir: Path, content: str):
     # Create timestamp and directory name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Ensure the directory exists
+    md_dir.mkdir(parents=True, exist_ok=True)
 
     # Create file path and save content
     file_path = md_dir / f"rag_test_{timestamp}.md"

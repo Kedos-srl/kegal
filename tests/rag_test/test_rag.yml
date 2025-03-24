@@ -46,11 +46,12 @@ systems:
                 ]
               }
           ```
-      2. Make sure you generate a valid json,  you must avoid to output json schema
-      3. Example of what I want:
+      2. For each element of the schema generate a corresponding valid key according to its description
+      3. Make sure you generate a valid json,  you must avoid to output json schema
+      4. Example of what I want:
          Schema: { "type": "object", "properties": { "response": { "type": "string" }, "validation": { "type": "validation" } } }
          Expected response: { "response": "loren ipusm", "validation": true }
-      4. Now generate only the valid json object with NO comments or additional text
+      5. Now generate only the valid json object with NO comments or additional text
   - text: |
       ## CONTEXT
       You are a specialized system designed to analyze the user post and determine
@@ -85,11 +86,12 @@ systems:
                 ]
               }
           ```
-      2. Make sure you generate a valid json,  you must avoid to output json schema
-      3. Example of what I want:
+      2. For each element of the schema generate a corresponding valid key according to its description
+      3. Make sure you generate a valid json,  you must avoid to output json schema
+      4. Example of what I want:
          Schema: { "type": "object", "properties": { "response": { "type": "string" }, "validation": { "type": "validation" } } }
          Expected response: { "response": "loren ipusm", "validation": true }
-      4. Now generate only the valid json object with NO comments or additional text
+      5. Now generate only the valid json object with NO comments or additional text
   - text: |
       # CONTEXT
       You are $assistant_role with access to a single tool that extend your capabilities. 
@@ -145,11 +147,12 @@ systems:
                 ]
             }
         ```
-      2. Make sure you generate a valid json,  you must avoid to output json schema
-      3. Example of what I want:
+      2. For each element of the schema generate a corresponding valid key according to its description
+      3. Make sure you generate a valid json,  you must avoid to output json schema
+      4. Example of what I want:
          Schema: { "type": "object", "properties": { "response": { "type": "string" }, "validation": { "type": "validation" } } }
          Expected response: { "response": "loren ipusm", "validation": true }
-      4. Now generate only the valid json object with NO comments or additional text
+      5. Now generate only the valid json object with NO comments or additional text
   - text: |
       # CONTEXT
       You are a support agent with the role of $assistant_role, helping poster by following directives and answering questions  
@@ -184,11 +187,12 @@ systems:
                 ]
               }
           ```
-      2. Make sure you generate a valid json,  you must avoid to output json schema
-      3. Example of what I want:
+      2. For each element of the schema generate a corresponding valid key according to its description
+      3. Make sure you generate a valid json,  you must avoid to output json schema
+      4. Example of what I want:
          Schema: { "type": "object", "properties": { "response": { "type": "string" }, "validation": { "type": "validation" } } }
          Expected response: { "response": "loren ipusm", "validation": true }
-      4. Now generate only the valid json object with NO comments or additional text
+      5. Now generate only the valid json object with NO comments or additional text
 nodes:
   - id: "toxic_guard"
     llm: 0

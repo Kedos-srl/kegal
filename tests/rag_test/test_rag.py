@@ -19,64 +19,66 @@ if __name__ == '__main__':
 
     questions_en = load_question_file_en()["questions"]
     questions_it = load_question_file_it()["questions"]
+
     questions = questions_en + questions_it
 
-    validation_report = "# VALIDATIONS"
+    general_report = {
+        "output_failed": 0,
+        "output_ok": 0,
+    }
+    reports = ""
+    chats = ""
 
-    invalid_outputs = "# INVALID OUTPUTS"
-
-    report = "# RESULTS"
     for i, qe in enumerate(questions):
         question = qe["question"]
         validation = qe["validation"]
 
-        test = f"## TEST[{i}]\n\n"
-        report += test
-        validation_report += test
-        invalid_outputs += test
+        # get response
+        response = compile_from_yaml_file(Path("test_rag.yml"), message=question)
 
-        report += f"### Question\n"
-        report += f"- ***message***: {question}\n"
+        reports += f"### TEST[{i}]\n"
+        reports += f"- **expected validation**: {validation}\n"
 
-        expected_validation = f"- ***expected validation***: {validation}\n\n"
-        report += expected_validation
-        validation_report += expected_validation
+        chats += f"### TEST[{i}]\n\n"
+        chats += f"- **question**\n  {question}\n"
 
+        chat_validations = []
 
-        report += f"### Response\n"
-        response = compile_from_yaml_file(Path("test_rag.yml"),
-                                          message=question)
         for r in response:
-            node_id = f"\n\n**{r.id}**\n"
-            report += node_id
-
+            agent_id = r.id
             prompt_size = r.prompt_size
             response_size = r.response_size
-            report += f"- ***prompt size***: {prompt_size}\n"
-            report += f"- ***response size***: {response_size}\n"
-
             response_content = r.response_content
 
-            report += f"- ***validation***:\n"
             if "validation" in response_content:
-                validation = response_content["validation"]
-                report += f"validation: {validation}\n\n"
-                validation_report += f"{node_id} validation: {validation}\n"
+                reports += f"- ***{agent_id} validation***: {response_content['validation']}\n"
+                chat_validations.append(response_content["validation"])
             else:
-                report += "Invalid response content: no validation\n\n"
-                invalid_outputs += f"{node_id} validation: failed\n"
+                reports += f"- ***{agent_id} validation***: failed\n"
+                general_report["output_failed"] += 1
+                continue
 
-            report += f"- ***response***:"
             if "response_txt" in response_content:
-                report += response_content["response_txt"]
+                chats += f"- ***{agent_id} response***\n  {response_content['response_txt']}\n"
             elif "response_tool" in response_content:
-                report += str(response_content["response_tool"])
+                chats += f"- ***{agent_id} response***\n  ```json\n    {response_content['response_tool']}\n```\n"
             elif "response_obj" in response_content:
-                report += (response_content["response_obj"])
+                chats += f"- ***{agent_id} response***\n  ```json\n    {response_content['response_obj']}\n```\n"
             else:
-                report += "Invalid response content: no response"
-                invalid_outputs += f"{node_id} response failed\n"
+                chats += f"- ***{agent_id} response***\n  failed\n  {response_content}\n"
+                general_report["output_failed"] += 1
+                continue
 
-            report += "\n---\n"
+            general_report["output_ok"] += 1
+            chats += "\n---\n"
+            reports += "\n---\n"
 
-    save_markdown_report(REPORT_PATH, validation_report + "\n\n" + invalid_outputs + "\n\n" + report)
+
+    REPORT_PATH.mkdir(parents=True, exist_ok=True)
+    report = f"## RESUME\n\n"
+    report += f"- **output_failed**: {general_report['output_failed']}\n"
+    report += f"- **output_ok**: {general_report['output_ok']}\n"
+    reports = report + "\n\n" + f"## REPORTS\n\n" + reports
+
+    save_markdown_report(REPORT_PATH  / "reports", reports)
+    save_markdown_report(REPORT_PATH  / "chats", chats)

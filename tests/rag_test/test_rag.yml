@@ -160,7 +160,7 @@ systems:
       - Carefully read the post containing a poster's message and the response from the assistant responsible for information retrieval.
       - Select the most relevant information and develop an accurate and professional response
       - If you are not able to generate a valid response, explay why
-      - Respond to the post using the same language I'm writing in. Your response Must match post language choice exactly, without switching to another language.
+      - Your response Must match post language choice exactly, without switching to another language"
       # POST
       $post
       # POSTER
@@ -175,11 +175,11 @@ systems:
                 "properties": {
                   "validation": {
                     "type": "boolean",
-                    "description": "If you are not able to elaborate a response set false, Esle set true"
+                    "description": "If you are not able to elaborate a response set false, Else set true"
                   },
                   "response_txt": {
                     "type": "string",
-                    "description": "Your final response using the language in which the poster's message is written "
+                    "description": "Your final response using the language in which the poster's message is written.
                   }
                 },
                 "required": [

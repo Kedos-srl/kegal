@@ -2,8 +2,8 @@ import json
 import yaml
 from pathlib import Path
 
-from kegal.graph_data import GraphData
-from kegal.llm.llm_response import LlmResponse
+from graph_data import GraphData
+from llm.llm_response import LlmResponse
 
 
 def insert_user_message_to_graph_data(graph_data: GraphData, user_message: str):

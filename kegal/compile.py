@@ -9,8 +9,13 @@ from log.ke_logging import custom_file_handler
 custom_file_handler()
 
 
-# COMMPILE JSON
+def compile_from_dict(config: dict):
+    """Create instance from dictionary"""
+    graph =  GraphCompiler(GraphData(**config))
+    return graph()
 
+
+# COMMPILE JSON
 def compile_from_json(json_src_, message: str | None = None):
     """
     Create instance from JSON
@@ -21,8 +26,7 @@ def compile_from_json(json_src_, message: str | None = None):
             raise ValueError("Empty JSON configuration file")
         if message:
             config["nodes"][0]["prompt"]["placeholders"]["post"] = message
-        graph =  GraphCompiler(GraphData(**config))
-        return graph()
+        return compile_from_dict(config)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON configuration file: {str(e)}")
     except TypeError as e:
@@ -56,8 +60,7 @@ def compile_from_yaml(yaml_src_, message: str | None = None):
             config["nodes"][0]["prompt"]["placeholders"]["post"] = message
         if not config:
             raise ValueError("Empty YAML configuration file")
-        graph =  GraphCompiler(GraphData(**config))
-        return graph()
+        return compile_from_dict(config)
     except yaml.YAMLError as yaml_err:
         raise ValueError(f"Failed to parse YAML configuration: {yaml_err}")
     except Exception as e:

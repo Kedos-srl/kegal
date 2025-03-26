@@ -22,6 +22,15 @@ def graph_data_from_json(json_file_path_: Path):
     except Exception as e:
         raise RuntimeError(f"Error reading JSON file {json_file_path_}: {str(e)}")
 
+def graph_data_from_yaml(yaml_file_path_: Path):
+    if not isinstance(yaml_file_path_, Path):
+        raise TypeError("yaml_file_path must be a Path object")
+    try:
+        with yaml_file_path_.open('r', encoding='utf-8') as yaml_file:
+            return graph_data_from_dictionary(yaml.safe_load(yaml_file))
+    except FileNotFoundError:
+        raise FileNotFoundError(f"YAML file not found: {yaml_file_path_}")
+
 def insert_user_message_to_graph_data(graph_data: GraphData, user_message: str):
     """
     Inserts a user message into the first node of the graph data.

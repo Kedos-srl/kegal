@@ -103,7 +103,13 @@ def update_graph_data_history(graph_data: GraphData, responses: list[LlmResponse
 
                 if "history" in node_placeholders:
                     user_message = response.message_content
-                    assistant_message = response.response_content
+                    assistant_message = ""
+                    if "response_txt" in response.response_content:
+                        assistant_message = response.response_content["response_txt"]
+                    elif "response_obj" in response.response_content:
+                        assistant_message = response.response_content["response_obj"]
+                    elif "response_tool" in response.response_content:
+                        assistant_message = response.response_content["response_tool"]
 
                     if "user_role" in node_placeholders:
                         user_role = node_placeholders["user_role"]

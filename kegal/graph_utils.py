@@ -95,7 +95,7 @@ def update_graph_data_history(graph_data: GraphData, responses: list[LlmResponse
     """
     nodes = graph_data.nodes
     for response in responses:
-        resp_id = response.node_id
+        resp_id = response.id
         for node in nodes:
             node_id = node.id
             if node_id == resp_id:

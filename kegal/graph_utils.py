@@ -48,7 +48,7 @@ def insert_citations_to_graph_data(graph_data: GraphData, chunks: list[str]):
     return graph_data
 
 
-def update_graph_data_history(graph_data: GraphData, responses: [LlmResponse]):
+def update_graph_data_history(graph_data: GraphData, responses: list[LlmResponse]):
     """
     Updates the graph data with conversation history from LLM responses.
 
@@ -114,7 +114,7 @@ def update_yml_file_data_history(yaml_file_path_: Path, responses: [LlmResponse]
         raise RuntimeError(f"Error reading YAML file {yaml_file_path_}: {str(e)}")
 
 
-def update_json_file_data_history(json_file_path_: Path, responses: [LlmResponse]):
+def update_json_file_data_history(json_file_path_: Path, responses: list[LlmResponse]):
     if not isinstance(json_file_path_, Path):
         raise TypeError("json_file_path must be a Path object")
     try:

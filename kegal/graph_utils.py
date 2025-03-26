@@ -6,6 +6,22 @@ from graph_data import GraphData
 from llm.llm_response import LlmResponse
 
 
+
+def graph_data_from_dictionary(graph_data_dict: dict):
+    return GraphData(**graph_data_dict)
+
+
+def graph_data_from_json(json_file_path_: Path):
+    if not isinstance(json_file_path_, Path):
+        raise TypeError("json_file_path must be a Path object")
+    try:
+        with json_file_path_.open('r', encoding='utf-8') as json_file:
+            return graph_data_from_dictionary(json.load(json_file))
+    except FileNotFoundError:
+        raise FileNotFoundError(f"JSON file not found: {json_file_path_}")
+    except Exception as e:
+        raise RuntimeError(f"Error reading JSON file {json_file_path_}: {str(e)}")
+
 def insert_user_message_to_graph_data(graph_data: GraphData, user_message: str):
     """
     Inserts a user message into the first node of the graph data.

@@ -21,6 +21,7 @@
 - [Complete Examples](#complete-examples)
     - [Example 1: Managing a Conversation Graph](#example-1-managing-a-conversation-graph)
     - [Example 2: Adding Citations to a Response](#example-2-adding-citations-to-a-response)
+    - [Example 3: Distributed Graph Processing ](#example-3-distributed-graph-processing)
 
     
   
@@ -383,7 +384,7 @@ update_json_file_data_history(json_path, [response])
 ```
 
 
-### Example 3: Distributed Graph Processing 
+### Example 3: Distributed Graph Processing
 
 Below is a conceptual example,  showing how it is possible to  structure two separate Python applications that use FastAPI to communicate. 
 

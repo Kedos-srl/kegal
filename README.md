@@ -19,6 +19,15 @@ You can find the documentation in the [docs/doc.md](docs/doc.md) file.
 
 We wrote also a quick [guide to prompt](docs/guide_to_prompt.md).
 
+You can fine 
+## How To
+
+The `kegal.py` module provides utility functions for working with `GraphData` objects,
+including loading from and exporting to various formats, updating with user messages and conversation history, and managing citations.
+
+You can find documentation and examples here: [docs/kegal_py.md](docs/doc.md)
+
+
 ## Copyright
 
 Copyright 2025 by [Kedos srl](https://www.kedos-srl.it/).

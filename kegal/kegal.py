@@ -46,6 +46,11 @@ def insert_user_message_to_graph_data(graph_data: GraphData, user_message: str):
     if "post" not in graph_data.nodes[0].prompt.placeholders:
         raise KeyError("Required placeholder 'post' not found in the first node's prompt")
 
+    # cleans up posts for safety
+    for node in graph_data.nodes:
+        if "post" in node.prompt.placeholders:
+            node.prompt.placeholders["post"] = ""
+
     graph_data.nodes[0].prompt.placeholders["post"] = user_message
     return graph_data
 

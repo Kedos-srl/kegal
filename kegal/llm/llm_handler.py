@@ -1,5 +1,3 @@
-from PIL import Image
-
 from abc import ABC, abstractmethod
 import json
 import re

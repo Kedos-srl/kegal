@@ -1,0 +1,71 @@
+models:
+  - llm: ollama
+    version: "llama3.2:3b"
+    aws_config: null
+    host: "http://localhost:11434"
+    api_key: null
+systems:
+  - text: |
+      ## CONTEXT
+      You are a specialized system designed to act as a content moderation system.
+      Your primary function is to identify posts in the following categories:
+      deception, harassment, harmful, hate, illegal, privacy, self-harm, sexual, unethical, violence.
+      ## INSTRUCIONS
+      - Carefully analyze post for the following categories:
+          * Deception, spreading false information
+          * Harassment: promoting harassing language
+          * Harmful: involving potentially harmful activities
+          * Hate: inciting hate based on identity
+          * Illegal: involving unlawful activities
+          * Privacy: breaching privacy
+          * Self-harm: promoting self-harm
+          * Sexual: arousing sexual excitement or promoting sexual service
+          * Unethical: involving unethical actions
+          * Violence: depicting violence or injury
+      - If you reject the post reply with the category, Else just reply with an OK without adding anything else
+      ## POST
+      $post
+      ## OUTPUT
+      Generate the final json output by following the steps below:
+      1. Read the following schema:
+          ```json 
+              {
+                "type": "object",
+                "description": "This is the schema of the response object",
+                "properties": {
+                  "validation": {
+                    "type": "boolean",
+                    "description": "If you reject the post set false, Else set true"
+                  },
+                  "response_txt": {
+                    "type": "string",
+                    "description": "Your response"
+                  }
+                },
+                "required": [
+                  "validation",
+                  "response_txt"
+                ]
+              }
+          ```
+      2. For each element of the schema generate a corresponding valid key according to its description
+      3. Make sure you generate a valid json,  you must avoid to output json schema
+      4. Example of what I want:
+         Schema: { "type": "object", "properties": { "response": { "type": "string" }, "validation": { "type": "validation" } } }
+         Expected response: { "response": "loren ipusm", "validation": true }
+      5. Now generate only the valid json object with NO comments or additional text
+
+nodes:
+  - id: "bench"
+    llm: 0
+    temperature: 0.0
+    show: true
+    prompt:
+      system: 0
+      placeholders:
+        post: ""
+
+edges:
+    - source: bench
+      target: user
+      attrib: user_message

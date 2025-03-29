@@ -15,7 +15,7 @@ def compile_from_dict(config: dict):
     return graph()
 
 
-# COMMPILE JSON
+# COMPILE JSON
 def compile_from_json(json_src_, message: str | None = None):
     """
     Create instance from JSON

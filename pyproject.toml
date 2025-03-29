@@ -1,0 +1,7 @@
+[project]
+name = "kegal"
+version = "0.1.0"
+description = "KeGAL, a graph-based agent framework for LLMs"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []

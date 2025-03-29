@@ -1,0 +1,9 @@
+# Pycharm project settings
+.idea
+
+# Environments
+.venv
+
+# Pycache
+__pycache__/
+*.egg-info/

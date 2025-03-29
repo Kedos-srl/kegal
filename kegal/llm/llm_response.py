@@ -23,6 +23,10 @@ def validate_llm_response(response_: LlmResponse) -> bool:
     if "validation" in response_.response_content:
         return response_.response_content["validation"]
     else:
+        if not response_.response_content:
+            print(f"Empty content: {response_.response_content}")
+        else:
+            print(f"Invalid response format: {response_.response_content}")
         raise ValueError("Invalid response format")
 
 def stringify_tool_result(value):

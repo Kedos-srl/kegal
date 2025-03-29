@@ -118,10 +118,10 @@ def update_graph_data_history(graph_data: GraphData, responses: list[LlmResponse
 
                     if "user_role" in node_placeholders:
                         user_role = node_placeholders["user_role"]
-                        node_placeholders["history"] += f"\n\n{user_role}: {user_message}"
+                        node_placeholders["history"] += f"\n\n{user_role}: {user_message}\n"
                     if "assistant_role" in node_placeholders:
                         assistant_role = node_placeholders["assistant_role"]
-                        node_placeholders["history"] += f"\n\n{assistant_role}: {assistant_message}"
+                        node_placeholders["history"] += f"\n\n{assistant_role}: {assistant_message}\n"
     return graph_data
 
 

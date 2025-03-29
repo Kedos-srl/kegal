@@ -192,7 +192,7 @@ class GraphData(BaseModel):
         description="Array containing configurations of agents (graph nodes)."
     )
 
-    edges: list[EdgeData] = Field(
+    edges: Optional[list[EdgeData]]  = Field(
         ...,
         description="Array containing connections between graph nodes."
     )

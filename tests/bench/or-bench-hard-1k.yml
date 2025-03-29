@@ -66,6 +66,3 @@ nodes:
         post: ""
 
 edges:
-    - source: bench
-      target: user
-      attrib: user_message

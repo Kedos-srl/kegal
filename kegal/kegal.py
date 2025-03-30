@@ -7,7 +7,7 @@ from llm.llm_response import LlmResponse
 
 
 
-def graph_data_from_dictionary(graph_data_dict: dict):
+def graph_data_from_dict(graph_data_dict: dict):
     return GraphData(**graph_data_dict)
 
 
@@ -16,7 +16,7 @@ def graph_data_from_json(json_file_path_: Path):
         raise TypeError("json_file_path must be a Path object")
     try:
         with json_file_path_.open('r', encoding='utf-8') as json_file:
-            return graph_data_from_dictionary(json.load(json_file))
+            return graph_data_from_dict(json.load(json_file))
     except FileNotFoundError:
         raise FileNotFoundError(f"JSON file not found: {json_file_path_}")
     except Exception as e:
@@ -27,7 +27,7 @@ def graph_data_from_yaml(yaml_file_path_: Path):
         raise TypeError("yaml_file_path must be a Path object")
     try:
         with yaml_file_path_.open('r', encoding='utf-8') as yaml_file:
-            return graph_data_from_dictionary(yaml.safe_load(yaml_file))
+            return graph_data_from_dict(yaml.safe_load(yaml_file))
     except FileNotFoundError:
         raise FileNotFoundError(f"YAML file not found: {yaml_file_path_}")
 

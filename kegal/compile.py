@@ -4,9 +4,7 @@ from pathlib import Path
 import yaml
 import json
 from graph_compiler import GraphCompiler, GraphData, LlmResponse
-from log.ke_logging import custom_file_handler
 
-custom_file_handler()
 
 
 def compile_from_dict(config: dict):

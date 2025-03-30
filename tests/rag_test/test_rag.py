@@ -3,7 +3,6 @@ from datetime import datetime
 
 
 from kegal.compile import compile_from_yaml_file
-from kegal.llm.ollama_handler import OllamaHandler
 from tests.rag_test.questions.questions import load_question_file_en, load_question_file_it
 
 REPORT_PATH = Path(__file__).parent / "reports"

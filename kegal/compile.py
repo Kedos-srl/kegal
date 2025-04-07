@@ -3,7 +3,8 @@ from pathlib import Path
 
 import yaml
 import json
-from graph_compiler import GraphCompiler, GraphData, LlmResponse
+from .graph_compiler import GraphCompiler, GraphData
+from .llm.llm_response import LlmResponse
 
 
 

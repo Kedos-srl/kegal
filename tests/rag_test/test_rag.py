@@ -1,16 +1,96 @@
 from pathlib import Path
 from datetime import datetime
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 from kegal.compile import compile_from_yaml_file
-from tests.rag_test.questions.questions import load_question_file_en, load_question_file_it
+from tests.rag_test.questions.questions import load_question_file_en
 
 REPORT_PATH = Path(__file__).parent / "reports"
 
-def save_markdown(file_path: Path,   content: str):
-    # Create file path and save content
-    file_path.write_text(content)
-    print(f"File saved to {file_path}")
+
+
+class FailedMessagsReport:
+    def __init__(self):
+        self.content = ""
+
+    def add_content(self, index: int, user_message: str, agent_message: str, log: str):
+        self.content += f"## [{index}] Cause: {log} \n"
+        self.content += f"- User: {user_message} \n"
+        self.content += f"- Agent: {agent_message} \n"
+        self.content += f"---\n"
+
+
+    def save_markdown(self, save_path: Path):
+        # Create file path and save content
+        save_path = save_path.with_suffix(".md")
+        save_path.write_text(self.content, encoding="utf-8")
+        print(f"File saved to {save_path}")
+
+
+
+class ValidationReport:
+    def __init__(self):
+        self.ok = 0
+        self.failed = 0
+
+    def plot_results(self, save_path=None, show=True):
+        """
+        Create a bar plot visualizing the ok and failed validation results.
+
+        Args:
+            save_path (str, optional): Path to save the plot image. If None, the plot isn't saved.
+            show (bool, optional): Whether to display the plot. Defaults to True.
+
+        Returns:
+            tuple: The figure and axes objects for further customization if needed.
+        """
+
+        # Create the figure and axes
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Set up the data
+        labels = ['Successful', 'Failed']
+        values = [self.ok, self.failed]
+        colors = ['#4CAF50', '#F44336']  # Green for successful, Red for failed
+
+        # Create the bars
+        bars = ax.bar(labels, values, color=colors, width=0.6)
+
+        # Add values on top of the bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom', fontsize=12)
+
+        # Add title and labels
+        ax.set_title('Validation Results', fontsize=16)
+        ax.set_ylabel('Count', fontsize=12)
+        ax.set_ylim(0, max(max(values), 1) * 1.1)  # Add some space above the bars
+
+        # Add a grid for better readability
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+
+        # Calculate and display success rate
+        total = self.ok + self.failed
+        success_rate = (self.ok / total * 100) if total > 0 else 0
+        plt.figtext(0.5, 0.01, f'Success Rate: {success_rate:.1f}%',
+                    ha='center', fontsize=12, bbox={'facecolor': '#f0f0f0', 'alpha': 0.5, 'pad': 5})
+
+        plt.tight_layout()
+
+        # Save the plot if a path is provided
+        if save_path:
+            plt.savefig(save_path)
+            print(f"Plot saved to {save_path}")
+
+        # Show the plot if requested
+        if show:
+            plt.show()
 
 
 if __name__ == '__main__':
@@ -20,81 +100,45 @@ if __name__ == '__main__':
     report_dir = REPORT_PATH / f"report_{timestamp}"
     report_dir.mkdir(parents=True, exist_ok=True)
 
+    questions = load_question_file_en()["questions"]
 
-    questions_en = load_question_file_en()["questions"]
-    questions_it = load_question_file_it()["questions"]
 
-    questions = questions_en + questions_it
+    response_output_report = ValidationReport()
+    response_validation_report = ValidationReport()
+    failed_messages = FailedMessagsReport()
 
-    general_report = {
-        "output_failed": 0,
-        "output_ok": 0,
-        "validation_failed": 0,
-        "validation_ok": 0
-    }
-    reports = ""
-    chats = ""
 
     for i, qe in enumerate(questions):
         question = qe["question"]
         validation = qe["validation"]
 
-        # get response
-        response = compile_from_yaml_file(Path("test_rag.yml"), message=question)
+        responses = compile_from_yaml_file(Path("test_rag.yml"), message=question)
 
-        reports += f"### TEST[{i}]\n"
-        reports += f"- **expected validation**: {validation}\n"
+        # check only last response
+        response = responses[-1]
+        agent_id = response.id
+        prompt_size = response.prompt_size
+        response_size = response.response_size
+        response_content = response.response_content
 
-        chats += f"### TEST[{i}]\n\n"
-        chats += f"- **question**\n  {question}\n"
-
-        chat_validations = []
-
-        for r in response:
-            agent_id = r.id
-            prompt_size = r.prompt_size
-            response_size = r.response_size
-            response_content = r.response_content
-
-            if "validation" in response_content:
-                reports += f"- ***{agent_id} validation***: {response_content['validation']}\n"
-                chat_validations.append(response_content["validation"])
-            else:
-                reports += f"- ***{agent_id} validation***: failed\n"
-                general_report["output_failed"] += 1
-                continue
-
-            if "response_txt" in response_content:
-                chats += f"- ***{agent_id} response***\n  {response_content['response_txt']}\n"
-            elif "response_tool" in response_content:
-                chats += f"- ***{agent_id} response***\n  ```json\n    {response_content['response_tool']}\n```\n"
-            elif "response_obj" in response_content:
-                chats += f"- ***{agent_id} response***\n  ```json\n    {response_content['response_obj']}\n```\n"
-            else:
-                chats += f"- ***{agent_id} response***\n  failed\n  {response_content}\n"
-                general_report["output_failed"] += 1
-                continue
-
-            general_report["output_ok"] += 1
-        chats += "\n---\n"
-        reports += "\n---\n"
-
-        if validation == True and all(x == validation for x in chat_validations):
-            general_report["validation_ok"] += 1
-        elif validation == False and any(x == validation for x in chat_validations):
-            general_report["validation_ok"] += 1
+        if "validation" in response_content:
+            response_output_report.failed += 1
+            failed_messages.add_content(i, question, response_content, "invalid output format")
         else:
-            general_report["validation_failed"] += 1
+            response_output_report.ok += 1
+            continue
 
+        if validation == False and  response_content["validation"] == False:
+            response_validation_report.ok += 1
+        elif validation == True and response_content["validation"] == True:
+            response_validation_report.ok += 1
+        else:
+            response_validation_report.failed += 1
+            if "response_txt" in response_content:
+                failed_messages.add_content(i, question, response_content["response_txt"], "message validation failed")
+            if "response_tool" in response_content:
+                failed_messages.add_content(i, question, response_content["response_tool"], "tool invokation failed")
 
-
-    REPORT_PATH.mkdir(parents=True, exist_ok=True)
-    report = f"## RESUME\n\n"
-    report += f"- **output_failed**: {general_report['output_failed']}\n"
-    report += f"- **output_ok**: {general_report['output_ok']}\n"
-    report += f"- **validation_failed**: {general_report['validation_failed']}\n"
-    report += f"- **validation_ok**: {general_report['validation_ok']}\n"
-    reports = report + "\n\n" + f"## REPORTS\n\n" + reports
-
-    save_markdown(report_dir / "reports.md" ,reports)
-    save_markdown(report_dir / "chats.md" ,chats)
+    response_output_report.plot_results(save_path=report_dir / "response_output_report.png", show=False)
+    response_validation_report.plot_results(save_path=report_dir / "response_validation_report.png", show=False)
+    failed_messages.save_markdown(save_path=report_dir / "failed_messages.md")

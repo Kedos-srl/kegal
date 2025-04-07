@@ -1,13 +1,12 @@
-import logging as log
-from graph_data import SystemPrompt
-
-from pathlib import Path
-
 import urllib.request
 from urllib.error import URLError, HTTPError
+
+from pathlib import Path
 from string import Template
 
-logging = log.getLogger("ke_log")
+from .graph_data import SystemPrompt
+
+
 
 
 class SystemStringTemplate(Template):
@@ -51,14 +50,14 @@ class SystemTemplates:
                         # Load file content to `text`
                         self.systems.append(SystemStringTemplate(text))
                     except (OSError, IOError) as e:
-                        logging.error(f"Failed to load file {system.path}: {e}")
+                        print(f"Failed to load file {system.path}: {e}")
             elif system.url is not None:
                 try:
                     with urllib.request.urlopen(system.url) as response:
                         text = response.read().decode("utf-8")
                         self.systems.append(text)
                 except (HTTPError, URLError) as e:
-                    logging.error(f"Failed to fetch URL {system.url}: {e}")
+                    print(f"Failed to fetch URL {system.url}: {e}")
             else:
                 raise ValueError("Invalid system template")
 

@@ -2,8 +2,8 @@ import json
 import yaml
 from pathlib import Path
 
-from graph_data import GraphData
-from llm.llm_response import LlmResponse
+from .graph_data import GraphData
+from .llm.llm_response import LlmResponse
 
 
 

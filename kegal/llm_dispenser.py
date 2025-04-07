@@ -1,9 +1,9 @@
-from graph_data import LlmConfig
-from llm.llm_handler import  LlmHandler
-from llm.gpt_handler import GptHandler
-from llm.ollama_handler import OllamaHandler
-from llm.bedrock_handler import BedrockHandler
-from llm.llm_response import LlmResponse
+from .graph_data import LlmConfig
+from .llm.llm_handler import  LlmHandler
+from .llm.gpt_handler import GptHandler
+from .llm.ollama_handler import OllamaHandler
+from .llm.bedrock_handler import BedrockHandler
+from .llm.llm_response import LlmResponse
 
 
 GPT = "gpt"

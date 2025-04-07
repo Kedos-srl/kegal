@@ -8,10 +8,11 @@ WINE_DATA_COLLECTION = "wine_data"
 
 
 if __name__ == '__main__':
-    create_chroma_collection(CURENT_DIR / "vdb", WINE_DATA_COLLECTION)
-    add_documents_to_chroma(CURENT_DIR / "vdb",
-                            WINE_DATA_COLLECTION,
-                            CURENT_DIR / "documents" / "Sabettaetal_IJBS_published_2022.pdf")
+    # create_chroma_collection(CURENT_DIR / "vdb",
+    #                          WINE_DATA_COLLECTION)
+    # add_documents_to_chroma(CURENT_DIR / "vdb",
+    #                         WINE_DATA_COLLECTION,
+    #                         CURENT_DIR / "documents" / "Sabettaetal_IJBS_published_2022.pdf")
     chunks = get_chunks_from_chroma(chroma_db_path="vdb",
                            collection_name = WINE_DATA_COLLECTION,
                            message= "scrivi una breve sintesti della produzione vinicola in Puglia",

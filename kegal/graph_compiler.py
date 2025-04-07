@@ -1,8 +1,8 @@
-from llm.llm_handler import LlmHandler
-from system_templates import SystemTemplates, SystemStringTemplate
-from llm.llm_response import LlmResponse, validate_llm_response, get_response_message
-from llm_dispenser import LlmDispenser
-from graph_data import *
+from .system_templates import SystemTemplates, SystemStringTemplate
+from .llm.llm_handler import LlmHandler
+from .llm.llm_response import LlmResponse, validate_llm_response, get_response_message
+from .llm_dispenser import LlmDispenser
+from .graph_data import *
 import networkx as nx
 
 

@@ -212,9 +212,31 @@ nodes:
       placeholders:
         post: ""
         topics: |
-          Apulian Wines,
-          Apulian Grapevine,
-          Apulian Grapes and related products
+          PubblicaCopiaAutochthonous grape varieties,
+          Apulian wine, 
+          Antioxidants,
+          Phenolic compounds,
+          Anthocyanins,
+          Health benefits, 
+          Transcriptomics,
+          Gene expression,
+          Negramaro,
+          Nero di Troia, 
+          Susumaniello, 
+          Primitivo,
+          Notardomenico, 
+          Cell viability,
+          ROS (Reactive Oxygen Species),
+          Anti-inflammatory effects,
+          NF-kB pathway, p38-MAPK 
+          signaling,
+          Bioactive molecules,
+          Wine composition, 
+          Malvidin-3-glucoside,
+          Flavonoid biosynthesis,
+          RNA sequencing,
+          Mediterranean viticulture,
+          Carcinoma cell lines
   - id: "rag_tool"
     llm: 0
     temperature: 0.0

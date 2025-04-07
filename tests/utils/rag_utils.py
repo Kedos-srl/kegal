@@ -31,10 +31,11 @@ class ChromaPayload:
 def create_chroma_collection(chroma_db_path: Path, collection_name: str):
     client = chromadb.PersistentClient(path=str(chroma_db_path))
     if collection_name not in client.list_collections():
-        client.create_collection(
+        client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
+        print(f"Collection {collection_name} created")
     else:
         print(f"Collection {collection_name} already exists")
 
@@ -44,7 +45,7 @@ def add_documents_to_chroma(chroma_db_path: Path, collection_name: str, document
     if collection_name in client.list_collections():
         payload = ChromaPayload(document_path)
 
-        collection = client.get_collection(name=collection_name)
+        collection = client.get_or_create_collection(name=collection_name)
         collection.add(documents=payload.documents,
                        ids=payload.ids,
                        embeddings=payload.embeddings)

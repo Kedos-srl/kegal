@@ -35,7 +35,7 @@ class ValidationReport:
         self.ok = 0
         self.failed = 0
 
-    def plot_results(self, save_path=None, show=True):
+    def plot_results(self, title: str, save_path=None, show=True):
         """
         Create a bar plot visualizing the ok and failed validation results.
 
@@ -68,7 +68,7 @@ class ValidationReport:
                         ha='center', va='bottom', fontsize=12)
 
         # Add title and labels
-        ax.set_title('Validation Results', fontsize=16)
+        ax.set_title(title, fontsize=16)
         ax.set_ylabel('Count', fontsize=12)
         ax.set_ylim(0, max(max(values), 1) * 1.1)  # Add some space above the bars
 
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     questions = load_question_file_en()["questions"]
 
 
-    response_output_report = ValidationReport()
+    inconsistent_outputs = ValidationReport()
     response_validation_report = ValidationReport()
     failed_messages = FailedMessagsReport()
 
@@ -122,10 +122,10 @@ if __name__ == '__main__':
         response_content = response.response_content
 
         if "validation" in response_content:
-            response_output_report.failed += 1
-            failed_messages.add_content(i, question, response_content, "invalid output format")
+            inconsistent_outputs.ok += 1
         else:
-            response_output_report.ok += 1
+            inconsistent_outputs.failed += 1
+            failed_messages.add_content(i, question, response_content, "invalid output format")
             continue
 
         if validation == False and  response_content["validation"] == False:
@@ -135,10 +135,10 @@ if __name__ == '__main__':
         else:
             response_validation_report.failed += 1
             if "response_txt" in response_content:
-                failed_messages.add_content(i, question, response_content["response_txt"], "message validation failed")
+                failed_messages.add_content(i, question, response_content["response_txt"], f"message validation failed: expected {validation}, got {response_content['validation']} ")
             if "response_tool" in response_content:
-                failed_messages.add_content(i, question, response_content["response_tool"], "tool invokation failed")
+                failed_messages.add_content(i, question, response_content["response_tool"], f"tool invokation failed")
 
-    response_output_report.plot_results(save_path=report_dir / "response_output_report.png", show=False)
-    response_validation_report.plot_results(save_path=report_dir / "response_validation_report.png", show=False)
+    inconsistent_outputs.plot_results("output format", save_path=report_dir / "inconsistent_outputs.png", show=False)
+    response_validation_report.plot_results("response validation", save_path=report_dir / "response_validation_report.png", show=False)
     failed_messages.save_markdown(save_path=report_dir / "failed_messages.md")

@@ -212,31 +212,7 @@ nodes:
       placeholders:
         post: ""
         topics: |
-          PubblicaCopiaAutochthonous grape varieties,
-          Apulian wine, 
-          Antioxidants,
-          Phenolic compounds,
-          Anthocyanins,
-          Health benefits, 
-          Transcriptomics,
-          Gene expression,
-          Negramaro,
-          Nero di Troia, 
-          Susumaniello, 
-          Primitivo,
-          Notardomenico, 
-          Cell viability,
-          ROS (Reactive Oxygen Species),
-          Anti-inflammatory effects,
-          NF-kB pathway, p38-MAPK 
-          signaling,
-          Bioactive molecules,
-          Wine composition, 
-          Malvidin-3-glucoside,
-          Flavonoid biosynthesis,
-          RNA sequencing,
-          Mediterranean viticulture,
-          Carcinoma cell lines
+          PubblicaCopiawine, grapes, grapevine, Apulia, Italy, anthocyanin, polyphenol, flavonoid, antioxidant, Negramaro, Nero di Troia, Primitivo, Notardomenico, Susumaniello, phenolic, health, transcriptomic, RNA-seq, gene expression, vinification, malvidin, biosynthesis, viticulture, Mediterranean, cultivar, autochthonous, berry, cell viability, Caco-2, HeLa, ROS, NF-kB, p38-MAPK, phosphorylation, anti-inflammatory, acyltransferase, glycosylation, methylation, acylation, F3'H, F3'5'H, MYBA1, MYBA2, differential gene expression, DEGs, PDO, PGI, DOCG, CRSFA, bioactive, anti-oxidative, transcription factor, resveratrol, bitterness, astringency, cardiovascular, red wine, wine quality, wine market
   - id: "rag_tool"
     llm: 0
     temperature: 0.0

@@ -111,9 +111,10 @@ if __name__ == '__main__':
     for i, qe in enumerate(questions):
         question = qe["question"]
         validation = qe["validation"]
+        print(f"question[{i}]")
+
 
         responses = compile_from_yaml_file(Path("test_rag.yml"), message=question)
-
         # check only last response
         response = responses[-1]
         agent_id = response.id
@@ -123,21 +124,26 @@ if __name__ == '__main__':
 
         if "validation" in response_content:
             inconsistent_outputs.ok += 1
+            print("output ok")
         else:
             inconsistent_outputs.failed += 1
             failed_messages.add_content(i, question, response_content, "invalid output format")
+            print("output failed")
             continue
 
         if validation == False and  response_content["validation"] == False:
             response_validation_report.ok += 1
+            print("validation ok")
         elif validation == True and response_content["validation"] == True:
             response_validation_report.ok += 1
+            print("validation ok")
         else:
             response_validation_report.failed += 1
             if "response_txt" in response_content:
                 failed_messages.add_content(i, question, response_content["response_txt"], f"message validation failed: expected {validation}, got {response_content['validation']} ")
             if "response_tool" in response_content:
                 failed_messages.add_content(i, question, response_content["response_tool"], f"tool invokation failed")
+            print("validation failed")
 
     inconsistent_outputs.plot_results("output format", save_path=report_dir / "inconsistent_outputs.png", show=False)
     response_validation_report.plot_results("response validation", save_path=report_dir / "response_validation_report.png", show=False)

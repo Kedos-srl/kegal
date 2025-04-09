@@ -6,7 +6,6 @@ from kegal.llm.llm_response import LlmResponse
 
 class OllamaHandler(LlmHandler):
     def __init__(self, model_: str, host_: str = 'http://localhost:11434'):
-        print(model_, host_)
         self.model = model_
         self.client = Client(
             host=host_

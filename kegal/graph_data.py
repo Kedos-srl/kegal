@@ -82,7 +82,6 @@ class SystemPrompt(BaseModel):
 # ============================
 # NODE AGENT CONFIGURATION
 # ============================
-
 class PromptData(BaseModel):
     """
     Represents the system prompt configuration.
@@ -165,7 +164,6 @@ class EdgeData(BaseModel):
 # ======================
 # GRAPH DESCRIPTION
 # ======================
-
 class GraphData(BaseModel):
     """
     A Pydantic model representing the Graph Configuration schema.

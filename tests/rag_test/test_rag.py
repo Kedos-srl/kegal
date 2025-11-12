@@ -108,13 +108,14 @@ if __name__ == '__main__':
     failed_messages = FailedMessagsReport()
 
 
+    graph_src = Path("test_rag.yml")
     for i, qe in enumerate(questions):
         question = qe["question"]
         validation = qe["validation"]
         print(f"question[{i}]")
 
 
-        responses = compile_from_yaml_file(Path("test_rag.yml"), message=question)
+        responses = compile_from_yaml_file(graph_src, message=question)
         # check only last response
         response = responses[-1]
         agent_id = response.id

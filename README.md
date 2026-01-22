@@ -13,22 +13,53 @@ The core concept of KeGAL is to leverage one or more LLMs to manage workflow
 execution within the architecture. Agents contain no traditional code; instead,
 everything is controlled by the LLM through its tooling capabilities.
 
+## Installation
+
+Install directly from GitHub:
+
+```bash
+pip install git+https://github.com/kedos-srl/kegal.git
+```
+
+Or clone and install in development mode:
+
+```bash
+git clone https://github.com/kedos-srl/kegal.git
+cd kegal
+pip install -r requirements.txt
+pip install -e .
+```
+
 ## Documentation
 
-You can find the documentation in the [docs/doc.md](docs/doc.md) file.
+- [Graph Framework Documentation](kegal/docs/graph_doc.md) - Detailed guide on graph configuration and models
+- [LLM Framework Documentation](kegal/docs/llm_doc.md) - Guide on LLM providers and integration
 
-We wrote also a quick [guide to prompt](docs/guide_to_prompt.md).
+## Quick Start
 
-You can fine 
+```python
+from kegal import Compiler
+
+# Load and compile a graph from YAML configuration
+compiler = Compiler(uri="path/to/your_graph.yml")
+compiler.compile()
+
+# Get the outputs
+outputs = compiler.get_outputs()
+```
+
+## Supported LLM Providers
+
+- **Anthropic** - Direct API and AWS Bedrock
+- **OpenAI** - GPT models
+- **Ollama** - Local LLM hosting
+- **AWS Bedrock** - Amazon Nova and other models
 
 
-## How To
-
-The `kegal.py` module provides utility functions for working with `GraphData` objects,
-including loading from and exporting to various formats, updating with user messages and conversation history, and managing citations.
-
-You can find documentation and examples here: [docs/kegal_py.md](docs/doc.md)
-
+## TO DO
+- Add support for gemini
+- Add support for MCP (Model Context Protocol) 
+  
 
 ## Copyright
 

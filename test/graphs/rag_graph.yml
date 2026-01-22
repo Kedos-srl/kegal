@@ -1,0 +1,121 @@
+models:
+  - llm: 
+    model: 
+prompts:
+  - template:
+      system_template: 
+        role_and_capabilities: |
+              You are a content moderation specialist focused on language appropriateness.
+              You evaluate messages for professionalism, toxicity, and business suitability.
+        behavioral_guidelines: |
+              - Assess language tone and professionalism
+              - Detect inappropriate content or toxicity
+              - Provide clear approval/rejection decisions
+      prompt_template:
+        context: |
+              Evaluate the user message for appropriateness in business context.
+        instruction: |
+              Analyze this message: "{user_message}"
+              Determine if it's appropriate for business communication.
+  - template:
+      system_template: # Resta fisso quando avvia il modello
+        role_and_capabilities: |
+              You are an expert research assistant specializing in renewable energy analysis.
+              You maintain context from previous conversations and can reference earlier discussions.
+              Your core capabilities include analyzing retrieved documents and providing evidence-based insights.
+        behavioral_guidelines: |
+              - Reference previous conversation context when relevant
+              - Build upon earlier discussions naturally
+              - Always base conclusions on retrieved information
+              - Maintain consistency with previous statements
+              - Be concise but comprehensive in your analysis
+      prompt_template: # Viene accompagnato al messaggio utente con i placeholder
+        context: |
+              You have access to retrieved information that should inform your response.
+              Consider both the conversation history and new retrieved data.
+              Your analysis must be focused on {analysis_focus}.
+        retrieved_contents: |
+              Retrieved Information:
+              {retrieved_chunks}
+        instruction: |
+              Given our previous discussion and the retrieved information above:
+              {user_message}
+              Please provide a comprehensive response that:
+                - Builds on our previous conversation
+                - Incorporates the new retrieved information
+                - Addresses any gaps from earlier responses
+chat_history:
+  global:
+    - role: "user"
+      content: "What are the main renewable energy sources available today?"
+    - role: "assistant"
+      content: "The main renewable energy sources include solar, wind, hydroelectric, geothermal, and biomass energy. Each has unique advantages and applications depending on geographic and environmental factors."
+    - role: "user"
+      content: "Can you tell me more about the cost benefits of solar energy specifically?"
+    - role: "assistant"
+      content: "Solar energy costs have decreased significantly. Installation costs have dropped by about 40% over the past decade, making it increasingly competitive with traditional energy sources."
+user_message: "What are the long-term economic impacts of switching to renewable energy?"
+retrieved_chunks: |
+      Economic Report 2023: Renewable energy investments generated $1.8 trillion globally, creating 13.7 million jobs. Countries with higher renewable adoption show 15% lower energy costs over 10-year periods.
+      Market Analysis: Solar and wind projects now offer the lowest cost electricity in most markets. Levelized cost of energy (LCOE) for utility-scale solar fell to $0.048/kWh in 2023.   
+      Industry Study: Renewable energy reduces price volatility compared to fossil fuels. Energy independence through renewables saves countries an average of $42 billion annually in imported fuel costs.
+nodes:
+  - id: "language_check"
+    model: 0
+    temperature: 0.3
+    max_tokens: 500
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 0
+      user_message: true
+      retrieved_chunks: false
+    structured_output:
+      description: "Language appropriateness assessment"
+      parameters:
+        validation:
+          type: "boolean"
+          description: "Whether message is appropriate for business use"
+        action:
+          type: "string"
+          description: "Action recommendation"
+          enum: [ "approve",  "reject" ]
+      required: [ "validation", "action"]
+  - id: "test_rag_node"
+    model: 0
+    temperature: 0.7
+    max_tokens: 1000
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 1
+      user_message: true
+      retrieved_chunks: true
+      chat_history: "global"
+      prompt_placeholders:
+        analysis_focus: "economic benefits"
+    structured_output:
+      description: "Renewable energy analysis summary"
+      parameters:
+        validation:
+          type: "boolean"
+          description: "Whether the message is consistent with the context or not"
+        cost_metrics:
+          type: "object"
+          description: "Cost analysis"
+        growth_rate:
+          type: "number"
+          description: "Annual growth percentage"
+        recommendation:
+          type: "string"
+          description: "Key recommendation"
+          enum: ["invest", "wait", "diversify"]
+      required: ["validation","cost_metrics", "growth_rate", "recommendation"]
+edges:
+  - node: "language_check"
+    children: null
+  - node: "test_rag_node"

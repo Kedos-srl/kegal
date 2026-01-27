@@ -1,6 +1,6 @@
 models:
-  - llm: 
-    model: 
+  - llm: ollama
+    model: "mistral-small3.2:latest"
 prompts:
   - template:
       system_template: 

@@ -544,8 +544,7 @@ edges:
 | `model_config` | `dict` or `None`        | Yes      | Pydantic model configuration (e.g., `{"extra": "allow"}`). |
 
 ### YAML Example
-```
-yaml
+```yaml
 type: "string"
 enum:
   - "approve"
@@ -553,8 +552,7 @@ enum:
 description: "Whether the message is appropriate for business use."
 ```
 ### JSON Example
-```
-json
+```json
 {
   "type": "string",
   "enum": ["approve", "reject"],
@@ -562,8 +560,7 @@ json
 }
 ```
 ### YAML Example (Object)
-```
-yaml
+```yaml
 type: "object"
 description: "User profile information"
 properties:
@@ -582,8 +579,7 @@ required:
   - "status"
 ```
 ### JSON Example (Array)
-```
-json
+```json
 {
   "type": "array",
   "description": "List of approved categories",

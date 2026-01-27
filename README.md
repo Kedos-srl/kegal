@@ -21,6 +21,11 @@ Install directly from GitHub:
 pip install git+https://github.com/kedos-srl/kegal.git
 ```
 
+From `requirements.txt`: 
+```
+kegal @ git+https://github.com/kedos-srl/kegal.git
+```
+
 Or clone and install in development mode:
 
 ```bash

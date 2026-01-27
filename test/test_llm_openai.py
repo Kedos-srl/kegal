@@ -7,17 +7,15 @@ import tests.llm.test_llm as test_llm
 from pathlib import Path
 from dotenv import load_dotenv
 
-TEST_DIR = Path(__file__).parent
-print(TEST_DIR)
-load_dotenv(dotenv_path=TEST_DIR /  "openai.env")
-
+OPENAI_MODEL = ""
+OPENAI_API_KEY = ""
 
 class TestOpenai(test_llm.TestLLM, unittest.TestCase):
     @staticmethod
     def get_model():
         return LllmOpenai(
-            model=os.getenv("OPENAI_MODEL"),
-            api_key=os.getenv("OPENAI_API_KEY")
+            model=os.getenv(OPENAI_MODEL),
+            api_key=os.getenv(OPENAI_API_KEY)
         )
 
     def test_chat(self):

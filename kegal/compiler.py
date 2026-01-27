@@ -69,16 +69,20 @@ class Compiler:
     def compile(self):
         for edge in self.edges:
             try:
-                self._compile_node(self.nodes[edge.node])
+                check = self._compile_node(self.nodes[edge.node])
+                if check is False:
+                    return
             except Exception as e:
                 logger.exception(f"Failed to compile node '{edge.node}': {e}")
                 continue
             if edge.children is not None:
                 for child in edge.children:
                     try:
-                        self._compile_node(self.nodes[edge.node])
+                        check = self._compile_node(self.nodes[child])
+                        if check is False:
+                            return
                     except Exception as e:
-                        logger.exception(f"Failed to compile node '{edge.node}': {e}")
+                        logger.exception(f"Failed to compile child node '{child}': {e}")
                         continue
 
     def _chat_history_check(self, node)-> bool:
@@ -133,10 +137,12 @@ class Compiler:
                 self.message_passing.append(json.dumps(response.json_output))
 
 
-    def _compile_node(self, node) :
+    def _compile_node(self, node) -> bool:
         # Is not active agent
         if node.prompt is None:
-            return
+            return True  
+
+   
 
         start_time = time.time()
 
@@ -176,7 +182,7 @@ class Compiler:
 
         # Call LLM Client
         client = self.clients[node.model]
-        response = client.complete(**model_body)
+        response: LLmResponse = client.complete(**model_body)
 
         end_time = time.time()
         compiled_time = end_time - start_time
@@ -194,7 +200,21 @@ class Compiler:
         self.outputs.output_size += response.output_size
         self.outputs.compile_time += compiled_time
 
+
         self._check_message_passing(response, node)
+
+
+
+        # Optional validation gate: if the structured output contains a
+        # "validation" boolean field set to False, the graph compilation is
+        # stopped immediately. This is useful for guard nodes (e.g. content
+        # moderation, injection prevention) that flag a user message as
+        # invalid. When the field is absent or True, compilation continues.
+        if response.json_output is not None and "validation" in response.json_output:
+            return response.json_output["validation"]
+        return True
+
+
 
     def get_outputs(self)->CompiledOutput:
         return self.outputs

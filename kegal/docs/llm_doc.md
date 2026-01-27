@@ -198,16 +198,40 @@ Key attributes:
 
 ## 8. `kegal.compiler`
 
-`compiler.py` contains a helper that transforms a `Graph` instance into a serialized representation that can be executed by the engine.  
-Key function:
+`compiler.py` contains the `Compiler` class that loads a graph configuration, initialises the LLM clients, and executes each node in the order defined by the graph edges.
+
+### Usage
 
 ```python
-def compile_graph(graph: Graph) -> CompiledGraph:
-    """Compile a `Graph` object into an executable representation."""
+from kegal import Compiler
+
+compiler = Compiler(uri="path/to/graph.yml")
+compiler.compile()
+outputs = compiler.get_outputs()
 ```
 
+### Compilation Flow
 
-The compiled output is a lightweight Python module or a dictionary that can be imported and executed.
+1. **Edge iteration** – the compiler walks through the `edges` list sequentially.
+2. **Node execution** – for each edge, it compiles the source node and then its children (if any).
+3. **Validation gate** – after each node execution, if the structured output contains a `validation` field set to `false`, the compiler **stops immediately** and no further nodes are executed. This allows guard nodes (e.g. content moderation, injection prevention) to halt the workflow when a user message is flagged as invalid.
+4. **Message passing** – node outputs can be forwarded to downstream nodes via the `message_passing` configuration.
+
+### Output Models
+
+| Class | Description |
+|-------|-------------|
+| `CompiledNodeOutput` | Holds the response from a single node (`node_id`, `response`, `compiled_time`, `show`). |
+| `CompiledOutput` | Aggregated output of the entire graph (`nodes`, `input_size`, `output_size`, `compile_time`). |
+
+### Serialisation
+
+| Method | Description |
+|--------|-------------|
+| `get_outputs()` | Returns a `CompiledOutput` object. |
+| `get_outputs_json(indent)` | Returns a JSON string. |
+| `save_outputs_as_json(path)` | Writes the output to a JSON file. |
+| `save_outputs_as_markdown(path)` | Writes a Markdown report. |
 
 ---
 

@@ -260,6 +260,51 @@ structured_output:
 ```
 
 
+### Reserved Structured Output Field: `validation`
+
+When a node defines a `structured_output` schema that includes a **`validation`** field of type `boolean`, the compiler treats it as a **gate**. After the node is executed:
+
+- If `validation` is `true` (or the field is absent), compilation continues normally to the next edge or child node.
+- If `validation` is `false`, compilation **stops immediately** and no further nodes are executed.
+
+This mechanism is designed for **guard nodes** — nodes whose purpose is to check the user message before the main workflow runs. Typical use cases include:
+
+- **Content moderation**: reject inappropriate or toxic messages.
+- **Prompt injection prevention**: detect and block adversarial inputs.
+- **Input quality checks**: ensure the user message meets minimum requirements.
+
+#### Example: Guard Node
+
+```yaml
+- id: "language_check"
+  model: 0
+  temperature: 0.3
+  max_tokens: 500
+  show: true
+  message_passing:
+    input: false
+    output: false
+  prompt:
+    template: 0
+    user_message: true
+    retrieved_chunks: false
+  structured_output:
+    description: "Language appropriateness assessment"
+    parameters:
+      validation:
+        type: "boolean"
+        description: "Whether message is appropriate for business use"
+      action:
+        type: "string"
+        description: "Action recommendation"
+        enum: ["approve", "reject"]
+    required: ["validation", "action"]
+```
+
+In this example, if the LLM determines the message is inappropriate, it returns `validation: false` and the graph execution halts before any downstream nodes are reached.
+
+> **Note**: The `validation` field is entirely optional. Nodes without it in their structured output will always allow compilation to proceed.
+
 ---
 
 ## 6. `GraphEdge`

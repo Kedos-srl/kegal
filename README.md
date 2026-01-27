@@ -48,6 +48,16 @@ compiler.compile()
 outputs = compiler.get_outputs()
 ```
 
+## Features
+
+- **Graph-based workflows** – define multi-node agent pipelines in YAML or JSON
+- **Structured output** – enforce JSON schemas on LLM responses
+- **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
+- **Message passing** – forward node outputs to downstream nodes
+- **Multi-provider support** – use different LLMs in the same graph
+- **Chat history** – maintain conversational context across nodes
+- **RAG support** – inject retrieved document chunks into prompts
+
 ## Supported LLM Providers
 
 - **Anthropic** - Direct API and AWS Bedrock

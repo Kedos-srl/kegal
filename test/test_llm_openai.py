@@ -4,8 +4,6 @@ import os
 from kegal import LllmOpenai
 import tests.llm.test_llm as test_llm
 
-from pathlib import Path
-from dotenv import load_dotenv
 
 OPENAI_MODEL = ""
 OPENAI_API_KEY = ""

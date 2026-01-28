@@ -9,8 +9,7 @@ from .llm_model import (LlmModel,
                        LLmMessage,
                        LLMStructuredOutput,
                        LLMFunctionCall,
-                       LLmResponse,
-                       DEFAULT_JSON_OUTPUT_NAME)
+                       LLmResponse)
 
 class LllmOpenai(LlmModel):
     def __init__(self, **kwargs):

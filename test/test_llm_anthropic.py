@@ -3,7 +3,6 @@ import os
 
 
 from pathlib import Path
-from dotenv import load_dotenv
 
 from kegal.kegal.llm import LlmAnthropic
 from kegal.tests import test_llm

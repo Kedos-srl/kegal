@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel
 from .compose import compose_template_prompt, compose_node_prompt, compose_images, compose_documents, compose_tools
 from .graph import Graph
-from .utils import load_yml, load_contents
+from .utils import load_contents
 from .llm.llm_handler import LlmHandler
 from .llm.llm_model import LLmResponse, LLMStructuredOutput, LLMStructuredSchema
 
@@ -20,7 +20,8 @@ class CompiledNodeOutput(BaseModel):
     node_id: str
     response: LLmResponse
     compiled_time: float
-    show: bool
+    show: bool 
+    history: bool 
 
 class CompiledOutput(BaseModel):
     nodes: list[CompiledNodeOutput] = []
@@ -141,7 +142,6 @@ class Compiler:
         # Is not active agent
         if node.prompt is None:
             return True  
-
    
 
         start_time = time.time()
@@ -159,8 +159,10 @@ class Compiler:
             model_body["user_message"] = composed_prompt["user"]
 
         # Compose history
+        enable_history = False
         if self._chat_history_check(node):
             model_body["chat_history"] = self.chat_history[node.chat_history]
+            enable_history = True
 
         # Compose images
         if self._images_check(node):
@@ -194,6 +196,7 @@ class Compiler:
                 response=response,
                 compiled_time=compiled_time,
                 show=node.show,
+                history=enable_history
             )
         )
         self.outputs.input_size += response.input_size
@@ -213,8 +216,6 @@ class Compiler:
         if response.json_output is not None and "validation" in response.json_output:
             return response.json_output["validation"]
         return True
-
-
 
     def get_outputs(self)->CompiledOutput:
         return self.outputs

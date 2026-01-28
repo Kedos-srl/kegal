@@ -4,7 +4,7 @@ import mimetypes
 import base64
 import yaml
 
-from typing import Tuple, Optional, Dict, Callable, Any
+from typing import Tuple, Optional, Dict, Callable
 from pathlib import Path
 from urllib.parse import urlparse
 

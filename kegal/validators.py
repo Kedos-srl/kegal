@@ -161,7 +161,7 @@ def validate_anthropic_schema(schema: Dict[str, Any]) -> List[SchemaIssue]:
             issues.append(SchemaIssue(
                 path=path,
                 rule="NO_EXTERNAL_REF",
-                message=f"External $ref not supported",
+                message="External $ref not supported",
                 value=node['$ref']
             ))
 

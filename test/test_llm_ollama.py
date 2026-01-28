@@ -4,8 +4,6 @@ import os
 from kegal import LlmOllama
 import tests.llm.test_llm as test_llm
 
-from pathlib import Path
-from dotenv import load_dotenv
 
 
 OLLAMA_MODEL = ""

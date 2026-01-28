@@ -8,7 +8,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="kegal",
-    version="0.1.2",
+    version="0.1.2.1",
     author="Kedos srl",
     author_email="info@kedos-srl.it",
     description="KeGAL - Kedos Graph Agent for LLM",

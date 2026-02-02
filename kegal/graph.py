@@ -29,6 +29,7 @@ class NodePrompt(BaseModel):
     prompt_placeholders: dict[str, Any] | None = None
     user_message: bool | None = None
     retrieved_chunks: bool | None = None
+    chat_history: str | None = None
 
 class NodeMessagePassing(BaseModel):
     input: bool = False

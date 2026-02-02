@@ -87,9 +87,9 @@ class Compiler:
                         continue
 
     def _chat_history_check(self, node)-> bool:
-        if node.chat_history is None or self.chat_history is None:
+        if node.prompt is None or node.prompt.chat_history is None or self.chat_history is None:
             return False
-        return node.chat_history in self.chat_history
+        return node.prompt.chat_history in self.chat_history
 
     def _images_check(self, node) -> bool:
         if node.images is None or self.images is None:
@@ -161,7 +161,7 @@ class Compiler:
         # Compose history
         enable_history = False
         if self._chat_history_check(node):
-            model_body["chat_history"] = self.chat_history[node.chat_history]
+            model_body["chat_history"] = self.chat_history[node.prompt.chat_history]
             enable_history = True
 
         # Compose images

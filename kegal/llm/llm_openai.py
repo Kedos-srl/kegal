@@ -92,11 +92,11 @@ class LllmOpenai(LlmModel):
         }
 
     @staticmethod
-    def _chat_history(history: list[LLmMessage]):
+    def _chat_history(history: list[LLmMessage] | list[dict]):
         return [
             {
-                "role": chat.role,
-                "content": chat.content
+                "role": chat["role"] if isinstance(chat, dict) else chat.role,
+                "content": chat["content"] if isinstance(chat, dict) else chat.content
             }
             for chat in history
         ]

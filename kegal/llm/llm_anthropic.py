@@ -106,7 +106,11 @@ class LlmAnthropic(LlmModel):
         }
 
     @staticmethod
-    def _chat_history(history: list[LLmMessage]):
+    def _chat_history(history: list[LLmMessage] | list[dict]):
+        # If history already contains dicts (from YAML), return them directly
+        if history and isinstance(history[0], dict):
+            return history
+        # Otherwise, convert Pydantic objects to dicts
         return [chat.model_dump() for chat in history]
 
     @staticmethod

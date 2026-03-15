@@ -1,6 +1,50 @@
 {
-    "nodes": [],
-    "input_size": 0,
-    "output_size": 0,
-    "compile_time": 3.89410138130188
+    "nodes": [
+        {
+            "node_id": "language_check",
+            "response": {
+                "messages": null,
+                "tools": null,
+                "json_output": {
+                    "validation": true,
+                    "action": "approve"
+                },
+                "input_size": 440,
+                "output_size": 13
+            },
+            "compiled_time": 4.696651220321655,
+            "show": true,
+            "history": false
+        },
+        {
+            "node_id": "test_rag_node",
+            "response": {
+                "messages": null,
+                "tools": null,
+                "json_output": {
+                    "validation": true,
+                    "cost_metrics": {
+                        "LCOE": {
+                            "solar": "$0.048/kWh",
+                            "wind": "not explicitly stated but implied as lowest cost"
+                        },
+                        "global_investment": "$1.8 trillion",
+                        "job_creation": "13.7 million",
+                        "energy_cost_reduction": "15% lower over 10 years",
+                        "fuel_savings": "$42 billion annually"
+                    },
+                    "growth_rate": 0.4,
+                    "recommendation": "invest in renewable infrastructure"
+                },
+                "input_size": 1053,
+                "output_size": 146
+            },
+            "compiled_time": 10.908496379852295,
+            "show": true,
+            "history": true
+        }
+    ],
+    "input_size": 1493,
+    "output_size": 159,
+    "compile_time": 15.605204820632935
 }

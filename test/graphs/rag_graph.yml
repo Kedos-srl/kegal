@@ -81,8 +81,8 @@ nodes:
       user_message: true
       retrieved_chunks: false
     structured_output:
-      description: "Language appropriateness assessment"
-      parameters:
+      type: "object"
+      properties:
         validation:
           type: "boolean"
           description: "Whether message is appropriate for business use"
@@ -106,8 +106,8 @@ nodes:
       prompt_placeholders:
         analysis_focus: "economic benefits"
     structured_output:
-      description: "Renewable energy analysis summary"
-      parameters:
+      type: "object"
+      properties:
         validation:
           type: "boolean"
           description: "Whether the message is consistent with the context or not"

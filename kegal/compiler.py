@@ -47,7 +47,7 @@ class Compiler:
         self.user_message = graph.user_message
         self.retrieved_chunks = graph.retrieved_chunks
         self.outputs: CompiledOutput = CompiledOutput()
-        self.message_passing: list[str]  = []
+        self.message_passing: list  = []
         self.nodes = {node.id: node for index, node in enumerate(graph.nodes)}
         self.edges = graph.edges
 
@@ -133,9 +133,9 @@ class Compiler:
             return
         if node.message_passing.output:
             if response.messages is not None and len(response.messages) > 0:
-                self.message_passing.append(json.dumps(response.messages))
+                self.message_passing.extend(response.messages)
             elif response.json_output is not None:
-                self.message_passing.append(json.dumps(response.json_output))
+                self.message_passing.append(response.json_output)
 
 
     def _compile_node(self, node) -> bool:

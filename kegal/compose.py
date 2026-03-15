@@ -33,14 +33,14 @@ def compose_template_prompt(prompt_template: dict[str, Any]) -> dict[str, str]:
 def compose_node_prompt(prompt_template: dict[str, str],
                         placeholders: dict,
                         user_message: str | None = None,
-                        message_passing: list[str] | None = None,
+                        message_passing: list | None = None,
                         retrieved_chunks: str | None = None):
 
     if user_message is not None:
         placeholders["user_message"] = user_message.strip()
 
     if message_passing is not None:
-        placeholders["message_passing"]: str = str(message_passing).strip()
+        placeholders["message_passing"] = str(message_passing).strip()
 
     if retrieved_chunks is not None:
         placeholders["retrieved_chunks"] = retrieved_chunks.strip()

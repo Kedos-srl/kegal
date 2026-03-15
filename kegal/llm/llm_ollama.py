@@ -72,7 +72,7 @@ class LlmOllama(LlmModel):
                     llm_response.json_output = json.loads(item)
                 else:
                     if llm_response.messages is None:
-                        llm_response = [item]
+                        llm_response.messages = [item]
                     else:
                         llm_response.messages.append(item)
 

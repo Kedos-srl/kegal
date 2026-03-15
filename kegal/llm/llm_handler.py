@@ -6,10 +6,6 @@ from .llm_anthropic import LlmAnthropic
 from .llm_bedrock import LlmBedrock
 from .llm_ollama import LlmOllama
 
-# os.getenv
-
-TEST_DIR = Path(__file__).parent
-load_dotenv(dotenv_path=TEST_DIR /  "aws.env")
 
 class LlmHandler:
     _MODEL_MAPPING = {

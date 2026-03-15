@@ -88,7 +88,7 @@ def _is_base64_string(s: str) -> bool:
         # Check if it re-encodes to the same value (or close, accounting for padding)
         re_encoded = base64.b64encode(decoded).decode('utf-8')
         return len(decoded) > 0 and (re_encoded == s_clean or re_encoded.rstrip('=') == s_clean.rstrip('='))
-    except Exception:
+    except (ValueError, base64.binascii.Error):
         return False
 
 def _determine_content_type(
@@ -195,7 +195,7 @@ def load_pdfs_to_base64(source: str | Path) -> Tuple[str, str]:
         test_decode = base64.b64decode(base64_data)
         if not test_decode.startswith(b'%PDF-'):
             raise ValueError("Base64 decode test failed - not a valid PDF")
-    except Exception as e:
+    except (ValueError, base64.binascii.Error) as e:
         raise ValueError(f"Base64 validation failed: {e}")
 
     return content_type, base64_data

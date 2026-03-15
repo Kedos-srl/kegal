@@ -1,7 +1,10 @@
 import json
+import logging
 from typing import Any
 
 import openai
+
+logger = logging.getLogger(__name__)
 from .llm_model import (LlmModel,
                        LLMImageData,
                        LLMPdfData,
@@ -11,7 +14,7 @@ from .llm_model import (LlmModel,
                        LLMFunctionCall,
                        LLmResponse)
 
-class LllmOpenai(LlmModel):
+class LlmOpenai(LlmModel):
     def __init__(self, **kwargs):
         if "model" not in kwargs.keys():
             raise ValueError("Missing required 'model' parameter")
@@ -117,7 +120,8 @@ class LllmOpenai(LlmModel):
     # text -> pdf
     @staticmethod
     def _pdfs_data(pdfs_b64: list[LLMPdfData]):
-        print("Openai does not directly support pdf, convert pdf to b64 image list ")
+        logger.warning("OpenAI does not directly support PDF input")
+        raise NotImplementedError("OpenAI does not support PDF input; convert PDFs to base64 image lists first")
 
     # function calling
     @staticmethod
@@ -170,7 +174,7 @@ class LllmOpenai(LlmModel):
             user_content.extend(self._images_data(imgs_b64))
 
 
-        # Compoese user content
+        # Compose user content
         messages.append({
             "role": "user",
             "content": user_content

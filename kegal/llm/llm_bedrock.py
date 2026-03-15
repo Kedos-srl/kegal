@@ -73,7 +73,7 @@ class LlmBedrock(LlmModel):
                  }
 
 
-            # Force Model to structured json output esle us regualr tools
+            # Force model to structured JSON output, else use regular tools
             if structured_output is not None:
                 if "toolConfig" in body:
                     body["toolConfig"]["tools"].append(self._structured_output_data(structured_output))
@@ -85,7 +85,6 @@ class LlmBedrock(LlmModel):
 
 
 
-            #return self._get_response(json.dumps(body))
             return self._get_response(body)
 
 
@@ -192,7 +191,7 @@ class LlmBedrock(LlmModel):
         if pdfs_b64 is not None:
             user_content.extend(self._pdfs_data(pdfs_b64))
 
-        # Compoese user content
+        # Compose user content
         messages.append({
             "role": "user",
             "content": user_content
@@ -202,9 +201,7 @@ class LlmBedrock(LlmModel):
 
     def _get_response(self, body) -> LLmResponse:
         try:
-            #model_response = self.client.invoke_model(body=body, modelId=self.model)
             response_body = self.client.converse(**body)
-            #response_body = json.loads(model_response.get("body").read())
 
             llm_response = LLmResponse()
             llm_response.input_size = response_body["usage"]["inputTokens"]
@@ -232,9 +229,8 @@ class LlmBedrock(LlmModel):
                             llm_response.tools.append(function_call)
 
             return  llm_response
-        except (ClientError, Exception) as e:
-            error_msg = f"ERROR: Can't invoke '{self.model}' endpoint: {e}"
-            raise RuntimeError(error_msg)
+        except ClientError as e:
+            raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
         finally:
             self.client.close()
 

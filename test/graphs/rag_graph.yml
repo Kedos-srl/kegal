@@ -1,6 +1,6 @@
 models:
   - llm: ollama
-    model: "mistral-small3.2:latest"
+    model: "qwen3-vl:8b"
 prompts:
   - template:
       system_template: 
@@ -88,8 +88,7 @@ nodes:
           description: "Whether message is appropriate for business use"
         action:
           type: "string"
-          description: "Action recommendation"
-          enum: [ "approve",  "reject" ]
+          description: "Action recommendation: approve or reject"
       required: [ "validation", "action"]
   - id: "test_rag_node"
     model: 0
@@ -120,8 +119,7 @@ nodes:
           description: "Annual growth percentage"
         recommendation:
           type: "string"
-          description: "Key recommendation"
-          enum: ["invest", "wait", "diversify"]
+          description: "Key recommendation: invest, wait, or diversify"
       required: ["validation","cost_metrics", "growth_rate", "recommendation"]
 edges:
   - node: "language_check"

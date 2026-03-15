@@ -8,7 +8,7 @@ including Anthropic, OpenAI, Ollama, and AWS Bedrock.
 from .llm_model import LlmModel
 from .llm_handler import LlmHandler
 from .llm_anthropic import LlmAnthropic
-from .llm_openai import LllmOpenai
+from .llm_openai import LlmOpenai
 from .llm_ollama import LlmOllama
 from .llm_bedrock import LlmBedrock
 
@@ -16,7 +16,7 @@ __all__ = [
     "LlmModel",
     "LlmHandler",
     "LlmAnthropic",
-    "LllmOpenai",
+    "LlmOpenai",
     "LlmOllama",
     "LlmBedrock",
 ]

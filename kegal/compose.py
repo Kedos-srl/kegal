@@ -75,7 +75,3 @@ def compose_documents(data: list[GraphInputData], indices: list[int]):
 
 def compose_tools(tools: list[LLMTool], indices: list[int]):
     return [tools[i].template for i  in indices]
-
-
-def _compose_llm_object() -> dict:
-    pass

@@ -1,6 +1,9 @@
 import re
+import logging
 from typing import Any, Dict, List
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from jsonschema import Draft202012Validator, SchemaError
 from jsonschema.validators import validator_for
@@ -8,6 +11,8 @@ from jsonschema.validators import validator_for
 # ================================================
 # STRUCTURED OUTPUT AND TOOL SCHEMA VALIDATORS
 # ================================================
+
+VALID_PROPERTY_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_.-]{1,64}$')
 
 
 class SchemaIssue(BaseModel):
@@ -18,19 +23,16 @@ class SchemaIssue(BaseModel):
     value: Any = None
 
 def print_validation_input_schema(issues: List[SchemaIssue]):
-    """Print validation report"""
+    """Log validation report"""
     if not issues:
-        print("✓ Schema is VALID for Claude structured outputs\n")
+        logger.info("Schema is VALID for Claude structured outputs")
         return
 
-    print(f"✗ Schema is INVALID - {len(issues)} issue(s) found:\n")
+    logger.warning("Schema is INVALID - %d issue(s) found", len(issues))
     for i, issue in enumerate(issues, 1):
-        print(f"Issue #{i}:")
-        print(f"  Path: {issue.path}")
-        print(f"  Rule: {issue.rule}")
-        print(f"  Message: {issue.message}")
-        if issue.value is not None:
-            print(f"  Value: {issue.value}")
+        logger.warning("Issue #%d: path=%s rule=%s message=%s%s",
+                       i, issue.path, issue.rule, issue.message,
+                       f" value={issue.value}" if issue.value is not None else "")
 
 
 def validate_anthropic_schema(schema: Dict[str, Any]) -> List[SchemaIssue]:
@@ -45,7 +47,6 @@ def validate_anthropic_schema(schema: Dict[str, Any]) -> List[SchemaIssue]:
     """
     issues = []
 
-    # Check $schema version
     # Check $schema version
     schema_version = schema.get('$schema')
     supported_version = 'https://json-schema.org/draft/2020-12/schema'
@@ -101,8 +102,6 @@ def validate_anthropic_schema(schema: Dict[str, Any]) -> List[SchemaIssue]:
         ))
         return issues
 
-
-    VALID_PROPERTY_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_.-]{1,64}$')
 
     def check_node(node: Any, path: str):
         if not isinstance(node, dict):
@@ -291,7 +290,7 @@ def validate_llm_input_schema(input_schema: type[BaseModel] | dict[str, Any], mo
     if isinstance(input_schema, type):
         schema = input_schema.model_json_schema()
     else:
-        schema = input_schema  # <-- Mancava l'else!
+        schema = input_schema
 
     # Validate based on provider
     if model in ["anthropic_aws", "anthropic", "bedrock"]:

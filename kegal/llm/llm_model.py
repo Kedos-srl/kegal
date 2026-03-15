@@ -152,9 +152,9 @@ class LLMFunctionCall(BaseModel):
 
 
 class LLmResponse(BaseModel):
-    messages: list[str] =  Field(default=None)
-    tools: list[LLMFunctionCall] | None =  Field(default=None)
-    json_output: dict | None =  Field(default=None)
+    messages: list[str] | None = Field(default=None)
+    tools: list[LLMFunctionCall] | None = Field(default=None)
+    json_output: dict | None = Field(default=None)
     input_size: int = 0
     output_size: int = 0
 
@@ -216,12 +216,11 @@ class LlmModel(ABC):
     @staticmethod
     def extract_format_from_media_type(media_type: str) -> str:
         if not media_type or '/' not in media_type:
-            raise LLMProcessingError(f"Invalid media type: {media_type}\n"
-                                     f"Media type non valido")
+            raise LLMProcessingError(f"Invalid media type: {media_type}")
 
         try:
             subtype = media_type.split('/')[-1].lower()
-            # Normalizza jpg → jpeg
+            # Normalize jpg → jpeg
             if subtype == 'jpg':
                 subtype = 'jpeg'
             return subtype

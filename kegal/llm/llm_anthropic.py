@@ -2,6 +2,8 @@ import json
 from typing import Any
 from botocore.config import Config
 
+AWS_READ_TIMEOUT_SECONDS = 300  # Increased from default 60s to handle large model responses
+
 from .llm_model import (LlmModel,
                        LLMImageData,
                        LLMPdfData,
@@ -18,7 +20,7 @@ class LlmAnthropic(LlmModel):
     """
     def __init__(self, **kwargs):
         if "model" not in kwargs.keys():
-            raise ValueError
+            raise ValueError("Missing required parameter: 'model'")
 
         super().__init__(kwargs.get("model"))
 
@@ -34,7 +36,7 @@ class LlmAnthropic(LlmModel):
                 raise ValueError("Missing required parameter: region_name")
 
             config = Config(
-                read_timeout=300,  # Increase from 60 to 300 seconds
+                read_timeout=AWS_READ_TIMEOUT_SECONDS,
                 connect_timeout=60,
                 retries={'max_attempts': 3}
             )
@@ -181,7 +183,7 @@ class LlmAnthropic(LlmModel):
         if  pdfs_b64 is not None:
             user_content.extend(self._pdfs_data(pdfs_b64))
 
-        # Compoese user content
+        # Compose user content
         messages.append({
             "role": "user",
             "content": user_content
@@ -222,8 +224,7 @@ class LlmAnthropic(LlmModel):
             return llm_response
 
         except Exception as e:
-            error_msg = f"ERROR: Can't invoke '{self.model}' endpoint: {e}"
-            raise RuntimeError(error_msg)
+            raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
 
 
     def _get_anthropic_response(self, body):
@@ -257,8 +258,7 @@ class LlmAnthropic(LlmModel):
 
             return llm_response
         except Exception as e:
-            error_msg = f"ERROR: Can't invoke '{self.model}' endpoint: {e}"
-            raise RuntimeError(error_msg)
+            raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
     # Manager response
     def _get_response(self, body) ->LLmResponse:
         if self.aws:

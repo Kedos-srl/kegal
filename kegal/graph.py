@@ -66,16 +66,13 @@ class Graph(BaseModel):
     edges: list[GraphEdge]
 
     # ---------- Serialization helpers ----------
-    def to_yml(self, exclude_none: bool = True) -> str:
-        #graph_dict = self.model_dump(exclude_none=True)
-        # Convert to YAML string
+    def to_yml(self) -> str:
         return yaml.dump(self.model_dump(), default_flow_style=False, sort_keys=False)
 
-    def save_to_yml(self, file_path: str | Path, exclude_none: bool = True) -> None:
+    def save_to_yml(self, file_path: str | Path) -> None:
         """Save the graph to a YAML file."""
-        yaml_content = self.to_yml(exclude_none)
         path = Path(file_path)
-        path.write_text(yaml_content, encoding='utf-8')
+        path.write_text(self.to_yml(), encoding='utf-8')
 
 
     def to_json(self, exclude_none: bool = True) -> str:

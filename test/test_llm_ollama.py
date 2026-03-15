@@ -1,18 +1,16 @@
 import unittest
-import os
 
-from kegal import LlmOllama
-import tests.llm.test_llm as test_llm
+from kegal.llm.llm_ollama import LlmOllama
+import test.test_llm as test_llm
 
+OLLAMA_MODEL = "qwen3-vl:8b"
 
-
-OLLAMA_MODEL = ""
 
 class TestOllama(test_llm.TestLLM, unittest.TestCase):
 
     @staticmethod
     def get_model():
-        return LlmOllama(model=os.getenv(OLLAMA_MODEL))
+        return LlmOllama(model=OLLAMA_MODEL)
 
     def test_chat(self):
         test_llm.llm_chat(self)
@@ -24,6 +22,7 @@ class TestOllama(test_llm.TestLLM, unittest.TestCase):
         test_llm.llm_chat_with_image(self)
 
     def test_chat_with_pdf(self):
+        # Ollama does not support PDF input
         pass
 
     def test_tools(self):

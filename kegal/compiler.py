@@ -47,7 +47,7 @@ class Compiler:
         self.user_message = graph.user_message
         self.retrieved_chunks = graph.retrieved_chunks
         self.outputs: CompiledOutput = CompiledOutput()
-        self.message_passing: list  = []
+        self.message_passing: list[Any] = []
         self.nodes = {node.id: node for index, node in enumerate(graph.nodes)}
         self.edges = graph.edges
 
@@ -64,7 +64,7 @@ class Compiler:
                     )
                 )
             else:
-                raise ValueError()
+                raise ValueError("Prompt input must have either 'template' or 'uri' defined")
         return prompts_templates
 
     def compile(self):
@@ -137,98 +137,92 @@ class Compiler:
             elif response.json_output is not None:
                 self.message_passing.append(response.json_output)
 
-
-    def _compile_node(self, node) -> bool:
-        # Is not active agent
-        if node.prompt is None:
-            return True  
-   
-
-        start_time = time.time()
-
-        model_body = {
+    def _build_model_body(self, node) -> dict[str, Any]:
+        """Assemble the kwargs dict for the LLM call from the node configuration."""
+        body: dict[str, Any] = {
             "temperature": node.temperature,
             "max_tokens": node.max_tokens,
         }
 
-        # Compose system and user prompt message
         composed_prompt = self._compose_node_prompt(node)
         if composed_prompt["system"] != "":
-            model_body["system_prompt"] = composed_prompt["system"]
+            body["system_prompt"] = composed_prompt["system"]
         if composed_prompt["user"] != "":
-            model_body["user_message"] = composed_prompt["user"]
+            body["user_message"] = composed_prompt["user"]
 
-        # Compose history
-        enable_history = False
         if self._chat_history_check(node):
-            model_body["chat_history"] = self.chat_history[node.prompt.chat_history]
-            enable_history = True
+            body["chat_history"] = self.chat_history[node.prompt.chat_history]
 
-        # Compose images
         if self._images_check(node):
-            model_body["imgs_b64"] = compose_images(self.images, node.images)
+            body["imgs_b64"] = compose_images(self.images, node.images)
 
-        # Compose documents
         if self._documents_check(node):
-            model_body["pdfs_b64"] = compose_documents(self.documents, node.documents)
+            body["pdfs_b64"] = compose_documents(self.documents, node.documents)
 
-        # Compose tools
         if self._tools_check(node):
-            model_body["tools_data"] = compose_tools(self.tools, node.tools)
+            body["tools_data"] = compose_tools(self.tools, node.tools)
 
-        # Structured Output
         if node.structured_output is not None:
-            structured_output = node.structured_output
-            #print(json.dumps(structured_output, indent=2))
-            model_body["structured_output"] = LLMStructuredOutput(json_output=LLMStructuredSchema(**structured_output))
+            body["structured_output"] = LLMStructuredOutput(
+                json_output=LLMStructuredSchema(**node.structured_output)
+            )
 
-        # Call LLM Client
-        client = self.clients[node.model]
-        response: LLmResponse = client.complete(**model_body)
+        return body
 
-        end_time = time.time()
-        compiled_time = end_time - start_time
-        print(f"Node {node.id} compiled in {compiled_time:.10f} seconds")
-
+    def _record_output(self, node, response: LLmResponse, compiled_time: float, enable_history: bool) -> None:
+        """Append node result to outputs and update aggregate metrics."""
         self.outputs.nodes.append(
             CompiledNodeOutput(
                 node_id=node.id,
                 response=response,
                 compiled_time=compiled_time,
                 show=node.show,
-                history=enable_history
+                history=enable_history,
             )
         )
         self.outputs.input_size += response.input_size
         self.outputs.output_size += response.output_size
         self.outputs.compile_time += compiled_time
 
+    @staticmethod
+    def _check_validation_gate(response: LLmResponse) -> bool:
+        """Return False if the response signals a failed guard-node validation, True otherwise.
 
-        self._check_message_passing(response, node)
-
-
-
-        # Optional validation gate: if the structured output contains a
-        # "validation" boolean field set to False, the graph compilation is
-        # stopped immediately. This is useful for guard nodes (e.g. content
-        # moderation, injection prevention) that flag a user message as
-        # invalid. When the field is absent or True, compilation continues.
+        Guard nodes (e.g. content moderation, prompt-injection checks) signal
+        failure by returning a structured output with ``"validation": false``.
+        When absent or True, graph execution continues normally.
+        """
         if response.json_output is not None and "validation" in response.json_output:
             return response.json_output["validation"]
         return True
 
-    def get_outputs(self)->CompiledOutput:
+    def _compile_node(self, node) -> bool:
+        if node.prompt is None:
+            return True
+
+        start_time = time.time()
+        model_body = self._build_model_body(node)
+        enable_history = "chat_history" in model_body
+        response: LLmResponse = self.clients[node.model].complete(**model_body)
+        compiled_time = time.time() - start_time
+
+        logger.debug(f"Node {node.id} compiled in {compiled_time:.10f} seconds")
+        self._record_output(node, response, compiled_time, enable_history)
+        self._check_message_passing(response, node)
+        return self._check_validation_gate(response)
+
+    def get_outputs(self) -> CompiledOutput:
         return self.outputs
 
-    def get_outputs_json(self, indent):
-        return  json.dumps(self.outputs.model_dump(), indent=indent)
+    def get_outputs_json(self, indent: int) -> str:
+        return json.dumps(self.outputs.model_dump(), indent=indent)
 
     def save_outputs_as_json(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             json.dump(self.outputs.model_dump(), f, indent=4)
 
-    def save_outputs_as_markdown(self, path: Path, only_content = False):
+    def save_outputs_as_markdown(self, path: Path, only_content: bool = False) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         if only_content:
             md = ""

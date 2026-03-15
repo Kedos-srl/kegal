@@ -16,11 +16,15 @@ def llm_chat(utest):
         system_prompt=prompt["system_prompt"],
         user_message=prompt["user_message"]
     )
-    utest.assertTrue(len(response.messages) != 0)
+    has_output = (response.messages is not None and len(response.messages) > 0) or response.json_output is not None
+    utest.assertTrue(has_output)
     utest.assertTrue(response.input_size > 0)
     utest.assertTrue(response.output_size > 0)
-    for message in response.messages:
-        print(message)
+    if response.messages:
+        for message in response.messages:
+            print(message)
+    if response.json_output:
+        print(response.json_output)
 
 
 def llm_chat_with_history(utest):

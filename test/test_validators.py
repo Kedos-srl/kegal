@@ -2,7 +2,7 @@ import unittest
 
 from pydantic import BaseModel, Field
 
-from kegal.kegal.validators import print_validation_input_schema,  validate_llm_input_schema
+from kegal.validators import print_validation_input_schema, validate_llm_input_schema
 
 
 

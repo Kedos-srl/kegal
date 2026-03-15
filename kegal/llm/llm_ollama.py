@@ -1,7 +1,10 @@
 import json
+import logging
 from typing import Any
 
 from ollama import Client
+
+logger = logging.getLogger(__name__)
 from .llm_model import (LlmModel,
                        LLMImageData,
                        LLMPdfData,
@@ -91,14 +94,12 @@ class LlmOllama(LlmModel):
                         llm_response.tools.append(function_call)
             return llm_response
         except Exception as e:
-            error_msg = f"ERROR: Can't invoke '{self.model}' endpoint: {e}"
-            raise RuntimeError(error_msg)
+            raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
 
 
-    # text -> text
     @staticmethod
-    def _chat_message(message: str):
-        pass
+    def _chat_message(message: str) -> dict:
+        return {"role": "user", "content": message}
 
     @staticmethod
     def _chat_history(history: list[LLmMessage] | list[dict]):
@@ -118,7 +119,8 @@ class LlmOllama(LlmModel):
     # text -> pdf
     @staticmethod
     def _pdfs_data(pdfs_b64: list[LLMPdfData]):
-        print("Ollama does not directly support pdf, convert pdf to b64 image list ")
+        logger.warning("Ollama does not directly support PDF input")
+        raise NotImplementedError("Ollama does not support PDF input; convert PDFs to base64 image lists first")
 
     # function calling
     @staticmethod

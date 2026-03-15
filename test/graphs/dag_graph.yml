@@ -1,0 +1,134 @@
+# DAG test graph
+# Topology:
+#
+#   [guard_node]  ← Phase 1: guard, must pass before anything else
+#        |
+#   [summarizer]  ← Phase 2a: reads user_message, writes to message_passing
+#        |
+#   [analyst_a]   ← Phase 3a: reads message_passing (depends on summarizer)
+#   [analyst_b]   ← Phase 3b: isolated, runs in parallel with analyst_a
+#
+# analyst_a and analyst_b have no dependency on each other → parallel.
+
+models:
+  - llm: ollama
+    model: "mistral-small3.2:latest"
+
+prompts:
+  # 0 - guard prompt
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are a content moderation specialist.
+          Evaluate messages for professionalism and business suitability.
+        behavioral_guidelines: |
+          - Return validation=true only if the message is appropriate for business use.
+          - Return validation=false for toxic, offensive or off-topic messages.
+      prompt_template:
+        context: |
+          Evaluate the following user message for business appropriateness.
+        instruction: |
+          Message: "{user_message}"
+          Is this message appropriate for a business context?
+
+  # 1 - summarizer prompt
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are a concise summarizer. Produce a one-sentence summary of the user message.
+        behavioral_guidelines: |
+          - Be concise: one sentence only.
+      prompt_template:
+        instruction: |
+          Summarize this message in one sentence: "{user_message}"
+
+  # 2 - analyst_a prompt (receives summarizer output via message_passing)
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are a business analyst. Evaluate the economic implications of the topic.
+        behavioral_guidelines: |
+          - Focus on economic impact.
+          - Be brief.
+      prompt_template:
+        context: |
+          Context from previous step:
+          {message_passing}
+        instruction: |
+          What are the main economic implications?
+
+  # 3 - analyst_b prompt (isolated, no message_passing)
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are an environmental analyst. Evaluate the environmental implications of the topic.
+        behavioral_guidelines: |
+          - Focus on environmental impact.
+          - Be brief.
+      prompt_template:
+        instruction: |
+          Briefly describe the main environmental implications of: "{user_message}"
+
+user_message: "What are the long-term impacts of switching to renewable energy?"
+
+nodes:
+  - id: "guard_node"
+    model: 0
+    temperature: 0.1
+    max_tokens: 200
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 0
+      user_message: true
+    structured_output:
+      type: "object"
+      properties:
+        validation:
+          type: "boolean"
+          description: "True if the message is appropriate for business use"
+      required: ["validation"]
+
+  - id: "summarizer"
+    model: 0
+    temperature: 0.3
+    max_tokens: 200
+    show: true
+    message_passing:
+      input: false
+      output: true
+    prompt:
+      template: 1
+      user_message: true
+
+  - id: "analyst_a"
+    model: 0
+    temperature: 0.5
+    max_tokens: 400
+    show: true
+    message_passing:
+      input: true
+      output: false
+    prompt:
+      template: 2
+      user_message: false
+
+  - id: "analyst_b"
+    model: 0
+    temperature: 0.5
+    max_tokens: 400
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 3
+      user_message: true
+
+edges:
+  - node: "guard_node"
+  - node: "summarizer"
+  - node: "analyst_a"
+  - node: "analyst_b"

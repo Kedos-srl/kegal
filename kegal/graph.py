@@ -52,6 +52,7 @@ class GraphNode(BaseModel):
 class GraphEdge(BaseModel):
     node: str
     children: list[str] | None = None
+    depends_on: list[str] | None = None
 
 class Graph(BaseModel):
     models: list[GraphModel]

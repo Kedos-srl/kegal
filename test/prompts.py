@@ -4,7 +4,7 @@ from pathlib import Path
 from kegal.llm.llm_model import LLMImageData, LLMStructuredOutput, LLMStructuredSchema, LLmMessage
 from kegal.utils import load_images_to_base64
 
-_ASSETS_DIR = Path(__file__).parent.parent.parent / "test" / "assets"
+_ASSETS_DIR = Path(__file__).parent / "assets"
 
 
 def get_chat_prompts() -> dict:

@@ -3,10 +3,21 @@ import json
 
 from pydantic import BaseModel
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from .utils import load_contents
 from .llm.llm_model import LLMTool
+
+
+class GraphMcpServer(BaseModel):
+    id: str
+    transport: Literal["stdio", "sse"]
+    # stdio transport
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict[str, str] | None = None
+    # sse transport
+    url: str | None = None
 
 
 class GraphModel(BaseModel):
@@ -48,6 +59,7 @@ class GraphNode(BaseModel):
     images: list[int] | None = None
     documents: list[int] | None = None
     tools: list[int] | None = None
+    mcp_servers: list[int] | None = None
 
 class GraphEdge(BaseModel):
     node: str
@@ -59,6 +71,7 @@ class Graph(BaseModel):
     images: list[GraphInputData] | None = None
     documents: list[GraphInputData] | None = None
     tools: list[LLMTool] | None = None
+    mcp_servers: list[GraphMcpServer] | None = None
     prompts: list[GraphInputData]
     chat_history: dict[str, list[dict[str, str]]] | None = None
     user_message: str | None = None

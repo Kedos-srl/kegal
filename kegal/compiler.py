@@ -2,14 +2,15 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel
 from .compose import compose_template_prompt, compose_node_prompt, compose_images, compose_documents, compose_tools
 from .graph import Graph, GraphNode
+from .mcp_handler import McpHandler
 from .utils import load_contents
 from .llm.llm_handler import LlmHandler
-from .llm.llm_model import LLmResponse, LLMStructuredOutput, LLMStructuredSchema
+from .llm.llm_model import LLmResponse, LLMStructuredOutput, LLMStructuredSchema, LLmMessage
 
 import logging
 
@@ -32,7 +33,8 @@ class CompiledOutput(BaseModel):
 
 class Compiler:
     def __init__(self, uri: str | None = None,
-                       source: dict | None = None) -> None:
+                       source: dict | None = None,
+                       tool_executors: dict[str, Callable] | None = None) -> None:
         if uri is not None:
             graph = Graph.from_uri(uri)
         else:
@@ -50,6 +52,28 @@ class Compiler:
         self.message_passing: list[Any] = []
         self.nodes = {node.id: node for node in graph.nodes}
         self.edges = graph.edges
+        self.graph_mcp_servers = graph.mcp_servers or []
+
+        # Static tool executors: name → Python callable
+        self.tool_executors: dict[str, Callable] = tool_executors or {}
+
+        # MCP handlers: server id → McpHandler (connected at init)
+        self.mcp_handlers: dict[str, McpHandler] = {}
+        for server_cfg in self.graph_mcp_servers:
+            handler = McpHandler(server_cfg)
+            try:
+                handler.connect()
+                self.mcp_handlers[server_cfg.id] = handler
+            except Exception as e:
+                logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
+
+    def disconnect(self) -> None:
+        """Disconnect all MCP servers. Call when done with the compiler."""
+        for handler in self.mcp_handlers.values():
+            try:
+                handler.disconnect()
+            except Exception as e:
+                logger.warning(f"Error disconnecting MCP server: {e}")
 
     @staticmethod
     def _get_graph_prompts_templates(graph):
@@ -213,7 +237,7 @@ class Compiler:
     # -------------------------------------------------------------------------
 
     def _run_node(self, node: GraphNode) -> bool:
-        """Execute a single node. Returns False if a validation gate fails or a guard node errors."""
+        """Execute a single node including the tool loop. Returns False if a validation gate fails."""
         if node.prompt is None:
             return True
         is_guard = self._is_guard_node(node)
@@ -221,7 +245,9 @@ class Compiler:
             start = time.time()
             model_body = self._build_model_body(node)
             enable_history = "chat_history" in model_body
-            response: LLmResponse = self.clients[node.model].complete(**model_body)
+
+            response = self._run_tool_loop(node, model_body)
+
             elapsed = time.time() - start
             logger.debug(f"Node '{node.id}' completed in {elapsed:.3f}s")
             self._record_output(node, response, elapsed, enable_history)
@@ -229,8 +255,68 @@ class Compiler:
             return self._check_validation_gate(response)
         except Exception as e:
             logger.exception(f"Failed to execute node '{node.id}': {e}")
-            # Guard node errors are treated as a failed validation — abort the graph
             return not is_guard
+
+    def _run_tool_loop(self, node: GraphNode, model_body: dict[str, Any]) -> LLmResponse:
+        """Call the LLM and execute tool calls until the model returns a final answer."""
+        client = self.clients[node.model]
+        # Keep a mutable copy so we can inject tool results into history
+        body = dict(model_body)
+        tool_history: list[LLmMessage] = list(body.get("chat_history") or [])
+
+        original_user_message = body.get("user_message", "")
+
+        MAX_ITERATIONS = 10
+        for iteration in range(MAX_ITERATIONS):
+            if tool_history:
+                body["chat_history"] = tool_history
+
+            response: LLmResponse = client.complete(**body)
+
+            # No tool calls → final answer
+            if not response.tools:
+                return response
+
+            # On first tool call: move the user message into history so it isn't
+            # duplicated on subsequent turns, but remains visible to the model.
+            if iteration == 0 and original_user_message:
+                tool_history.insert(0, LLmMessage(role="user", content=original_user_message))
+                body.pop("user_message", None)
+
+            # Execute each tool call and collect results
+            for tool_call in response.tools:
+                result = self._execute_tool_call(tool_call.name, tool_call.parameters, node)
+                logger.debug(f"Tool '{tool_call.name}' returned: {result[:120]}")
+
+                tool_history.append(LLmMessage(
+                    role="assistant",
+                    content=f"[tool_call] {tool_call.name}({json.dumps(tool_call.parameters)})"
+                ))
+                tool_history.append(LLmMessage(
+                    role="user",
+                    content=f"[tool_result] {tool_call.name}: {result}"
+                ))
+
+        logger.warning(f"Node '{node.id}' hit tool loop limit ({MAX_ITERATIONS} iterations)")
+        return response
+
+    def _execute_tool_call(self, name: str, parameters: dict, node: GraphNode) -> str:
+        """Route a tool call to either a static executor or an MCP server."""
+        # 1. Try MCP first
+        mcp_handler = self._mcp_server_for_tool(name, node)
+        if mcp_handler:
+            return mcp_handler.call_tool(name, parameters)
+
+        # 2. Try static executor
+        executor = self.tool_executors.get(name)
+        if executor:
+            result = executor(**parameters)
+            return str(result)
+
+        raise RuntimeError(
+            f"Node '{node.id}': no executor registered for tool '{name}'. "
+            f"Register it via tool_executors={{'{name}': fn}} in Compiler()"
+        )
 
     # -------------------------------------------------------------------------
     # Node body helpers
@@ -255,6 +341,31 @@ class Compiler:
         if node.tools is None or self.tools is None:
             return False
         return True
+
+    def _mcp_tools_for_node(self, node: GraphNode) -> list:
+        """Return LLMTool list from all MCP servers assigned to this node."""
+        if not node.mcp_servers:
+            return []
+        tools = []
+        for idx in node.mcp_servers:
+            server_id = self.graph_mcp_servers[idx].id
+            handler = self.mcp_handlers.get(server_id)
+            if handler:
+                tools.extend(handler.list_tools())
+            else:
+                logger.warning(f"MCP server '{server_id}' not connected — skipping for node '{node.id}'")
+        return tools
+
+    def _mcp_server_for_tool(self, tool_name: str, node: GraphNode) -> McpHandler | None:
+        """Return the McpHandler that owns the given tool name, for this node."""
+        if not node.mcp_servers:
+            return None
+        for idx in node.mcp_servers:
+            server_id = self.graph_mcp_servers[idx].id
+            handler = self.mcp_handlers.get(server_id)
+            if handler and tool_name in handler.tool_names():
+                return handler
+        return None
 
     def _compose_node_prompt(self, node):
         prompt_elements: dict[str, Any] = {
@@ -298,8 +409,12 @@ class Compiler:
         if self._documents_check(node):
             body["pdfs_b64"] = compose_documents(self.documents, node.documents)
 
+        all_tools = []
         if self._tools_check(node):
-            body["tools_data"] = compose_tools(self.tools, node.tools)
+            all_tools.extend(compose_tools(self.tools, node.tools))
+        all_tools.extend(self._mcp_tools_for_node(node))
+        if all_tools:
+            body["tools_data"] = all_tools
 
         if node.structured_output is not None:
             body["structured_output"] = LLMStructuredOutput(

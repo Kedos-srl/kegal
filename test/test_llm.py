@@ -2,7 +2,7 @@ import json
 
 from abc import abstractmethod, ABC
 
-from kegal.tests import prompts
+from test import prompts
 
 
 def llm_chat(utest):

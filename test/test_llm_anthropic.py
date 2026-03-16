@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from kegal.kegal.llm import LlmAnthropic
-from kegal.tests import test_llm
+from test import test_llm
 
 TEST_DIR = Path(__file__).parent
 

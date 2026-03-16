@@ -1,0 +1,37 @@
+models:
+  - llm: "ollama"
+    model: "mistral-small3.2:latest"
+    host: "http://localhost:11434"
+
+mcp_servers:
+  - id: "test_server"
+    transport: "stdio"
+    command: "__PYTHON__"
+    args: ["test/mcp_test_server.py"]
+
+prompts:
+  - template:
+      system_template:
+        role: |
+          You are a helpful assistant. Use the available tools to answer the user's question. Be concise.
+      prompt_template:
+        instruction: |
+          {user_message}
+
+nodes:
+  - id: "weather_node"
+    model: 0
+    temperature: 0.0
+    max_tokens: 512
+    show: true
+    message_passing:
+      input: false
+      output: false
+    mcp_servers: [0]
+    prompt:
+      template: 0
+      prompt_placeholders:
+        user_message: "What is the weather in Rome?"
+
+edges:
+  - node: "weather_node"

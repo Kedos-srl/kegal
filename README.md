@@ -39,6 +39,7 @@ pip install -e .
 
 - [Graph Framework Documentation](kegal/docs/graph_doc.md) - Detailed guide on graph configuration and models
 - [LLM Framework Documentation](kegal/docs/llm_doc.md) - Guide on LLM providers and integration
+- [Changelog](kegal/docs/CHANGELOG.md) - Version history and release notes
 
 ## Quick Start
 

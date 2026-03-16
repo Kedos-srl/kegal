@@ -1,7 +1,7 @@
 ## Graph Response
- * Token Input size: 1509
- * Token Output size: 94
- * Compile time: 15.000995635986328
+ * Token Input size: 1563
+ * Token Output size: 105
+ * Compile time: 15.220926761627197
 ### Node:  language_check
 ```json
  {
@@ -10,22 +10,22 @@
 } 
 ```
 
-Token Input size:  440 
-  Token Output size:  14 
+Token Input size:  469 
+  Token Output size:  13 
  ### Node:  test_rag_node
 ```json
  {
     "validation": true,
     "cost_metrics": {
-        "lcoe_solar": "$0.048/kWh",
-        "energy_cost_reduction": "15% over 10 years",
-        "annual_savings": "$42 billion"
+        "levelized_cost_of_energy": "0.048 kWh in 2023",
+        "global_investment": "$1.8 trillion",
+        "job_creation": "13.7 million jobs"
     },
-    "growth_rate": 1.8,
-    "recommendation": "Economic viability confirmed"
+    "growth_rate": 40,
+    "recommendation": "Long-term economic benefits from renewable energy outweigh short-term transition costs."
 } 
 ```
 
-Token Input size:  1069 
-  Token Output size:  80 
+Token Input size:  1094 
+  Token Output size:  92 
  

@@ -68,12 +68,18 @@ class Compiler:
                 logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
 
     def disconnect(self) -> None:
-        """Disconnect all MCP servers. Call when done with the compiler."""
+        """Disconnect all MCP servers and close LLM clients."""
         for handler in self.mcp_handlers.values():
             try:
                 handler.disconnect()
             except Exception as e:
                 logger.warning(f"Error disconnecting MCP server: {e}")
+        for client in self.clients:
+            if hasattr(client.model, "close"):
+                try:
+                    client.model.close()
+                except Exception as e:
+                    logger.warning(f"Error closing LLM client: {e}")
 
     @staticmethod
     def _get_graph_prompts_templates(graph):
@@ -265,6 +271,7 @@ class Compiler:
         tool_history: list[LLmMessage] = list(body.get("chat_history") or [])
 
         original_user_message = body.get("user_message", "")
+        accumulated_tool_results: list[str] = []
 
         MAX_ITERATIONS = 10
         for iteration in range(MAX_ITERATIONS):
@@ -275,6 +282,8 @@ class Compiler:
 
             # No tool calls → final answer
             if not response.tools:
+                if accumulated_tool_results:
+                    response.tool_results = accumulated_tool_results
                 return response
 
             # On first tool call: move the user message into history so it isn't
@@ -287,6 +296,7 @@ class Compiler:
             for tool_call in response.tools:
                 result = self._execute_tool_call(tool_call.name, tool_call.parameters, node)
                 logger.debug(f"Tool '{tool_call.name}' returned: {result[:120]}")
+                accumulated_tool_results.append(result)
 
                 tool_history.append(LLmMessage(
                     role="assistant",
@@ -296,6 +306,11 @@ class Compiler:
                     role="user",
                     content=f"[tool_result] {tool_call.name}: {result}"
                 ))
+
+            # tool node (inferred): stop after executing tools if results will be passed downstream
+            if (node.mcp_servers or node.tools) and node.message_passing.output:
+                response.tool_results = accumulated_tool_results
+                return response
 
         logger.warning(f"Node '{node.id}' hit tool loop limit ({MAX_ITERATIONS} iterations)")
         return response
@@ -441,7 +456,9 @@ class Compiler:
             self.message_passing.clear()
             return
         if node.message_passing.output:
-            if response.messages is not None and len(response.messages) > 0:
+            if (node.mcp_servers or node.tools) and response.tool_results:
+                self.message_passing.extend(response.tool_results)
+            elif response.messages is not None and len(response.messages) > 0:
                 self.message_passing.extend(response.messages)
             elif response.json_output is not None:
                 self.message_passing.append(response.json_output)
@@ -488,7 +505,9 @@ class Compiler:
                 if output.response.json_output is not None:
                     md += f"""```json\n {json.dumps(output.response.json_output, indent=4)} \n```\n"""
                 if output.response.tools is not None:
-                    md += f"""```json\n {json.dumps(output.response.tools, indent=4)} \n```\n"""
+                    md += f"""```json\n {json.dumps([t.model_dump() for t in output.response.tools], indent=4)} \n```\n"""
+                if output.response.tool_results is not None:
+                    md += f"""```\n{chr(10).join(output.response.tool_results)}\n```\n"""
                 md += f"\nToken Input size:  {output.response.input_size} \n "
                 md += f" Token Output size:  {output.response.output_size} \n "
 

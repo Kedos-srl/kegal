@@ -1,0 +1,41 @@
+models:
+  - llm: "ollama"
+    model: "mistral-small3.2:latest"
+    host: "http://localhost:11434"
+
+mcp_servers:
+  - id: "sqlite_server"
+    transport: "stdio"
+    command: "python"
+    args: ["test/mcp_sqlite_server.py"]
+
+user_message: "Which product had the highest total revenue across all quarters? Show the total."
+
+prompts:
+  - template:
+      system_template:
+        role: |
+          You are a data analyst assistant. You have access to a sales database
+          with a table called `sales` containing columns: id, product, quarter, revenue.
+          Use the query_db tool to answer the user's question with precise figures.
+          Be concise and include the exact numbers from the query result.
+      prompt_template:
+        instruction: |
+          {user_message}
+
+nodes:
+  - id: "analyst_node"
+    model: 0
+    temperature: 0.0
+    max_tokens: 512
+    show: true
+    message_passing:
+      input: false
+      output: false
+    mcp_servers: [0]
+    prompt:
+      template: 0
+      user_message: true
+
+edges:
+  - node: "analyst_node"

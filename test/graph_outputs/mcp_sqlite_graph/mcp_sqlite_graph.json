@@ -1,0 +1,25 @@
+{
+    "nodes": [
+        {
+            "node_id": "analyst_node",
+            "response": {
+                "messages": [
+                    "The product with the highest total revenue across all quarters is Widget A, with a total revenue of 58600.0."
+                ],
+                "tools": null,
+                "tool_results": [
+                    "product, total_revenue\nWidget A, 58600.0"
+                ],
+                "json_output": null,
+                "input_size": 215,
+                "output_size": 29
+            },
+            "compiled_time": 2.6222739219665527,
+            "show": true,
+            "history": false
+        }
+    ],
+    "input_size": 215,
+    "output_size": 29,
+    "compile_time": 2.6223418712615967
+}

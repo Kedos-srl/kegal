@@ -5,14 +5,15 @@
             "response": {
                 "messages": null,
                 "tools": null,
+                "tool_results": null,
                 "json_output": {
                     "validation": true,
                     "action": "approve"
                 },
-                "input_size": 440,
-                "output_size": 14
+                "input_size": 469,
+                "output_size": 13
             },
-            "compiled_time": 4.796705007553101,
+            "compiled_time": 4.918133497238159,
             "show": true,
             "history": false
         },
@@ -21,25 +22,26 @@
             "response": {
                 "messages": null,
                 "tools": null,
+                "tool_results": null,
                 "json_output": {
                     "validation": true,
                     "cost_metrics": {
-                        "lcoe_solar": "$0.048/kWh",
-                        "energy_cost_reduction": "15% over 10 years",
-                        "annual_savings": "$42 billion"
+                        "levelized_cost_of_energy": "0.048 kWh in 2023",
+                        "global_investment": "$1.8 trillion",
+                        "job_creation": "13.7 million jobs"
                     },
-                    "growth_rate": 1.8,
-                    "recommendation": "Economic viability confirmed"
+                    "growth_rate": 40,
+                    "recommendation": "Long-term economic benefits from renewable energy outweigh short-term transition costs."
                 },
-                "input_size": 1069,
-                "output_size": 80
+                "input_size": 1094,
+                "output_size": 92
             },
-            "compiled_time": 10.204206228256226,
+            "compiled_time": 10.302727937698364,
             "show": true,
             "history": true
         }
     ],
-    "input_size": 1509,
-    "output_size": 94,
-    "compile_time": 15.000995635986328
+    "input_size": 1563,
+    "output_size": 105,
+    "compile_time": 15.220926761627197
 }

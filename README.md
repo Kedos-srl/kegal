@@ -74,7 +74,6 @@ outputs = compiler.get_outputs()
 
 ## TO DO
 - Add support for gemini
-- Add support for MCP (Model Context Protocol) 
   
 
 ## Copyright

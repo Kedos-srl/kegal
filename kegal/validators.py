@@ -34,6 +34,26 @@ def print_validation_input_schema(issues: List[SchemaIssue]):
                        i, issue.path, issue.rule, issue.message,
                        f" value={issue.value}" if issue.value is not None else "")
 
+def _is_valid_json_schema(schema: Dict[str, Any]) -> List[SchemaIssue]:
+    """Validate that input is actually a JSON Schema using the meta-schema"""
+    issues = []
+
+    # Check that 'type' is present in the schema keys
+    schema_keys = set(schema.keys())
+
+    if 'type' not in schema_keys:
+        issues.append(SchemaIssue(
+            path="root",
+            rule="NOT_A_JSON_SCHEMA",
+            message=(
+                f"Input does not appear to be a valid JSON Schema: "
+                f"missing required keyword 'type'. Got keys: {sorted(schema_keys)}"
+            ),
+            value=sorted(schema_keys)
+        ))
+    return issues
+
+
 
 def validate_anthropic_schema(schema: Dict[str, Any]) -> List[SchemaIssue]:
     """
@@ -81,6 +101,11 @@ def validate_anthropic_schema(schema: Dict[str, Any]) -> List[SchemaIssue]:
 
         # Validate the schema itself
         Draft202012Validator.check_schema(schema)
+
+        # verify it's actually a valid JSON Schema for anthropic's requirements (e.g. has 'type' keyword, etc.)
+        meta_issues = _is_valid_json_schema(schema)
+        if meta_issues:
+            return meta_issues  # early exit
 
     except SchemaError as e:
         # Schema is malformed

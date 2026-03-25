@@ -41,6 +41,20 @@ class TestValidators(unittest.TestCase):
         print_validation_input_schema(issues)
         self.assertGreater(len(issues), 0)
 
+        # Example 0b: Check schema without 'type' key (must fail)
+        print("=" * 60)
+        print("Example 0b: JSON without 'type' key (not a JSON Schema)")
+        print("=" * 60)
+        not_a_schema = {
+            "title": "activity title",
+            "funding_value": "funding amount without decimals",
+            "tasks": ["list of activities"],
+            "summary": "summary of the document"
+        }
+        issues = validate_llm_input_schema(not_a_schema, model_name)
+        print_validation_input_schema(issues)
+        self.assertGreater(len(issues), 0)
+
         # Example 1: Check Pydantic model
         print("=" * 60)
         print("Example 1: Pydantic Model with Issues")

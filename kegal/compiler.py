@@ -261,6 +261,10 @@ class Compiler:
             return self._check_validation_gate(response)
         except Exception as e:
             logger.exception(f"Failed to execute node '{node.id}': {e}")
+            # if it's not a guard node, we re-raise the exception to fail fast and avoid running dependent nodes with potentially inconsistent state
+            if not is_guard :
+                raise e
+            # Guard node errors are treated as a failed validation — abort the graph
             return not is_guard
 
     def _run_tool_loop(self, node: GraphNode, model_body: dict[str, Any]) -> LLmResponse:

@@ -63,8 +63,8 @@ class GraphNode(BaseModel):
 
 class GraphEdge(BaseModel):
     node: str
-    children: list[str] | None = None
-    depends_on: list[str] | None = None
+    children: list["GraphEdge"] | None = None  # fan-out: sub-task decomposition
+    fan_in: list["GraphEdge"] | None = None    # aggregation: wait for all listed nodes
 
 class Graph(BaseModel):
     models: list[GraphModel]

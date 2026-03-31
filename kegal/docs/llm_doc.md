@@ -89,9 +89,7 @@ This module defines the core **abstract base class** (`LlmModel`) and the Pydant
 
 | Field | Type | Optional | Description |
 |-------|------|----------|-------------|
-| `description` | `str` | No | Brief description of the output. |
-| `parameters` | `dict[str, LLMStructuredSchema]` | No | JSON schema of the expected output. |
-| `required` | `list[str]` | No | Required parameter names. |
+| `json_output` | `LLMStructuredSchema` | No | The JSON schema the LLM must conform to in its response. |
 
 #### `LLMMessage`
 
@@ -212,10 +210,13 @@ outputs = compiler.get_outputs()
 
 ### Compilation Flow
 
-1. **Edge iteration** – the compiler walks through the `edges` list sequentially.
-2. **Node execution** – for each edge, it compiles the source node and then its children (if any).
-3. **Validation gate** – after each node execution, if the structured output contains a `validation` field set to `false`, the compiler **stops immediately** and no further nodes are executed. This allows guard nodes (e.g. content moderation, injection prevention) to halt the workflow when a user message is flagged as invalid.
-4. **Message passing** – node outputs can be forwarded to downstream nodes via the `message_passing` configuration.
+1. **DAG building** – `_build_dag()` resolves dependencies in three stages:
+   - *Stage 1 (structural)*: the recursive edge tree is traversed; `children` entries create fan-out dependencies (child waits for parent); `fan_in` entries create aggregation dependencies (node waits for all listed nodes).
+   - *Stage 2 (message passing)*: any node with `message_passing.output=true` becomes a dependency of all later nodes with `message_passing.input=true`, based on declaration order.
+   - *Stage 3 (guard barrier)*: nodes whose `structured_output` contains a `validation` field automatically precede all other nodes.
+2. **Topological scheduling** – `_topological_levels()` groups nodes into levels via Kahn's algorithm. Nodes in the same level have no dependency on each other.
+3. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one.
+4. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
 
 ### Output Models
 
@@ -258,7 +259,7 @@ graph = Graph(
         ),
     ],
     edges=[
-        GraphEdge(node="node1", children=[1]),
+        GraphEdge(node="node1"),
     ],
 )
 ```
@@ -418,7 +419,6 @@ nodes:
 
 edges:
   - node: "language_check"
-    children: null
   - node: "test_rag_node"
 ```
 
@@ -512,13 +512,65 @@ edges:
     }
   ],
   "edges": [
-    { "node": "language_check", "children": null },
-    { "node": "test_rag_node", "children": null }
+    { "node": "language_check" },
+    { "node": "test_rag_node" }
   ]
 }
 ```
 
 
+
+---
+
+## 11. `kegal.mcp_handler`
+
+`McpHandler` connects a single MCP server (stdio or SSE transport), lists its tools, and executes tool calls on behalf of the compiler. The LLM layer never communicates with MCP directly — it only sees translated `LLMTool` definitions and receives plain-string results.
+
+The async MCP session runs on a dedicated background thread with its own event loop, so the synchronous compiler can call `connect`, `call_tool`, and `disconnect` without managing coroutines directly.
+
+### Public API
+
+| Method | Description |
+|--------|-------------|
+| `connect()` | Open the MCP session and load available tools. |
+| `disconnect()` | Close the session and stop the background event loop. |
+| `list_tools() -> list[LLMTool]` | Return all tools exposed by the server as `LLMTool` objects. |
+| `tool_names() -> set[str]` | Return the set of tool names available on this server. |
+| `call_tool(name, arguments) -> str` | Execute a tool call and return the result as a plain string. |
+
+### YAML configuration (`GraphMcpServer`)
+
+| Field | Type | Optional | Description |
+|-------|------|----------|-------------|
+| `id` | `str` | No | Unique identifier for this MCP server. Referenced by `mcp_servers` indices on nodes. |
+| `transport` | `"stdio"` \| `"sse"` | No | Connection transport. |
+| `command` | `str` \| `None` | stdio only | Executable to launch (e.g. `"python"`). |
+| `args` | `list[str]` \| `None` | stdio only | Arguments passed to the command. |
+| `env` | `dict[str, str]` \| `None` | stdio only | Extra environment variables for the subprocess. |
+| `url` | `str` \| `None` | SSE only | HTTP endpoint of the SSE MCP server. |
+
+### YAML Example
+
+```yaml
+mcp_servers:
+  - id: "sqlite_server"
+    transport: "stdio"
+    command: "python"
+    args: ["path/to/mcp_server.py"]
+
+nodes:
+  - id: "analyst"
+    mcp_servers: [0]          # references mcp_servers[0]
+    message_passing:
+      input: false
+      output: true
+    ...
+
+edges:
+  - node: "analyst"
+```
+
+> **Note**: Multiple nodes can reference the same MCP server. Tool calls from parallel nodes on the same server are safely queued on the server's event loop, but effective throughput is serialized per server.
 
 ---
 

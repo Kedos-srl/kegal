@@ -12,7 +12,7 @@
 
 models:
   - llm: ollama
-    model: "mistral-small3.2:latest"
+    model: "qwen3-vl:8b"
 
 prompts:
   # 0 - guard prompt

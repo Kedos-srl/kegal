@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 from .compose import compose_template_prompt, compose_node_prompt, compose_images, compose_documents, compose_tools
-from .graph import Graph, GraphNode
+from .graph import Graph, GraphEdge, GraphNode
 from .mcp_handler import McpHandler
 from .utils import load_contents
 from .llm.llm_handler import LlmHandler
@@ -104,37 +104,93 @@ class Compiler:
     def _build_dag(self) -> dict[str, set[str]]:
         """Return a dependency map: node_id → set of node_ids that must finish first.
 
-        Dependencies are resolved in this priority order:
-        1. Explicit ``depends_on`` on the edge.
+        Dependencies are resolved in three stages:
+        1. Explicit structural dependencies from the recursive edge tree:
+           - ``children``: fan-out — each child depends on its parent node.
+           - ``fan_in``: aggregation — the node depends on every node listed.
         2. Inferred from ``message_passing``: any node with ``output:true``
            is a dependency of any node with ``input:true`` that appears later
-           in the edge list.
+           in the collected node order.
         3. Guard nodes (structured_output contains ``validation``) implicitly
            precede every non-guard node.
+
+        Known limitation: ``detect_cycles`` catches cycles within a single
+        recursive edge declaration but not cross-root cycles (e.g. root A has
+        child B, root B has child A). Cross-root cycles are caught downstream
+        by ``_topological_levels`` via Kahn's algorithm.
         """
         deps: dict[str, set[str]] = {node_id: set() for node_id in self.nodes}
+        declared_structure: dict[str, GraphEdge] = {}
 
-        # Collect all node ids in edge order (parent first, then children)
+        # — Cycle detection ————————————————————————————————————————————————
+        def detect_cycles(edge: GraphEdge, path: set[str]) -> None:
+            if edge.node in path:
+                raise ValueError(
+                    f"Cycle detected in edges involving node '{edge.node}'"
+                )
+            path = path | {edge.node}
+            for child in (edge.children or []):
+                detect_cycles(child, path)
+            for fi in (edge.fan_in or []):
+                detect_cycles(fi, path)
+
+        # — Recursive traversal ————————————————————————————————————————————
+        def traverse(edge: GraphEdge) -> None:
+            node_id = edge.node
+
+            if node_id not in self.nodes:
+                raise ValueError(
+                    f"Edge references unknown node '{node_id}'"
+                )
+
+            # Warn on contradictory internal structure for the same node id
+            has_structure = edge.children is not None or edge.fan_in is not None
+            if has_structure:
+                if node_id in declared_structure:
+                    prev = declared_structure[node_id]
+                    if prev.children != edge.children or prev.fan_in != edge.fan_in:
+                        logger.warning(
+                            f"Node '{node_id}' has contradictory structure declarations. "
+                            f"First declaration is canonical; subsequent ones are ignored."
+                        )
+                else:
+                    declared_structure[node_id] = edge
+
+            # fan_in: node_id depends on every node listed in fan_in
+            for fi_edge in (edge.fan_in or []):
+                traverse(fi_edge)               # validate before accessing deps
+                deps[node_id].add(fi_edge.node)
+
+            # children: every child depends on node_id
+            for child_edge in (edge.children or []):
+                traverse(child_edge)             # validate before accessing deps
+                deps[child_edge.node].add(node_id)
+
+        # — Stage 1: explicit dependencies from edge tree ——————————————————
+        for root_edge in self.edges:
+            detect_cycles(root_edge, set())
+            traverse(root_edge)
+
+        # — Stage 2: message_passing inference (unchanged) ————————————————
+        # Collect node order via DFS pre-order traversal of the edge tree.
+        # Nodes not referenced in any edge are appended in declaration order.
         ordered_ids: list[str] = []
-        for edge in self.edges:
-            if edge.node not in ordered_ids:
-                ordered_ids.append(edge.node)
-            if edge.children:
-                for child in edge.children:
-                    if child not in ordered_ids:
-                        ordered_ids.append(child)
 
-        # 1. Explicit depends_on
-        for edge in self.edges:
-            if edge.depends_on:
-                for dep in edge.depends_on:
-                    deps[edge.node].add(dep)
-            if edge.children and edge.depends_on:
-                for child in edge.children:
-                    for dep in edge.depends_on:
-                        deps[child].add(dep)
+        def collect_ids(e: GraphEdge) -> None:
+            if e.node not in ordered_ids:
+                ordered_ids.append(e.node)
+            for child in (e.children or []):
+                collect_ids(child)
+            for fi in (e.fan_in or []):
+                collect_ids(fi)
 
-        # 2. message_passing inference: output node → all subsequent input nodes
+        for edge in self.edges:
+            collect_ids(edge)
+
+        for node_id in self.nodes:
+            if node_id not in ordered_ids:
+                ordered_ids.append(node_id)
+
         output_nodes = [
             nid for nid in ordered_ids
             if self.nodes[nid].message_passing.output
@@ -150,12 +206,9 @@ class Compiler:
                 if in_idx > out_idx:
                     deps[in_nid].add(out_nid)
 
-        # 3. Guard nodes precede all non-guard nodes
-        guard_ids = [
-            nid for nid in ordered_ids
-            if self._is_guard_node(self.nodes[nid])
-        ]
-        non_guard_ids = [nid for nid in ordered_ids if nid not in guard_ids]
+        # — Stage 3: guard nodes precede all non-guard nodes (unchanged) ———
+        guard_ids = [nid for nid, n in self.nodes.items() if self._is_guard_node(n)]
+        non_guard_ids = [nid for nid in self.nodes if nid not in guard_ids]
         for nid in non_guard_ids:
             for gid in guard_ids:
                 deps[nid].add(gid)
@@ -203,6 +256,23 @@ class Compiler:
         levels = self._topological_levels(deps)
 
         logger.debug(f"DAG levels: {levels}")
+
+        # Warn when concurrent output:true nodes share a topological level.
+        # Their writes to self.message_passing will be non-deterministically
+        # interleaved; a downstream input:true node will receive arbitrary output.
+        for level in levels:
+            output_in_level = [
+                nid for nid in level
+                if self.nodes[nid].message_passing.output
+            ]
+            if len(output_in_level) > 1:
+                logger.warning(
+                    f"Nodes {output_in_level} are at the same execution level "
+                    f"and all have message_passing.output=true. Their outputs will be "
+                    f"written to self.message_passing concurrently in non-deterministic "
+                    f"order. Consider restructuring to avoid concurrent writes to the "
+                    f"message pipe."
+                )
 
         for level in levels:
             guard_ids   = [nid for nid in level if self._is_guard_node(self.nodes[nid])]

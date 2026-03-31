@@ -4,6 +4,23 @@ All notable changes to KeGAL are documented here.
 
 ---
 
+## [0.1.2.4] - 2026-03-31
+
+### Changed
+- **`GraphEdge` model** (`graph.py`) — `children` is now `list[GraphEdge]` (recursive) instead of `list[str]`; `fan_in: list[GraphEdge]` added for explicit aggregation; `depends_on` removed (breaking change — migrate to `fan_in`).
+- **`_build_dag`** (`compiler.py`) — replaced flat iteration with recursive tree traversal (stage 1); stage 2 (`message_passing` inference) and stage 3 (guard nodes) unchanged. Guard-node scope extended to all nodes in the graph, including pure `message_passing` nodes not listed in any edge.
+- **`compile()`** — added warning when two or more nodes at the same topological level both have `message_passing.output=true` (non-deterministic concurrent write to the shared message pipe).
+- Test graphs updated to `qwen3-vl:8b`.
+
+### Fixed
+- Unknown node referenced in `children` now raises `ValueError` instead of `KeyError`.
+
+### Known limitations
+- `detect_cycles` catches cycles within a single recursive edge declaration only. Cross-root cycles are caught downstream by `_topological_levels` with a less specific error message.
+- Multiple nodes sharing the same MCP server in a fan-out level are safe but their tool calls are serialized on the server's event loop (lower throughput than the parallel count suggests).
+
+---
+
 ## [0.1.2.3] - 2026-03-16
 
 ### Added

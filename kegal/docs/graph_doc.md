@@ -164,6 +164,7 @@ output: false
 | `images`            | `list[int]` \| `None`        | Yes      | Indices of images to be provided to the node. |
 | `documents`         | `list[int]` \| `None`        | Yes      | Indices of documents to be provided to the node. |
 | `tools`             | `list[int]` \| `None`        | Yes      | Indices of tools to be provided to the node. |
+| `mcp_servers`       | `list[int]` \| `None`        | Yes      | Indices of MCP servers (from the global `mcp_servers` list) available to this node. |
 
 
 ### YAML Example
@@ -309,28 +310,113 @@ In this example, if the LLM determines the message is inappropriate, it returns 
 
 ## 6. `GraphEdge`
 
-| Field      | Type            | Optional | Description                                                   |
-|------------|-----------------|----------|---------------------------------------------------------------|
-| `node`     | `str`           | No       | Identifier of the node that this edge originates from.       |
-| `children` | `list[int]` \| `None` | Yes      | Indices of child nodes; `null` indicates no children. |
+| Field      | Type                       | Optional | Description |
+|------------|----------------------------|----------|-------------|
+| `node`     | `str`                      | No       | Unique identifier of the node this edge entry describes. |
+| `children` | `list[GraphEdge]` \| `None`| Yes      | **Fan-out**: nodes to launch in parallel when this node completes. Each entry is itself a `GraphEdge`, allowing recursive sub-structure at any depth. |
+| `fan_in`   | `list[GraphEdge]` \| `None`| Yes      | **Aggregation**: nodes this node waits for before starting. This node will not execute until every node listed here has completed. |
 
-### YAML Example
+### Dependency semantics
 
+**`edges` describe execution order only** — which node must complete before another can start. Data exchange between nodes is controlled independently by `message_passing` (`input`/`output`) on the nodes themselves.
+
+**Two dependency patterns:**
+
+- `children` (fan-out): node A completes → children B, C, D start in parallel.
+- `fan_in` (aggregation): node E starts only when all nodes listed in its `fan_in` have completed.
+
+**Guard nodes** (nodes whose `structured_output` contains a `validation` boolean field) automatically precede all other nodes regardless of edge declarations.
+
+**`message_passing` inference**: if no edges are declared, a node with `output: true` automatically becomes a dependency of any later node with `input: true`, based on their declaration order in the `nodes` list.
+
+### YAML Examples
+
+#### Linear pipeline — no edges required
+
+Two nodes exchanging data via `message_passing` need no edge declarations.
 ```yaml
-node: "language_check"
-children: null
+nodes:
+  - id: "preprocessor"
+    message_passing: {input: false, output: true}
+    ...
+  - id: "analyzer"
+    message_passing: {input: true, output: false}
+    ...
+# edges: omitted — message_passing inference handles ordering
 ```
 
+#### Fan-out: task decomposition
+
+```yaml
+# A completes, then B, C, D run in parallel
+edges:
+  - node: "A"
+    children:
+      - node: "B"
+      - node: "C"
+      - node: "D"
+```
+
+#### Fan-in: aggregation
+
+```yaml
+# E starts only when B, C, D have all completed
+edges:
+  - node: "E"
+    fan_in:
+      - node: "B"
+      - node: "C"
+      - node: "D"
+```
+
+#### Fan-out + fan-in combined
+
+```yaml
+# A launches B, C, D in parallel; E waits for all three; E then launches F
+edges:
+  - node: "A"
+    children:
+      - node: "B"
+      - node: "C"
+      - node: "D"
+  - node: "E"
+    fan_in:
+      - node: "B"
+      - node: "C"
+      - node: "D"
+    children:
+      - node: "F"
+```
+
+> **Note**: B, C, D appear twice — once as `children` of A (who launches them) and once in `fan_in` of E (who waits for them). This is correct and intentional; the two declarations describe different relationships.
+
+#### Nested structure
+
+```yaml
+# E waits for B; B itself launches sub-tasks X and Y (fan-out from B)
+edges:
+  - node: "E"
+    fan_in:
+      - node: "B"
+        children:
+          - node: "X"
+          - node: "Y"
+      - node: "C"
+```
+
+> **Note**: `children` always means fan-out (B launches X and Y after B completes). E depends only on B, not on X or Y. If E must also wait for X and Y, declare them explicitly in `fan_in`.
 
 ### JSON Example
 
 ```json
 {
-  "node": "language_check",
-  "children": null
+  "node": "A",
+  "children": [
+    { "node": "B" },
+    { "node": "C" }
+  ]
 }
 ```
-
 
 ---
 
@@ -405,7 +491,6 @@ nodes:
 
 edges:
   - node: "language_check"
-    children: null
 ```
 
 
@@ -471,8 +556,7 @@ edges:
   ],
   "edges": [
     {
-      "node": "language_check",
-      "children": null
+      "node": "language_check"
     }
   ]
 }

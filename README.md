@@ -57,9 +57,11 @@ outputs = compiler.get_outputs()
 ## Features
 
 - **Graph-based workflows** – define multi-node agent pipelines in YAML or JSON
+- **Fan-out / fan-in edges** – `children` launches parallel sub-tasks; `fan_in` aggregates multiple branches before continuing; both are recursive and composable
 - **Structured output** – enforce JSON schemas on LLM responses
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
 - **Message passing** – forward node outputs to downstream nodes
+- **MCP support** – connect nodes to external tool servers via the Model Context Protocol (stdio and SSE transports)
 - **Multi-provider support** – use different LLMs in the same graph
 - **Chat history** – maintain conversational context across nodes
 - **RAG support** – inject retrieved document chunks into prompts

@@ -1,6 +1,6 @@
 models:
   - llm: "ollama"
-    model: "qwen3-vl:8b"
+    model: ministral-3:8b 
     host: "http://localhost:11434"
 
 mcp_servers:

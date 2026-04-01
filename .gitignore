@@ -107,3 +107,6 @@ credentials.json
 
 # Claude
 .claude
+
+# Ruff
+.ruf_cache

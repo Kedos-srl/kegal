@@ -29,7 +29,7 @@ class TestMcpSqliteChainGraph(unittest.TestCase):
             )
             print(f"\nTrend analysis:\n{analyst_out.response.messages[0]}")
         finally:
-            compiler.disconnect()
+            compiler.close()
 
     def test_chain_to_file(self):
         compiler = Compiler(uri=_GRAPH_URI)
@@ -39,7 +39,7 @@ class TestMcpSqliteChainGraph(unittest.TestCase):
             compiler.save_outputs_as_json(out_dir / "mcp_sqlite_chain_graph.json")
             compiler.save_outputs_as_markdown(out_dir / "mcp_sqlite_chain_graph.md")
         finally:
-            compiler.disconnect()
+            compiler.close()
 
 
 if __name__ == "__main__":

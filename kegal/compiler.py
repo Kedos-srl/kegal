@@ -67,13 +67,22 @@ class Compiler:
             except Exception as e:
                 logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
 
-    def disconnect(self) -> None:
-        """Disconnect all MCP servers and close LLM clients."""
-        for handler in self.mcp_handlers.values():
-            try:
-                handler.disconnect()
-            except Exception as e:
-                logger.warning(f"Error disconnecting MCP server: {e}")
+    def close(self) -> None:
+        """Release all resources held by this compiler.
+
+        - MCP servers: stopped only if any were connected.
+        - LLM clients: closed only if the underlying provider exposes close().
+        - Tool executors: plain callables, nothing to release.
+        Safe to call more than once.
+        """
+        if self.mcp_handlers:
+            for server_id, handler in self.mcp_handlers.items():
+                try:
+                    handler.disconnect()
+                except Exception as e:
+                    logger.warning(f"Error closing MCP server '{server_id}': {e}")
+            self.mcp_handlers.clear()
+
         for client in self.clients:
             if hasattr(client.model, "close"):
                 try:
@@ -436,8 +445,7 @@ class Compiler:
         if not node.mcp_servers:
             return []
         tools = []
-        for idx in node.mcp_servers:
-            server_id = self.graph_mcp_servers[idx].id
+        for server_id in node.mcp_servers:
             handler = self.mcp_handlers.get(server_id)
             if handler:
                 tools.extend(handler.list_tools())
@@ -449,8 +457,7 @@ class Compiler:
         """Return the McpHandler that owns the given tool name, for this node."""
         if not node.mcp_servers:
             return None
-        for idx in node.mcp_servers:
-            server_id = self.graph_mcp_servers[idx].id
+        for server_id in node.mcp_servers:
             handler = self.mcp_handlers.get(server_id)
             if handler and tool_name in handler.tool_names():
                 return handler

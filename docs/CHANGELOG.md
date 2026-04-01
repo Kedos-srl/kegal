@@ -4,6 +4,33 @@ All notable changes to KeGAL are documented here.
 
 ---
 
+## [0.1.2.5] - 2026-04-01
+
+### Added
+- **`docs/tutorials.md`** — new tutorials file covering: Python tool executors, MCP servers (stdio + SSE + chaining), fan-out / fan-in edges, guard nodes, message passing, structured output, multi-provider graphs, RAG injection.
+- **`docs/`** folder moved from `kegal/docs/` to the repository root for discoverability.
+- **`test/graphs/fanout_graph.yml`**, **`fanin_graph.yml`**, **`fanout_fanin_graph.yml`** — isolated YAML fixtures for each edge topology.
+- **`TestFanOutGraph`**, **`TestFanInGraph`**, **`TestFanOutFanInGraph`** test classes — structural DAG-level checks and full `test_compile` integration tests for each topology.
+- **`TestCompilerClose`** — 6 unit tests for `Compiler.close()` lifecycle (no LLM): no-MCP path, idempotency, `mcp_handlers` cleared after close, `disconnect()` called on each handler, LLM client `close()` dispatched when available, graceful skip when unavailable.
+- **`test/test_llm_bedrock_unit.py`** — 7 boto3-mocked unit tests for `LlmBedrock`: `close()` method presence, `complete()` does not close client, multiple calls reuse client, `close()` delegates to boto3, `ValueError` on missing constructor params, response parsing.
+
+### Changed
+- **`GraphNode.tools`** — changed from `list[int]` (position indices) to `list[str]` (tool names matching `LLMTool.name`). Breaking change for existing YAML graphs.
+- **`GraphNode.mcp_servers`** — changed from `list[int]` (position indices) to `list[str]` (server IDs matching `GraphMcpServer.id`). Breaking change for existing YAML graphs.
+- **`compose_tools()`** — updated to filter by tool name instead of list index; also fixed pre-existing bug where `.template` (non-existent attribute) was returned instead of the `LLMTool` objects.
+- **`Compiler.disconnect()`** renamed to **`Compiler.close()`** — more accurate name (covers both MCP teardown and HTTP client cleanup). MCP handlers are now cleared (`mcp_handlers.clear()`) after shutdown making `close()` safely idempotent.
+- **`McpHandler`** rewritten with a single-task async lifecycle (`_session_lifetime` coroutine) — eliminates the `"Attempted to exit cancel scope in a different task"` anyio warning. The background event loop is now explicitly closed on `disconnect()`, eliminating the secondary `ResourceWarning: unclosed event loop`.
+- **`LlmBedrock.close()`** added as a proper resource-release method. The `finally: self.client.close()` block that was incorrectly closing the boto3 client after every API call has been removed.
+
+### Fixed
+- `LlmBedrock._get_response()` — `self.client.close()` in the `finally` block closed the boto3 client after every call, making any subsequent `complete()` call fail. Moved to an explicit `close()` method.
+- `LlmBedrock.__init__` — error message for missing `aws_region_name` incorrectly said `'region_name'`.
+- `test_llm_anthropic.py` — wrong import path `kegal.kegal.llm` (double prefix).
+- `test_llm_openai.py` — triple-l typo `LllmOpenai`; wrong module path `tests.llm.test_llm`.
+- `test_llm_bedrock.py` — wrong module path `tests.llm.test_llm`.
+
+---
+
 ## [0.1.2.4] - 2026-03-31
 
 ### Changed

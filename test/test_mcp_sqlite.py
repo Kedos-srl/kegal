@@ -25,7 +25,7 @@ class TestMcpSqliteGraph(unittest.TestCase):
             self.assertIn("widget a", answer)
             print(f"\nSQLite MCP answer: {node_out.response.messages[0]}")
         finally:
-            compiler.disconnect()
+            compiler.close()
 
     def test_sqlite_tool_call_to_file(self):
         """Compile sqlite MCP graph and save outputs to graph_outputs/mcp_sqlite_graph/."""
@@ -36,7 +36,7 @@ class TestMcpSqliteGraph(unittest.TestCase):
             compiler.save_outputs_as_json(out_dir / "mcp_sqlite_graph.json")
             compiler.save_outputs_as_markdown(out_dir / "mcp_sqlite_graph.md")
         finally:
-            compiler.disconnect()
+            compiler.close()
 
 
 if __name__ == "__main__":

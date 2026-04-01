@@ -4,22 +4,22 @@
             "node_id": "analyst_node",
             "response": {
                 "messages": [
-                    "Widget A had the highest total revenue with **58,600.0**."
+                    "The product with the highest total revenue across all quarters is **Widget A**, with a total revenue of **$58,600**."
                 ],
                 "tools": null,
                 "tool_results": [
                     "product, total_revenue\nWidget A, 58600.0"
                 ],
                 "json_output": null,
-                "input_size": 320,
-                "output_size": 188
+                "input_size": 216,
+                "output_size": 30
             },
-            "compiled_time": 111.76867866516113,
+            "compiled_time": 12.924703598022461,
             "show": true,
             "history": false
         }
     ],
-    "input_size": 320,
-    "output_size": 188,
-    "compile_time": 111.76873636245728
+    "input_size": 216,
+    "output_size": 30,
+    "compile_time": 12.924753427505493
 }

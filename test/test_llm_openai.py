@@ -1,8 +1,8 @@
 import unittest
 import os
 
-from kegal import LllmOpenai
-import tests.llm.test_llm as test_llm
+from kegal.llm import LlmOpenai
+from test import test_llm
 
 
 OPENAI_MODEL = ""
@@ -11,7 +11,7 @@ OPENAI_API_KEY = ""
 class TestOpenai(test_llm.TestLLM, unittest.TestCase):
     @staticmethod
     def get_model():
-        return LllmOpenai(
+        return LlmOpenai(
             model=os.getenv(OPENAI_MODEL),
             api_key=os.getenv(OPENAI_API_KEY)
         )

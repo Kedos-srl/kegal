@@ -73,5 +73,5 @@ def compose_documents(data: list[GraphInputData], indices: list[int]):
         )
     return pdfs_b64
 
-def compose_tools(tools: list[LLMTool], indices: list[int]):
-    return [tools[i].template for i  in indices]
+def compose_tools(tools: list[LLMTool], names: list[str]) -> list[LLMTool]:
+    return [t for t in tools if t.name in names]

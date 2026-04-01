@@ -163,8 +163,8 @@ output: false
 | `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output. |
 | `images`            | `list[int]` \| `None`        | Yes      | Indices of images to be provided to the node. |
 | `documents`         | `list[int]` \| `None`        | Yes      | Indices of documents to be provided to the node. |
-| `tools`             | `list[int]` \| `None`        | Yes      | Indices of tools to be provided to the node. |
-| `mcp_servers`       | `list[int]` \| `None`        | Yes      | Indices of MCP servers (from the global `mcp_servers` list) available to this node. |
+| `tools`             | `list[str]` \| `None`        | Yes      | Names of tools (matching the `name` field in the top-level `tools` list) available to this node. |
+| `mcp_servers`       | `list[str]` \| `None`        | Yes      | IDs of MCP servers (matching the `id` field in the top-level `mcp_servers` list) available to this node. |
 
 
 ### YAML Example
@@ -427,7 +427,7 @@ edges:
 | `models`           | `list[GraphModel]`                      | No       | List of LLM configurations. |
 | `images`           | `list[GraphInputData]` \| `None`        | Yes      | Image sources used in the graph. |
 | `documents`        | `list[GraphInputData]` \| `None`        | Yes      | Document sources used in the graph. |
-| `tools`            | `list[LLMTool]` \| `None`               | Yes      | Tool definitions (from `kegal.llm.llm_model`). |
+| `tools`            | `list[LLMTool]` \| `None`               | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |
 | `prompts`          | `list[GraphInputData]`                  | No       | Prompt templates. |
 | `chat_history`     | `dict[str, list[dict[str, str]]]` \| `None` | Yes   | Historical messages keyed by scope. |
 | `user_message`     | `str` \| `None`                         | Yes      | Current user prompt. |

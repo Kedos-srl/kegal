@@ -1,7 +1,7 @@
 import yaml
 import json
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pathlib import Path
 from typing import Any, Literal
 
@@ -58,10 +58,12 @@ class GraphNode(BaseModel):
     structured_output: dict[str, Any] | None = None
     images: list[int] | None = None
     documents: list[int] | None = None
-    tools: list[int] | None = None
-    mcp_servers: list[int] | None = None
+    tools: list[str] | None = None
+    mcp_servers: list[str] | None = None
 
 class GraphEdge(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     node: str
     children: list["GraphEdge"] | None = None  # fan-out: sub-task decomposition
     fan_in: list["GraphEdge"] | None = None    # aggregation: wait for all listed nodes

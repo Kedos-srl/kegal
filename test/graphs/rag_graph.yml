@@ -18,7 +18,7 @@ prompts:
               Analyze this message: "{user_message}"
               Determine if it's appropriate for business communication.
   - template:
-      system_template: # Resta fisso quando avvia il modello
+      system_template: 
         role_and_capabilities: |
               You are an expert research assistant specializing in renewable energy analysis.
               You maintain context from previous conversations and can reference earlier discussions.
@@ -29,7 +29,7 @@ prompts:
               - Always base conclusions on retrieved information
               - Maintain consistency with previous statements
               - Be concise but comprehensive in your analysis
-      prompt_template: # Viene accompagnato al messaggio utente con i placeholder
+      prompt_template: 
         context: |
               You have access to retrieved information that should inform your response.
               Consider both the conversation history and new retrieved data.

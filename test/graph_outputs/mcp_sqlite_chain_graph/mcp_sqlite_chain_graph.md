@@ -1,20 +1,20 @@
 ## Graph Response
- * Token Input size: 473
- * Token Output size: 8031
- * Compile time: 1168.0062997341156
+ * Token Input size: 372
+ * Token Output size: 480
+ * Compile time: 92.10666847229004
 ### Node:  query_node
 ```json
  [
     {
         "name": "query_db",
         "parameters": {
-            "sql": "SELECT product, quarter, SUM(revenue) AS total_revenue FROM sales GROUP BY product, quarter ORDER BY product, quarter"
+            "sql": "SELECT product, quarter, revenue FROM sales ORDER BY product, quarter;"
         }
     }
 ] 
 ```
 ```
-product, quarter, total_revenue
+product, quarter, revenue
 Widget A, Q1, 12500.0
 Widget A, Q2, 15200.0
 Widget A, Q3, 13800.0
@@ -28,10 +28,10 @@ Widget C, Q3, 6200.0
 Widget C, Q4, 8900.0
 ```
 
-Token Input size:  233 
-  Token Output size:  1955 
+Token Input size:  140 
+  Token Output size:  24 
  ### Node:  analyst_node
 
-Token Input size:  240 
-  Token Output size:  6076 
+Token Input size:  232 
+  Token Output size:  456 
  

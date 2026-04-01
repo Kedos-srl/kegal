@@ -526,14 +526,14 @@ edges:
 
 `McpHandler` connects a single MCP server (stdio or SSE transport), lists its tools, and executes tool calls on behalf of the compiler. The LLM layer never communicates with MCP directly — it only sees translated `LLMTool` definitions and receives plain-string results.
 
-The async MCP session runs on a dedicated background thread with its own event loop, so the synchronous compiler can call `connect`, `call_tool`, and `disconnect` without managing coroutines directly.
+The async MCP session runs on a dedicated background thread with its own event loop. The entire session lifetime — connect, tool calls, disconnect — executes within a single async task, so anyio cancel scopes are always entered and exited from the same task. The synchronous compiler calls `connect`, `call_tool`, and `close` without managing coroutines directly.
 
 ### Public API
 
 | Method | Description |
 |--------|-------------|
 | `connect()` | Open the MCP session and load available tools. |
-| `disconnect()` | Close the session and stop the background event loop. |
+| `disconnect()` | Close the MCP session and stop the background event loop. Called internally by `Compiler.close()`. |
 | `list_tools() -> list[LLMTool]` | Return all tools exposed by the server as `LLMTool` objects. |
 | `tool_names() -> set[str]` | Return the set of tool names available on this server. |
 | `call_tool(name, arguments) -> str` | Execute a tool call and return the result as a plain string. |
@@ -542,7 +542,7 @@ The async MCP session runs on a dedicated background thread with its own event l
 
 | Field | Type | Optional | Description |
 |-------|------|----------|-------------|
-| `id` | `str` | No | Unique identifier for this MCP server. Referenced by `mcp_servers` indices on nodes. |
+| `id` | `str` | No | Unique identifier for this MCP server. Referenced by name in `mcp_servers` on nodes. |
 | `transport` | `"stdio"` \| `"sse"` | No | Connection transport. |
 | `command` | `str` \| `None` | stdio only | Executable to launch (e.g. `"python"`). |
 | `args` | `list[str]` \| `None` | stdio only | Arguments passed to the command. |
@@ -560,7 +560,7 @@ mcp_servers:
 
 nodes:
   - id: "analyst"
-    mcp_servers: [0]          # references mcp_servers[0]
+    mcp_servers: ["sqlite_server"]   # references the server by its id
     message_passing:
       input: false
       output: true

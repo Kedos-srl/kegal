@@ -6,9 +6,10 @@ talks MCP directly — it only sees translated LLMTool definitions and
 receives plain-string results back.
 
 The async MCP session runs on a dedicated background thread with its own
-event loop so that the synchronous compiler can call connect/call_tool/
-disconnect without spawning a new event loop for each call (which would
-break anyio's task-group lifetime requirements).
+event loop.  The entire session lifetime — connect, tool calls, disconnect —
+executes within a single async task so that anyio cancel scopes are always
+entered and exited from the same task, avoiding the
+"Attempted to exit cancel scope in a different task" error.
 """
 
 import asyncio
@@ -32,16 +33,63 @@ class McpHandler:
     def __init__(self, server: GraphMcpServer) -> None:
         self._server = server
         self._session: ClientSession | None = None
-        self._exit_stack = None
         self._tools: dict[str, LLMTool] = {}
+
+        # threading.Event: set once the session is ready (or failed)
+        self._ready = threading.Event()
+        self._connect_error: Exception | None = None
+
+        # asyncio.Event: set by disconnect() to trigger session teardown
+        self._stop_event: asyncio.Event | None = None
 
         # Dedicated event loop running on a background thread
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
 
-    def _run_loop(self):
-        self._loop.run_forever()
+    # ------------------------------------------------------------------
+    # Background thread — runs the entire session lifetime in one task
+    # ------------------------------------------------------------------
+
+    def _run_loop(self) -> None:
+        self._loop.run_until_complete(self._session_lifetime())
+
+    async def _session_lifetime(self) -> None:
+        """Single long-lived coroutine: connect → wait for stop → disconnect."""
+        self._stop_event = asyncio.Event()
+        try:
+            if self._server.transport == "stdio":
+                if not self._server.command:
+                    raise ValueError(f"MCP server '{self._server.id}': 'command' required for stdio")
+                params = StdioServerParameters(
+                    command=self._server.command,
+                    args=self._server.args or [],
+                    env=self._server.env,
+                )
+                transport_cm = stdio_client(params)
+            else:
+                if not self._server.url:
+                    raise ValueError(f"MCP server '{self._server.id}': 'url' required for sse")
+                transport_cm = sse_client(self._server.url)
+
+            async with transport_cm as (read, write):
+                async with ClientSession(read, write) as session:
+                    self._session = session
+                    await session.initialize()
+                    await self._refresh_tools()
+                    logger.info(
+                        f"MCP server '{self._server.id}' connected — "
+                        f"{len(self._tools)} tools available"
+                    )
+                    self._ready.set()
+                    # Hold the session open until disconnect() signals us
+                    await self._stop_event.wait()
+
+        except Exception as e:
+            self._connect_error = e
+            self._ready.set()
+        finally:
+            self._session = None
 
     def _run(self, coro) -> Any:
         """Submit a coroutine to the background loop and block until done."""
@@ -53,46 +101,19 @@ class McpHandler:
     # ------------------------------------------------------------------
 
     def connect(self) -> None:
-        self._run(self._aconnect())
-
-    async def _aconnect(self) -> None:
-        from contextlib import AsyncExitStack
-        self._exit_stack = AsyncExitStack()
-
-        if self._server.transport == "stdio":
-            if not self._server.command:
-                raise ValueError(f"MCP server '{self._server.id}': 'command' required for stdio")
-            params = StdioServerParameters(
-                command=self._server.command,
-                args=self._server.args or [],
-                env=self._server.env,
-            )
-            read, write = await self._exit_stack.enter_async_context(stdio_client(params))
-        else:
-            if not self._server.url:
-                raise ValueError(f"MCP server '{self._server.id}': 'url' required for sse")
-            read, write = await self._exit_stack.enter_async_context(sse_client(self._server.url))
-
-        self._session = await self._exit_stack.enter_async_context(ClientSession(read, write))
-        await self._session.initialize()
-        await self._refresh_tools()
-        logger.info(f"MCP server '{self._server.id}' connected — {len(self._tools)} tools available")
+        """Block until the session is ready (or raise on failure)."""
+        self._ready.wait(timeout=30)
+        if self._connect_error is not None:
+            raise self._connect_error
+        logger.info(f"MCP server '{self._server.id}' ready")
 
     def disconnect(self) -> None:
-        if self._exit_stack is not None:
-            try:
-                self._run(self._adisconnect())
-            except Exception as e:
-                logger.warning(f"MCP server '{self._server.id}' disconnect error: {e}")
-        self._loop.call_soon_threadsafe(self._loop.stop)
+        """Signal the session to shut down and wait for the thread to exit."""
+        if self._stop_event is not None:
+            self._loop.call_soon_threadsafe(self._stop_event.set)
         self._thread.join(timeout=5)
-
-    async def _adisconnect(self) -> None:
-        if self._exit_stack is not None:
-            await self._exit_stack.aclose()
-            self._exit_stack = None
-            self._session = None
-            logger.info(f"MCP server '{self._server.id}' disconnected")
+        self._loop.close()
+        logger.info(f"MCP server '{self._server.id}' disconnected")
 
     # ------------------------------------------------------------------
     # Tool discovery

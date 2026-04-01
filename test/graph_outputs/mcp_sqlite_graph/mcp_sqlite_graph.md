@@ -1,13 +1,13 @@
 ## Graph Response
- * Token Input size: 320
- * Token Output size: 188
- * Compile time: 111.76873636245728
+ * Token Input size: 216
+ * Token Output size: 30
+ * Compile time: 12.924753427505493
 ### Node:  analyst_node
 ```
 product, total_revenue
 Widget A, 58600.0
 ```
 
-Token Input size:  320 
-  Token Output size:  188 
+Token Input size:  216 
+  Token Output size:  30 
  

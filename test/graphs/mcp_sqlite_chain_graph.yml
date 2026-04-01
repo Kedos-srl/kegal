@@ -42,7 +42,7 @@ nodes:
     message_passing:
       input: false
       output: true
-    mcp_servers: [0]
+    mcp_servers: ["sqlite_server"]
     prompt:
       template: 0
       user_message: true

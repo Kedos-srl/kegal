@@ -1,6 +1,55 @@
 {
-    "nodes": [],
-    "input_size": 0,
-    "output_size": 0,
-    "compile_time": 3.07539439201355
+    "nodes": [
+        {
+            "node_id": "language_check",
+            "response": {
+                "messages": null,
+                "tools": null,
+                "tool_results": null,
+                "json_output": {
+                    "validation": true,
+                    "action": "approve"
+                },
+                "input_size": 141,
+                "output_size": 38
+            },
+            "compiled_time": 8.94074273109436,
+            "show": true,
+            "history": false
+        },
+        {
+            "node_id": "test_rag_node",
+            "response": {
+                "messages": null,
+                "tools": null,
+                "tool_results": null,
+                "json_output": {
+                    "validation": true,
+                    "cost_metrics": {
+                        "solar_electricity": {
+                            "current_lcoe": "$0.048/kWh (utility-scale solar, 2023)",
+                            "trend": {
+                                "historical": {
+                                    "decadal_cost_reduction": "40%+ drop in installation costs over past decade"
+                                },
+                                "comparison": {
+                                    "traditional_fuels": "Lowest cost electricity in most markets (solar + wind)"
+                                }
+                            }
+                        }
+                    },
+                    "growth_rate": 27.8,
+                    "recommendation": "Prioritize solar/wind for cost stability and energy independence"
+                },
+                "input_size": 466,
+                "output_size": 179
+            },
+            "compiled_time": 34.259777307510376,
+            "show": true,
+            "history": true
+        }
+    ],
+    "input_size": 607,
+    "output_size": 217,
+    "compile_time": 43.20064115524292
 }

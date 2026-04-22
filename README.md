@@ -146,7 +146,7 @@ pipelines, guard nodes, RAG, and multi-provider graphs — see [docs/tutorials.m
 
 - **Graph-based workflows** – define multi-node agent pipelines in YAML or JSON
 - **Fan-out / fan-in edges** – `children` launches parallel sub-tasks; `fan_in` aggregates multiple branches before continuing; both are recursive and composable
-- **Footprint pipeline** – shared markdown buffer written and read across nodes; Cat-1 writers seed it, Cat-2 enrichers extend it in parallel, Cat-3 readers consume the final result. Execution order is inferred automatically from `footprint.read/write` flags even with flat edge declarations.
+- **Blackboard pipeline** – shared markdown buffer (Blackboard pattern) written and read across nodes; Cat-1 writers seed it, Cat-2 enrichers extend it in parallel, Cat-3 readers consume the final result. Execution order is inferred automatically from `blackboard.read/write` flags even with flat edge declarations.
 - **Structured output** – enforce JSON schemas on LLM responses
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
 - **Message passing** – forward node outputs to downstream nodes

@@ -11,7 +11,7 @@ from .graph import (
     GraphInputData,
     NodePrompt,
     NodeMessagePassing,
-    NodeFootprint,
+    NodeBlackboard,
     GraphNode,
     GraphEdge,
 )
@@ -49,7 +49,7 @@ __all__ = [
     "GraphInputData",
     "NodePrompt",
     "NodeMessagePassing",
-    "NodeFootprint",
+    "NodeBlackboard",
     "GraphNode",
     "GraphEdge",
     # Compiler

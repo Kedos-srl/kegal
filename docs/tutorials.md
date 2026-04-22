@@ -428,38 +428,41 @@ nodes:
 
 ---
 
-## 9. Footprint — shared markdown buffer across nodes
+## 9. Blackboard — shared markdown buffer across nodes
 
-The **footprint** is a persistent markdown document that nodes can read from and
-write to during a single `compile()` run. It is the idiomatic way to build
-multi-agent pipelines where a writer seeds context, enrichers extend it in
-parallel, and a final reader summarises the whole thread.
+The **blackboard** is a persistent markdown document that nodes can read from and
+write to during a single `compile()` run. It implements the classic
+[Blackboard architectural pattern](https://en.wikipedia.org/wiki/Blackboard_(design_pattern))
+from AI systems — a shared workspace where multiple agents contribute and consume
+content. It is the idiomatic way to build multi-agent pipelines where a writer
+seeds context, enrichers extend it in parallel, and a final reader summarises
+the whole thread.
 
 ### Node categories
 
 | Category | `read` | `write` | Role |
 |----------|--------|---------|------|
-| Cat-1 | `false` | `true`  | **Writer** — seeds the footprint. |
+| Cat-1 | `false` | `true`  | **Writer** — seeds the blackboard. |
 | Cat-2 | `true`  | `true`  | **Enricher** — reads then extends; multiple Cat-2 nodes run in parallel. |
-| Cat-3 | `true`  | `false` | **Reader** — consumes the final footprint. |
+| Cat-3 | `true`  | `false` | **Reader** — consumes the final blackboard. |
 
 The execution order (Cat-1 → Cat-2 in parallel → Cat-3) is **inferred
 automatically** from the flags even when `edges` is a flat list — no
 `children`/`fan_in` declarations are needed.
 
-### Step 1 — Configure the global footprint source
+### Step 1 — Configure the global blackboard source
 
-Add `footprints` at the top level of the YAML. It accepts either a file path
+Add `blackboard` at the top level of the YAML. It accepts either a file path
 (content is loaded at init; writes are persisted back after each node) or an
 inline markdown string:
 
 ```yaml
-footprints: ./FOOTPRINT.md    # file — writes persist to disk
+blackboard: ./BLACKBOARD.md   # file — writes persist to disk
 # or
-footprints: "# Topic\n\n"     # inline seed — in-memory only
+blackboard: "# Topic\n\n"     # inline seed — in-memory only
 ```
 
-### Step 2 — Mark nodes with footprint flags
+### Step 2 — Mark nodes with blackboard flags
 
 ```yaml
 nodes:
@@ -468,7 +471,7 @@ nodes:
     temperature: 0.3
     max_tokens: 200
     show: false
-    footprint:
+    blackboard:
       read: false
       write: true
     prompt:
@@ -480,33 +483,33 @@ nodes:
     temperature: 0.5
     max_tokens: 400
     show: false
-    footprint:
+    blackboard:
       read: true
       write: true
     prompt:
-      template: 1             # template uses {footprints}
+      template: 1             # template uses {blackboard}
 
   - id: "analyst_b"          # Cat-2: read + write (parallel with analyst_a)
     model: 0
     temperature: 0.5
     max_tokens: 400
     show: false
-    footprint:
+    blackboard:
       read: true
       write: true
     prompt:
-      template: 2             # template uses {footprints}
+      template: 2             # template uses {blackboard}
 
   - id: "summarizer"         # Cat-3: read only
     model: 0
     temperature: 0.5
     max_tokens: 800
     show: true
-    footprint:
+    blackboard:
       read: true
       write: false
     prompt:
-      template: 3             # template uses {footprints}
+      template: 3             # template uses {blackboard}
 
 edges:
   - node: "assistant"
@@ -515,10 +518,10 @@ edges:
   - node: "summarizer"
 ```
 
-### Step 3 — Reference `{footprints}` in prompt templates
+### Step 3 — Reference `{blackboard}` in prompt templates
 
-Any node with `footprint.read: true` has the current buffer injected as
-`{footprints}`. No extra `prompt_placeholders` entry is required:
+Any node with `blackboard.read: true` has the current buffer injected as
+`{blackboard}`. No extra `prompt_placeholders` entry is required:
 
 ```yaml
 prompts:
@@ -529,7 +532,7 @@ prompts:
       prompt_template:
         context: |
           State of discussion:
-          {footprints}
+          {blackboard}
         instruction: |
           Analyze the main economic implications. Max 200 words.
 ```
@@ -549,16 +552,16 @@ with Compiler(uri="path/to/graph.yml") as compiler:
                 print(msg)
 ```
 
-After `compile()` the `FOOTPRINT.md` file on disk will contain the full
+After `compile()` the `BLACKBOARD.md` file on disk will contain the full
 accumulated thread: seed from `assistant`, extensions from both analysts,
 ready for the summarizer to consume.
 
-### Overriding the footprint at runtime
+### Overriding the blackboard at runtime
 
 You can reset or inject content before compiling:
 
 ```python
 with Compiler(uri="path/to/graph.yml") as compiler:
-    compiler.footprints = "# Custom seed\n\nOverride the YAML-loaded content."
+    compiler.blackboard = "# Custom seed\n\nOverride the YAML-loaded content."
     compiler.compile()
 ```

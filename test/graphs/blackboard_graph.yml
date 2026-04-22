@@ -1,7 +1,7 @@
-# Footprint graph — 4-node fan-out / fan-in
+# Blackboard graph — 4-node fan-out / fan-in
 #
 # Topology:
-#   [assistant]  — footprint.write=true  (seeds the footprint)
+#   [assistant]  — blackboard.write=true  (seeds the blackboard)
 #       |
 #   children (fan-out — parallel)
 #   /                    \
@@ -9,7 +9,7 @@
 #   \                    /
 #    fan-in (aggregation)
 #        |
-#   [summarizer]  — footprint.read=true, write=false
+#   [summarizer]  — blackboard.read=true, write=false
 
 models:
   - llm: ollama
@@ -54,7 +54,7 @@ prompts:
       prompt_template:
         context: |
           State of discussion:
-          {footprints}
+          {blackboard}
         instruction: |
           Analyze the topics and explain what are the main economic implications on the topic discussed.
           Max 200 words
@@ -69,7 +69,7 @@ prompts:
       prompt_template:
         context: |
           State of discussion:
-          {footprints}
+          {blackboard}
         instruction: |
           Analyze the discussion and add the point of view of the environmental impact of the topics discussed.
           Max 200 words
@@ -83,7 +83,7 @@ prompts:
       prompt_template:
         context: |
           Topics covered:
-          {footprints}
+          {blackboard}
         instruction: |
           -Summarize, rewrite the text and restructure into chapters based on the different contributions to the discussion:
               # Intro
@@ -92,7 +92,7 @@ prompts:
               # Conclusions
           Max 800 words, translate the final text in italian
 user_message: "What are the long-term impacts of switching to renewable energy?"
-footprints: ./test/graphs/FOOTPRINT.md
+blackboard: ./test/graphs/BLACKBOARD.md
 
 # =============================================================================
 # NODES
@@ -104,7 +104,7 @@ nodes:
     temperature: 0.3
     max_tokens: 200
     show: false
-    footprint:
+    blackboard:
       read: false
       write: true
     prompt:
@@ -117,7 +117,7 @@ nodes:
     temperature: 0.5
     max_tokens: 400
     show: false
-    footprint:
+    blackboard:
       read: true
       write: true
     prompt:
@@ -129,7 +129,7 @@ nodes:
     temperature: 0.5
     max_tokens: 400
     show: false
-    footprint:
+    blackboard:
       read: true
       write: true
     prompt:
@@ -141,18 +141,17 @@ nodes:
     temperature: 0.5
     max_tokens: 400
     show: true
-    footprint:
+    blackboard:
       read: true
       write: false
     prompt:
       template: 3
 
 # =============================================================================
-# EDGES — fan-out from assistant, fan-in to summarizer
+# EDGES — flat list; DAG stage-4 infers the write→read ordering automatically
 # =============================================================================
 edges:
   - node: "assistant"
   - node: "analyst_a"
   - node: "analyst_b"
   - node: "summarizer"
-

@@ -91,6 +91,7 @@ uri: "https://example.com/documents/report.pdf"
 | `prompt_placeholders` | `dict[str, Any]` \| `None` | Yes      | Key/value map used to substitute placeholders in the prompt template. |
 | `user_message`      | `bool` \| `None`         | Yes      | Whether to include the user’s message. |
 | `retrieved_chunks`  | `bool` \| `None`         | Yes      | Whether to include retrieved document chunks. |
+| `chat_history`      | `str` \| `None`          | Yes      | Key into the top-level `chat_history` map; injects conversation history into this node’s LLM call. |
 
 
 ### YAML Example
@@ -136,7 +137,7 @@ emits a `WARNING` for any placeholder that is referenced but not activated.
 | `{user_message}` | `prompt.user_message: true` | The string from the top-level `user_message` YAML key or `compiler.user_message`. |
 | `{message_passing}` | `message_passing.input: true` | The list of outputs written by upstream nodes with `message_passing.output: true`. |
 | `{retrieved_chunks}` | `prompt.retrieved_chunks: true` | The string from the top-level `retrieved_chunks` YAML key or `compiler.retrieved_chunks`. |
-| `{footprints}` | `footprint.read: true` | The current contents of the shared footprint buffer at the time the node executes. |
+| `{blackboard}` | `blackboard.read: true` | The current contents of the shared blackboard buffer at the time the node executes. |
 | `{<key>}` | `prompt.prompt_placeholders: {<key>: <value>}` | The literal value from `prompt_placeholders`. Any name that does not clash with the reserved names above is safe to use. |
 
 ### Example
@@ -150,13 +151,13 @@ prompts:
       prompt_template:
         context: |
           Previous discussion:
-          {footprints}                                    # reserved — footprint.read: true required
+          {blackboard}                                    # reserved — blackboard.read: true required
         user_input: |
           {user_message}                                  # reserved — prompt.user_message: true required
 
 nodes:
   - id: "analyst"
-    footprint:
+    blackboard:
       read: true
       write: true
     prompt:
@@ -197,16 +198,16 @@ message_passing:
 
 ---
 
-## 5. `NodeFootprint`
+## 5. `NodeBlackboard`
 
-Controls whether a node participates in the shared **footprint** document —
+Controls whether a node participates in the shared **blackboard** document —
 a persistent markdown buffer written and read across nodes during a single
-`compile()` run.
+`compile()` run (implements the [Blackboard architectural pattern](https://en.wikipedia.org/wiki/Blackboard_(design_pattern))).
 
 | Field   | Type   | Optional | Description |
 |---------|--------|----------|-------------|
-| `read`  | `bool` | No (default `false`) | Inject the current footprint content into the node's prompt via the `{footprints}` placeholder. |
-| `write` | `bool` | No (default `false`) | Append the node's LLM response to the footprint after execution. If the footprint originated from a file it is written back to disk after each write. |
+| `read`  | `bool` | No (default `false`) | Inject the current blackboard content into the node's prompt via the `{blackboard}` placeholder. |
+| `write` | `bool` | No (default `false`) | Append the node's LLM response to the blackboard after execution. If the blackboard originated from a file it is written back to disk after each write. |
 
 ### Node categories
 
@@ -214,59 +215,59 @@ Three behaviour patterns emerge from the `read`/`write` combination:
 
 | Category | `read` | `write` | Role |
 |----------|--------|---------|------|
-| Cat-1 | `false` | `true`  | **Writer** — seeds the footprint (e.g. an assistant that drafts the initial content). |
-| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends the footprint (e.g. domain analysts). Multiple Cat-2 nodes run in parallel. |
-| Cat-3 | `true`  | `false` | **Reader** — consumes the final footprint (e.g. a summarizer). |
+| Cat-1 | `false` | `true`  | **Writer** — seeds the blackboard (e.g. an assistant that drafts the initial content). |
+| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends the blackboard (e.g. domain analysts). Multiple Cat-2 nodes run in parallel. |
+| Cat-3 | `true`  | `false` | **Reader** — consumes the final blackboard (e.g. a summarizer). |
 
 The compiler infers the correct execution order automatically from these
 categories even when the `edges` list is flat (no `children`/`fan_in`
 declarations). Cat-1 nodes run first, Cat-2 nodes run in parallel after all
 Cat-1 nodes complete, and Cat-3 nodes run after all Cat-2 nodes complete.
 
-### Global `footprints` key
+### Global `blackboard` key
 
-The top-level `footprints` key in the graph YAML configures the shared buffer:
+The top-level `blackboard` key in the graph YAML configures the shared buffer:
 
 ```yaml
-footprints: ./path/to/FOOTPRINT.md   # load initial content from a file (writes persist back)
+blackboard: ./path/to/BLACKBOARD.md   # load initial content from a file (writes persist back)
 # or
-footprints: "# My Topic\n\n"          # inline markdown seed string
+blackboard: "# My Topic\n\n"           # inline markdown seed string
 ```
 
-If `footprints` is omitted the buffer starts empty and writes are in-memory
+If `blackboard` is omitted the buffer starts empty and writes are in-memory
 only (no file persistence).
 
 ### YAML Example
 
 ```yaml
-footprints: ./FOOTPRINT.md
+blackboard: ./BLACKBOARD.md
 
 nodes:
   - id: "assistant"
-    footprint:
+    blackboard:
       read: false
-      write: true   # Cat-1: seeds the footprint
+      write: true   # Cat-1: seeds the blackboard
     prompt:
       template: 0
       user_message: true
 
   - id: "analyst"
-    footprint:
+    blackboard:
       read: true
-      write: true   # Cat-2: enriches the footprint
+      write: true   # Cat-2: enriches the blackboard
     prompt:
-      template: 1   # template uses {footprints}
+      template: 1   # template uses {blackboard}
 
   - id: "summarizer"
-    footprint:
+    blackboard:
       read: true
-      write: false  # Cat-3: consumes the final footprint
+      write: false  # Cat-3: consumes the final blackboard
     prompt:
-      template: 2   # template uses {footprints}
+      template: 2   # template uses {blackboard}
 ```
 
-The `{footprints}` placeholder in a prompt template is automatically injected
-when `footprint.read: true` is set on the node. No additional `prompt_placeholders`
+The `{blackboard}` placeholder in a prompt template is automatically injected
+when `blackboard.read: true` is set on the node. No additional `prompt_placeholders`
 entry is needed.
 
 ### JSON Example
@@ -290,7 +291,7 @@ entry is needed.
 | `max_tokens`        | `int`                        | No       | Maximum token length for the LLM response. |
 | `show`              | `bool`                       | No       | Whether the node is visible in visualisations. |
 | `message_passing`   | `NodeMessagePassing`         | Yes (default `{input: false, output: false}`) | Configuration of input/output passing. |
-| `footprint`         | `NodeFootprint` \| `None`    | Yes      | Footprint read/write participation. See §5 `NodeFootprint`. |
+| `blackboard`        | `NodeBlackboard` \| `None`   | Yes      | Blackboard read/write participation. See §5 `NodeBlackboard`. |
 | `chat_history`      | `str` \| `None`              | Yes      | Reference to a chat history key (e.g. `"global"`). |
 | `prompt`            | `NodePrompt` \| `None`       | Yes      | Prompt configuration. |
 | `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output. |
@@ -561,11 +562,12 @@ edges:
 | `images`           | `list[GraphInputData]` \| `None`        | Yes      | Image sources used in the graph. |
 | `documents`        | `list[GraphInputData]` \| `None`        | Yes      | Document sources used in the graph. |
 | `tools`            | `list[LLMTool]` \| `None`               | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |
+| `mcp_servers`      | `list[GraphMcpServer]` \| `None`        | Yes      | MCP server configurations. Each server is referenced by its `id` in `GraphNode.mcp_servers`. |
 | `prompts`          | `list[GraphInputData]`                  | No       | Prompt templates. |
 | `chat_history`     | `dict[str, list[dict[str, str]]]` \| `None` | Yes   | Historical messages keyed by scope. |
 | `user_message`     | `str` \| `None`                         | Yes      | Current user prompt. |
 | `retrieved_chunks` | `str` \| `None`                         | Yes      | Additional retrieved content (e.g., document snippets). |
-| `footprints`       | `str` \| `None`                         | Yes      | Path to a markdown file or an inline markdown string used as the shared footprint buffer. See §5 `NodeFootprint`. |
+| `blackboard`       | `str` \| `None`                         | Yes      | Path to a markdown file or an inline markdown string used as the shared blackboard buffer. See §5 `NodeBlackboard`. |
 | `nodes`            | `list[GraphNode]`                       | No       | All nodes in the graph. |
 | `edges`            | `list[GraphEdge]`                       | No       | Graph topology. |
 

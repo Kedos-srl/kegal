@@ -1,16 +1,16 @@
-"""Tests for the footprint pipeline element.
+"""Tests for the blackboard pipeline element.
 
 Structure mirrors test_graphs.py:
   - Model/parsing unit tests   — no LLM, no YAML
   - DAG inference unit tests   — no LLM, lightweight _make_compiler helper
-  - Integration tests          — load footprint_graph.yml, require Ollama
+  - Integration tests          — load blackboard_graph.yml, require Ollama
 """
 
 import unittest
 from pathlib import Path
 
 from kegal.compiler import Compiler
-from kegal.graph import Graph, NodeFootprint
+from kegal.graph import Graph, NodeBlackboard
 
 CURRENT_DIR = Path(__file__).parent
 
@@ -33,15 +33,15 @@ def _make_compiler(nodes_cfg: list, edges_cfg: list) -> Compiler:
     return c
 
 
-def _node(nid: str, fp_read: bool = False, fp_write: bool = False) -> dict:
+def _node(nid: str, bb_read: bool = False, bb_write: bool = False) -> dict:
     n: dict = {
         "id": nid, "model": 0, "temperature": 0.0, "max_tokens": 10,
         "show": False,
         "message_passing": {"input": False, "output": False},
         "prompt": {"template": 0},
     }
-    if fp_read or fp_write:
-        n["footprint"] = {"read": fp_read, "write": fp_write}
+    if bb_read or bb_write:
+        n["blackboard"] = {"read": bb_read, "write": bb_write}
     return n
 
 
@@ -50,30 +50,30 @@ def _level_of(levels: list, nid: str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# NodeFootprint model
+# NodeBlackboard model
 # ---------------------------------------------------------------------------
 
-class TestNodeFootprintModel(unittest.TestCase):
+class TestNodeBlackboardModel(unittest.TestCase):
 
     def test_defaults_are_false(self):
-        fp = NodeFootprint()
-        self.assertFalse(fp.read)
-        self.assertFalse(fp.write)
+        bb = NodeBlackboard()
+        self.assertFalse(bb.read)
+        self.assertFalse(bb.write)
 
     def test_read_only(self):
-        fp = NodeFootprint(read=True)
-        self.assertTrue(fp.read)
-        self.assertFalse(fp.write)
+        bb = NodeBlackboard(read=True)
+        self.assertTrue(bb.read)
+        self.assertFalse(bb.write)
 
     def test_write_only(self):
-        fp = NodeFootprint(write=True)
-        self.assertFalse(fp.read)
-        self.assertTrue(fp.write)
+        bb = NodeBlackboard(write=True)
+        self.assertFalse(bb.read)
+        self.assertTrue(bb.write)
 
     def test_both_true(self):
-        fp = NodeFootprint(read=True, write=True)
-        self.assertTrue(fp.read)
-        self.assertTrue(fp.write)
+        bb = NodeBlackboard(read=True, write=True)
+        self.assertTrue(bb.read)
+        self.assertTrue(bb.write)
 
 
 # ---------------------------------------------------------------------------
@@ -82,53 +82,53 @@ class TestNodeFootprintModel(unittest.TestCase):
 
 class TestGraphParsing(unittest.TestCase):
 
-    def _source(self, footprints=None, node_footprint=None):
+    def _source(self, blackboard=None, node_blackboard=None):
         node = {
             "id": "n", "model": 0, "temperature": 0.0, "max_tokens": 10,
             "show": False, "message_passing": {"input": False, "output": False},
             "prompt": {"template": 0},
         }
-        if node_footprint:
-            node["footprint"] = node_footprint
+        if node_blackboard:
+            node["blackboard"] = node_blackboard
         return {
             "models": [{"llm": "ollama", "model": "dummy"}],
             "prompts": [{"template": {}}],
-            "footprints": footprints,
+            "blackboard": blackboard,
             "nodes": [node],
             "edges": [],
         }
 
-    def test_footprints_absent_is_none(self):
+    def test_blackboard_absent_is_none(self):
         src = self._source()
-        del src["footprints"]
-        self.assertIsNone(Graph.model_validate(src).footprints)
+        del src["blackboard"]
+        self.assertIsNone(Graph.model_validate(src).blackboard)
 
-    def test_footprints_inline_string(self):
-        graph = Graph.model_validate(self._source(footprints="# Seed\n"))
-        self.assertEqual(graph.footprints, "# Seed\n")
+    def test_blackboard_inline_string(self):
+        graph = Graph.model_validate(self._source(blackboard="# Seed\n"))
+        self.assertEqual(graph.blackboard, "# Seed\n")
 
-    def test_node_footprint_parsed(self):
-        graph = Graph.model_validate(self._source(node_footprint={"read": True, "write": True}))
-        self.assertTrue(graph.nodes[0].footprint.read)
-        self.assertTrue(graph.nodes[0].footprint.write)
+    def test_node_blackboard_parsed(self):
+        graph = Graph.model_validate(self._source(node_blackboard={"read": True, "write": True}))
+        self.assertTrue(graph.nodes[0].blackboard.read)
+        self.assertTrue(graph.nodes[0].blackboard.write)
 
-    def test_node_without_footprint_is_none(self):
-        self.assertIsNone(Graph.model_validate(self._source()).nodes[0].footprint)
+    def test_node_without_blackboard_is_none(self):
+        self.assertIsNone(Graph.model_validate(self._source()).nodes[0].blackboard)
 
 
 # ---------------------------------------------------------------------------
-# _load_footprints — file path vs. plain string vs. None
+# _load_blackboard — file path vs. plain string vs. None
 # ---------------------------------------------------------------------------
 
-class TestLoadFootprints(unittest.TestCase):
+class TestLoadBlackboard(unittest.TestCase):
 
     def test_none_returns_empty(self):
-        content, path = Compiler._load_footprints(None)
+        content, path = Compiler._load_blackboard(None)
         self.assertEqual(content, "")
         self.assertIsNone(path)
 
     def test_plain_string_returned_as_is(self):
-        content, path = Compiler._load_footprints("# Hello")
+        content, path = Compiler._load_blackboard("# Hello")
         self.assertEqual(content, "# Hello")
         self.assertIsNone(path)
 
@@ -139,7 +139,7 @@ class TestLoadFootprints(unittest.TestCase):
             f.write("# From file")
             fpath = f.name
         try:
-            content, path = Compiler._load_footprints(fpath)
+            content, path = Compiler._load_blackboard(fpath)
             self.assertEqual(content, "# From file")
             self.assertEqual(path, Path(fpath))
         finally:
@@ -147,16 +147,16 @@ class TestLoadFootprints(unittest.TestCase):
 
     def test_non_existing_path_treated_as_string(self):
         val = "/no/such/file.md"
-        content, path = Compiler._load_footprints(val)
+        content, path = Compiler._load_blackboard(val)
         self.assertEqual(content, val)
         self.assertIsNone(path)
 
 
 # ---------------------------------------------------------------------------
-# DAG stage-4: footprint write→read inference (no LLM)
+# DAG stage-4: blackboard write→read inference (no LLM)
 # ---------------------------------------------------------------------------
 
-class TestFootprintDagInference(unittest.TestCase):
+class TestBlackboardDagInference(unittest.TestCase):
 
     def _build(self, nodes, edges):
         c = _make_compiler(nodes, edges)
@@ -166,21 +166,21 @@ class TestFootprintDagInference(unittest.TestCase):
 
     def test_read_depends_on_prior_write(self):
         deps, _ = self._build(
-            [_node("W", fp_write=True), _node("R", fp_read=True)],
+            [_node("W", bb_write=True), _node("R", bb_read=True)],
             [],
         )
         self.assertIn("W", deps["R"])
 
     def test_read_before_write_no_dep(self):
         deps, _ = self._build(
-            [_node("R", fp_read=True), _node("W", fp_write=True)],
+            [_node("R", bb_read=True), _node("W", bb_write=True)],
             [],
         )
         self.assertNotIn("W", deps["R"])
 
     def test_two_write_nodes_are_independent(self):
         deps, _ = self._build(
-            [_node("W1", fp_write=True), _node("W2", fp_write=True)],
+            [_node("W1", bb_write=True), _node("W2", bb_write=True)],
             [],
         )
         self.assertNotIn("W1", deps["W2"])
@@ -188,7 +188,7 @@ class TestFootprintDagInference(unittest.TestCase):
 
     def test_read_write_depends_on_prior_write(self):
         deps, _ = self._build(
-            [_node("W", fp_write=True), _node("RW", fp_read=True, fp_write=True)],
+            [_node("W", bb_write=True), _node("RW", bb_read=True, bb_write=True)],
             [],
         )
         self.assertIn("W", deps["RW"])
@@ -196,9 +196,9 @@ class TestFootprintDagInference(unittest.TestCase):
     def test_linear_chain_three_levels(self):
         _, levels = self._build(
             [
-                _node("writer",  fp_write=True),
-                _node("analyst", fp_read=True, fp_write=True),
-                _node("reader",  fp_read=True),
+                _node("writer",  bb_write=True),
+                _node("analyst", bb_read=True, bb_write=True),
+                _node("reader",  bb_read=True),
             ],
             [],
         )
@@ -215,10 +215,10 @@ class TestFootprintDagInference(unittest.TestCase):
         parallel after Cat-1 writers, even with flat edge declarations."""
         deps, levels = self._build(
             [
-                _node("assistant", fp_write=True),
-                _node("analyst_a", fp_read=True, fp_write=True),
-                _node("analyst_b", fp_read=True, fp_write=True),
-                _node("summarizer", fp_read=True),
+                _node("assistant", bb_write=True),
+                _node("analyst_a", bb_read=True, bb_write=True),
+                _node("analyst_b", bb_read=True, bb_write=True),
+                _node("summarizer", bb_read=True),
             ],
             [],
         )
@@ -233,13 +233,13 @@ class TestFootprintDagInference(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Integration: footprint_graph.yml  (requires Ollama + ministral-3:3b)
+# Integration: blackboard_graph.yml  (requires Ollama + ministral-3:3b)
 # ---------------------------------------------------------------------------
 
-class TestFootprintGraph(unittest.TestCase):
-    graph_path     = CURRENT_DIR / "graphs" / "footprint_graph.yml"
-    footprint_file = CURRENT_DIR / "graphs" / "FOOTPRINT.md"
-    out_dir        = CURRENT_DIR / "graph_outputs" / "footprint_graph"
+class TestBlackboardGraph(unittest.TestCase):
+    graph_path      = CURRENT_DIR / "graphs" / "blackboard_graph.yml"
+    blackboard_file = CURRENT_DIR / "graphs" / "BLACKBOARD.md"
+    out_dir         = CURRENT_DIR / "graph_outputs" / "blackboard_graph"
     _seed = "# Renewable Energy Discussion\n\n"
 
     def setUp(self):
@@ -249,9 +249,9 @@ class TestFootprintGraph(unittest.TestCase):
         self.compiler.close()
 
     def _reset_and_recreate(self):
-        """Reset FOOTPRINT.md to the seed and create a fresh compiler that reads it."""
+        """Reset BLACKBOARD.md to the seed and create a fresh compiler that reads it."""
         self.compiler.close()
-        self.footprint_file.write_text(self._seed, encoding="utf-8")
+        self.blackboard_file.write_text(self._seed, encoding="utf-8")
         self.compiler = Compiler(uri=str(self.graph_path))
 
     def test_dag_levels(self):
@@ -267,7 +267,7 @@ class TestFootprintGraph(unittest.TestCase):
         self.assertLess(_level_of(levels, "analyst_a"), _level_of(levels, "summarizer"))
 
     def test_compile(self):
-        """All four nodes execute; FOOTPRINT.md grows beyond the seed."""
+        """All four nodes execute; BLACKBOARD.md grows beyond the seed."""
         self._reset_and_recreate()
         self.compiler.compile()
         executed_ids = {n.node_id for n in self.compiler.get_outputs().nodes}
@@ -275,7 +275,7 @@ class TestFootprintGraph(unittest.TestCase):
         self.assertIn("analyst_a",  executed_ids)
         self.assertIn("analyst_b",  executed_ids)
         self.assertIn("summarizer", executed_ids)
-        on_disk = self.footprint_file.read_text(encoding="utf-8")
+        on_disk = self.blackboard_file.read_text(encoding="utf-8")
         self.assertGreater(len(on_disk), len(self._seed))
 
     def test_compile_to_file(self):
@@ -284,10 +284,10 @@ class TestFootprintGraph(unittest.TestCase):
         self.compiler.compile()
 
         self.compiler.save_outputs_as_json(
-            self.out_dir / "footprint_graph.json"
+            self.out_dir / "blackboard_graph.json"
         )
         self.compiler.save_outputs_as_markdown(
-            self.out_dir / "footprint_graph.md"
+            self.out_dir / "blackboard_graph.md"
         )
 
         summarizer_response = next(

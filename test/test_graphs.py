@@ -538,15 +538,15 @@ class TestValidatePrompts(unittest.TestCase):
         base.update(overrides)
         return base
 
-    def test_unactivated_footprints_warns(self):
-        """{footprints} in template but footprint.read not enabled → warning."""
+    def test_unactivated_blackboard_warns(self):
+        """{blackboard} in template but blackboard.read not enabled → warning."""
         c = self._make(
             self._node_cfg(),
-            {"system": "", "user": "State of discussion:\n{footprints}\nAnalyze."},
+            {"system": "", "user": "State of discussion:\n{blackboard}\nAnalyze."},
         )
         with self.assertLogs("kegal.compiler", level=logging.WARNING) as cm:
             c._validate_prompts()
-        self.assertTrue(any("footprints" in line for line in cm.output))
+        self.assertTrue(any("blackboard" in line for line in cm.output))
 
     def test_unactivated_user_message_warns(self):
         """{user_message} in template but user_message not enabled → warning."""
@@ -569,12 +569,12 @@ class TestValidatePrompts(unittest.TestCase):
             c._validate_prompts()
         mock_warn.assert_not_called()
 
-    def test_activated_footprints_no_warning(self):
-        """{footprints} with footprint.read=True → no warning."""
+    def test_activated_blackboard_no_warning(self):
+        """{blackboard} with blackboard.read=True → no warning."""
         from unittest.mock import patch
         c = self._make(
-            self._node_cfg(footprint={"read": True, "write": False}),
-            {"system": "", "user": "State: {footprints}\nAnalyze."},
+            self._node_cfg(blackboard={"read": True, "write": False}),
+            {"system": "", "user": "State: {blackboard}\nAnalyze."},
         )
         with patch.object(logging.getLogger("kegal.compiler"), "warning") as mock_warn:
             c._validate_prompts()

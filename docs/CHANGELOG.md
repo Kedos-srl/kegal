@@ -4,26 +4,26 @@ All notable changes to KeGAL are documented here.
 
 ---
 
-## [0.1.2.6] - 2026-04-21
+## [0.1.2.6] - 2026-04-22
 
 ### Added
-- **Footprint pipeline element** — shared markdown buffer written and read across nodes during a `compile()` run.
-  - `NodeFootprint` model (`graph.py`): `read` and `write` boolean flags on `GraphNode.footprint`.
-  - `Graph.footprints` field: accepts a file path (content loaded at init, written back on each update) or an inline markdown string.
-  - `Compiler._load_footprints()` static method: resolves file vs. plain-string footprint at construction time.
-  - `Compiler._update_footprints()`: thread-safe append of node response to the shared buffer; writes back to disk when a file path was provided.
+- **Blackboard pipeline element** — shared markdown buffer implementing the [Blackboard architectural pattern](https://en.wikipedia.org/wiki/Blackboard_(design_pattern)), written and read across nodes during a `compile()` run.
+  - `NodeBlackboard` model (`graph.py`): `read` and `write` boolean flags on `GraphNode.blackboard`.
+  - `Graph.blackboard` field: accepts a file path (content loaded at init, written back on each update) or an inline markdown string.
+  - `Compiler._load_blackboard()` static method: resolves file vs. plain-string blackboard at construction time.
+  - `Compiler._update_blackboard()`: thread-safe append of node response to the shared buffer; writes back to disk when a file path was provided.
   - Stage-4 DAG inference in `_build_dag()`: automatic write→read dependency resolution using a three-category rule (Cat-1 writers / Cat-2 enrichers / Cat-3 readers) so parallel enricher nodes and flat `edges` declarations work correctly without explicit `children`/`fan_in`.
-  - `{footprints}` placeholder injected automatically into node prompts when `footprint.read: true`.
-  - `test/test_footprint.py` — full test suite: `NodeFootprint` model, YAML parsing, `_load_footprints`, DAG stage-4 inference, integration tests loading `footprint_graph.yml`.
-  - `test/graphs/footprint_graph.yml` — 4-node reference graph (assistant → analyst_a ‖ analyst_b → summarizer).
-  - `test/graphs/FOOTPRINT.md` — seed file for integration tests.
-- **`Compiler._validate_prompts()`** — called at the end of `__init__`; uses `string.Formatter().parse()` to extract all `{placeholder}` tokens from every node's compiled prompt template and emits a `WARNING` for any placeholder that is referenced but not activated in the node config (via `user_message`, `message_passing`, `retrieved_chunks`, `footprint.read`, or `prompt_placeholders`). Misconfigurations are caught at construction time rather than at `compile()` runtime.
+  - `{blackboard}` placeholder injected automatically into node prompts when `blackboard.read: true`.
+  - `test/test_blackboard.py` — full test suite: `NodeBlackboard` model, YAML parsing, `_load_blackboard`, DAG stage-4 inference, integration tests loading `blackboard_graph.yml`.
+  - `test/graphs/blackboard_graph.yml` — 4-node reference graph (assistant → analyst_a ‖ analyst_b → summarizer).
+  - `test/graphs/BLACKBOARD.md` — seed file for integration tests.
+- **`Compiler._validate_prompts()`** — called at the end of `__init__`; uses `string.Formatter().parse()` to extract all `{placeholder}` tokens from every node's compiled prompt template and emits a `WARNING` for any placeholder that is referenced but not activated in the node config (via `user_message`, `message_passing`, `retrieved_chunks`, `blackboard.read`, or `prompt_placeholders`). Misconfigurations are caught at construction time rather than at `compile()` runtime.
 - **`TestValidatePrompts`** (in `test/test_graphs.py`) — 6 unit tests covering warning/no-warning cases for `_validate_prompts()`.
 - **`TestRunParallelFailure`** (in `test/test_graphs.py`) — 3 unit tests verifying `_run_parallel` exception propagation.
 
 ### Changed
 - **`GraphNode.message_passing`** — now has a default of `NodeMessagePassing()` (`{input: false, output: false}`); the field can be omitted from YAML.
-- **`Compiler._run_parallel()`** — exceptions from parallel nodes are now collected and re-raised as a single `RuntimeError` (chained to the first cause) after all futures complete. Previously non-guard failures were silently logged, inconsistent with the `raise` behaviour of sequential node execution. Successful sibling results and footprint writes are preserved before the error propagates.
+- **`Compiler._run_parallel()`** — exceptions from parallel nodes are now collected and re-raised as a single `RuntimeError` (chained to the first cause) after all futures complete. Previously non-guard failures were silently logged, inconsistent with the `raise` behaviour of sequential node execution. Successful sibling results and blackboard writes are preserved before the error propagates.
 
 ### Fixed
 - **`compose_node_prompt()`** (`compose.py`) — `str.format()` `KeyError` now raises with a descriptive message listing available placeholders and which feature to enable, rather than a bare `KeyError`.

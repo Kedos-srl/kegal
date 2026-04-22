@@ -1,34 +1,27 @@
 ## Graph Response
  * Token Input size: 607
- * Token Output size: 274
- * Compile time: 24.40165686607361
+ * Token Output size: 166
+ * Compile time: 13.66148066520691
 ### Node:  language_check
 ```json
  {
     "validation": true,
-    "action": "approve_with_notes"
+    "action": "APPROVED (with minor context adjustment for brevity if needed in formal settings). The message is appropriate for business communication as it is professional, informative, and framed as a thoughtful inquiry about a relevant industry topic. Here\u2019s why it holds well in a business context:"
 } 
 ```
 
 Token Input size:  141 
-  Token Output size:  36 
+  Token Output size:  89 
  ### Node:  test_rag_node
 ```json
  {
     "validation": true,
-    "cost_metrics": {
-        "long_term_economic_impacts": [
-            "Job Creation & Economic Growth",
-            "Energy Cost Savings & Stability",
-            "Reduced Fuel Import Dependence",
-            "Lower Volatility in Energy Pricing"
-        ]
-    },
-    "growth_rate": 13.7,
-    "recommendation": "Switching to renewable energy yields transformative long-term economic benefits. The data highlights a **$1.8 trillion** global investment in renewables in 2023, driving **13.7 million jobs**\u2014showing a direct link between adoption and job growth. Countries with higher renewable adoption saw a **15% reduction in energy costs** over a decade, particularly in utility-scale solar projects with a **Levelized Cost of Energy (LCOE) of $0.048/kWh in 2023**, making renewables the most cost-effective option in many markets today."
+    "cost_metrics": {},
+    "growth_rate": 1.8,
+    "recommendation": "The economic impacts of transitioning to renewables\u2014particularly solar and wind\u2014are profound and multi-faceted, offering several compelling advantages over fossil fuels."
 } 
 ```
 
 Token Input size:  466 
-  Token Output size:  238 
+  Token Output size:  77 
  

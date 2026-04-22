@@ -50,8 +50,8 @@ class Compiler:
         self.chat_history = graph.chat_history
         self.user_message = graph.user_message
         self.retrieved_chunks = graph.retrieved_chunks
-        self.footprints, self._footprints_path = self._load_footprints(graph.footprints)
-        self._footprints_lock = threading.Lock()
+        self.blackboard, self._blackboard_path = self._load_blackboard(graph.blackboard)
+        self._blackboard_lock = threading.Lock()
         self._message_passing_lock = threading.Lock()
         self._outputs_lock = threading.Lock()
         self.outputs: CompiledOutput = CompiledOutput()
@@ -122,8 +122,8 @@ class Compiler:
         return prompts_templates
 
     @staticmethod
-    def _load_footprints(value: str | None) -> tuple[str, Path | None]:
-        """Load footprints content from a file path or a plain markdown string.
+    def _load_blackboard(value: str | None) -> tuple[str, Path | None]:
+        """Load blackboard content from a file path or a plain markdown string.
 
         Returns a (content, path) tuple where path is set only when value
         pointed to an existing file (used later to persist writes back).
@@ -181,8 +181,8 @@ class Compiler:
                 activated.add("message_passing")
             if node.prompt.retrieved_chunks:
                 activated.add("retrieved_chunks")
-            if node.footprint is not None and node.footprint.read:
-                activated.add("footprints")
+            if node.blackboard is not None and node.blackboard.read:
+                activated.add("blackboard")
 
             missing = referenced - activated
             if missing:
@@ -191,7 +191,7 @@ class Compiler:
                     f"{sorted(missing)} that are not activated in the node config. "
                     f"This will raise a KeyError at compile time. "
                     f"Enable the feature (user_message, message_passing, "
-                    f"retrieved_chunks, footprint.read) or add to prompt_placeholders."
+                    f"retrieved_chunks, blackboard.read) or add to prompt_placeholders."
                 )
 
     # -------------------------------------------------------------------------
@@ -310,11 +310,11 @@ class Compiler:
             for gid in guard_ids:
                 deps[nid].add(gid)
 
-        # — Stage 4: footprint write→read inference ————————————————————————
-        # Nodes are classified into three categories by their footprint flags:
-        #   Cat-1  write=T read=F  pure writers  — seed the footprint
+        # — Stage 4: blackboard write→read inference ———————————————————————
+        # Nodes are classified into three categories by their blackboard flags:
+        #   Cat-1  write=T read=F  pure writers  — seed the blackboard
         #   Cat-2  read=T  write=T enrichers     — read then extend, run in parallel
-        #   Cat-3  read=T  write=F pure readers  — consume the final footprint
+        #   Cat-3  read=T  write=F pure readers  — consume the final blackboard
         #
         # Dependency rules (applied by declaration order):
         #   Cat-2 depends on all prior Cat-1 nodes (not on sibling Cat-2 nodes)
@@ -322,7 +322,7 @@ class Compiler:
         #
         # This lets enrichers (Cat-2) run in parallel after the writer(s) finish,
         # and the final reader(s) wait for all of them — with flat edge declarations.
-        def _fp(nid): return self.nodes[nid].footprint
+        def _fp(nid): return self.nodes[nid].blackboard
 
         cat1 = [n for n in ordered_ids if _fp(n) and     _fp(n).write and not _fp(n).read]
         cat2 = [n for n in ordered_ids if _fp(n) and     _fp(n).read  and     _fp(n).write]
@@ -423,7 +423,7 @@ class Compiler:
         """Execute independent nodes concurrently using a thread pool.
 
         All futures are allowed to complete before raising so that partial
-        results and footprint writes from successful siblings are preserved.
+        results and blackboard writes from successful siblings are preserved.
         If any node raises, a RuntimeError is raised after the pool drains.
         """
         with ThreadPoolExecutor(max_workers=len(node_ids)) as executor:
@@ -466,7 +466,7 @@ class Compiler:
             elapsed = time.time() - start
             logger.debug(f"Node '{node.id}' completed in {elapsed:.3f}s")
             self._record_output(node, response, elapsed, enable_history)
-            self._update_footprints(node, response)
+            self._update_blackboard(node, response)
             self._check_message_passing(response, node)
             return self._check_validation_gate(response)
         except Exception as e:
@@ -614,8 +614,8 @@ class Compiler:
         if node.prompt.retrieved_chunks:
             prompt_elements["retrieved_chunks"] = self.retrieved_chunks
 
-        if node.footprint is not None and node.footprint.read:
-            prompt_elements["placeholders"]["footprints"] = self.footprints
+        if node.blackboard is not None and node.blackboard.read:
+            prompt_elements["placeholders"]["blackboard"] = self.blackboard
 
         return compose_node_prompt(**prompt_elements)
 
@@ -668,24 +668,24 @@ class Compiler:
             self.outputs.input_size += response.input_size
             self.outputs.output_size += response.output_size
 
-    def _update_footprints(self, node: GraphNode, response: LLmResponse) -> None:
-        """Append node response to the shared footprints buffer.
+    def _update_blackboard(self, node: GraphNode, response: LLmResponse) -> None:
+        """Append node response to the shared blackboard buffer.
 
         Thread-safe: multiple parallel nodes may write concurrently.
-        If footprints originated from a file the updated content is written back.
+        If blackboard originated from a file the updated content is written back.
         """
-        if node.footprint is None or not node.footprint.write:
+        if node.blackboard is None or not node.blackboard.write:
             return
         if not response.messages:
             return
         new_content = "\n\n".join(response.messages)
-        with self._footprints_lock:
-            if self.footprints:
-                self.footprints = self.footprints.rstrip() + "\n\n" + new_content
+        with self._blackboard_lock:
+            if self.blackboard:
+                self.blackboard = self.blackboard.rstrip() + "\n\n" + new_content
             else:
-                self.footprints = new_content
-            if self._footprints_path is not None:
-                self._footprints_path.write_text(self.footprints, encoding="utf-8")
+                self.blackboard = new_content
+            if self._blackboard_path is not None:
+                self._blackboard_path.write_text(self.blackboard, encoding="utf-8")
 
     def _check_message_passing(self, response, node):
         with self._message_passing_lock:

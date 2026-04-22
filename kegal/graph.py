@@ -46,13 +46,17 @@ class NodeMessagePassing(BaseModel):
     input: bool = False
     output: bool = False
 
+class NodeFootprint(BaseModel):
+    read: bool = False
+    write: bool = False
+
 class GraphNode(BaseModel):
     id: str
     model: int
     temperature: float
     max_tokens: int
     show: bool
-    message_passing: NodeMessagePassing
+    message_passing: NodeMessagePassing = NodeMessagePassing()
     chat_history: str | None = None
     prompt: NodePrompt | None
     structured_output: dict[str, Any] | None = None
@@ -60,6 +64,7 @@ class GraphNode(BaseModel):
     documents: list[int] | None = None
     tools: list[str] | None = None
     mcp_servers: list[str] | None = None
+    footprint: NodeFootprint | None = None
 
 class GraphEdge(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -78,6 +83,7 @@ class Graph(BaseModel):
     chat_history: dict[str, list[dict[str, str]]] | None = None
     user_message: str | None = None
     retrieved_chunks: str | None = None
+    footprints: str | None = None
     nodes: list[GraphNode]
     edges: list[GraphEdge]
 

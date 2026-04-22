@@ -120,35 +120,167 @@ prompt_placeholders:
 
 ---
 
+## 3.1 Prompt Placeholders
+
+Prompt templates use Python `str.format()` syntax. The following placeholder
+names are **reserved** — each is injected automatically when the corresponding
+feature is enabled on the node. Using a reserved placeholder without enabling
+its feature raises a `KeyError` at `compile()` time (with a descriptive
+message). Custom placeholders can be added freely via `prompt_placeholders`.
+
+`Compiler._validate_prompts()` checks all templates at construction time and
+emits a `WARNING` for any placeholder that is referenced but not activated.
+
+| Placeholder | Activated by | Content |
+|---|---|---|
+| `{user_message}` | `prompt.user_message: true` | The string from the top-level `user_message` YAML key or `compiler.user_message`. |
+| `{message_passing}` | `message_passing.input: true` | The list of outputs written by upstream nodes with `message_passing.output: true`. |
+| `{retrieved_chunks}` | `prompt.retrieved_chunks: true` | The string from the top-level `retrieved_chunks` YAML key or `compiler.retrieved_chunks`. |
+| `{footprints}` | `footprint.read: true` | The current contents of the shared footprint buffer at the time the node executes. |
+| `{<key>}` | `prompt.prompt_placeholders: {<key>: <value>}` | The literal value from `prompt_placeholders`. Any name that does not clash with the reserved names above is safe to use. |
+
+### Example
+
+```yaml
+prompts:
+  - template:
+      system_template:
+        role: |
+          You are an analyst specialising in {domain}.   # custom placeholder
+      prompt_template:
+        context: |
+          Previous discussion:
+          {footprints}                                    # reserved — footprint.read: true required
+        user_input: |
+          {user_message}                                  # reserved — prompt.user_message: true required
+
+nodes:
+  - id: "analyst"
+    footprint:
+      read: true
+      write: true
+    prompt:
+      template: 0
+      user_message: true
+      prompt_placeholders:
+        domain: "renewable energy"                        # satisfies {domain}
+```
+
+---
+
 ## 4. `NodeMessagePassing`
 
 | Field    | Type  | Optional | Description                                        |
 |----------|-------|----------|----------------------------------------------------|
-| `input`  | `bool`| No       | Flag to forward input to the node.                 |
-| `output` | `bool`| No       | Flag to expose the node’s output to downstream nodes. |
+| `input`  | `bool`| Yes (default `false`) | Inject the message pipe content into the node’s prompt via `{message_passing}`. |
+| `output` | `bool`| Yes (default `false`) | Append this node’s response to the message pipe after execution. |
 
+
+Both fields default to `false` — the entire `message_passing` block can be omitted from YAML if neither flag is set.
 
 ### YAML Example
 
 ```yaml
-input: false
-output: false
+message_passing:
+  input: false
+  output: true   # this node's response is forwarded downstream
 ```
-
 
 ### JSON Example
 
 ```json
 {
   "input": false,
-  "output": false
+  "output": true
 }
 ```
 
+---
+
+## 5. `NodeFootprint`
+
+Controls whether a node participates in the shared **footprint** document —
+a persistent markdown buffer written and read across nodes during a single
+`compile()` run.
+
+| Field   | Type   | Optional | Description |
+|---------|--------|----------|-------------|
+| `read`  | `bool` | No (default `false`) | Inject the current footprint content into the node's prompt via the `{footprints}` placeholder. |
+| `write` | `bool` | No (default `false`) | Append the node's LLM response to the footprint after execution. If the footprint originated from a file it is written back to disk after each write. |
+
+### Node categories
+
+Three behaviour patterns emerge from the `read`/`write` combination:
+
+| Category | `read` | `write` | Role |
+|----------|--------|---------|------|
+| Cat-1 | `false` | `true`  | **Writer** — seeds the footprint (e.g. an assistant that drafts the initial content). |
+| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends the footprint (e.g. domain analysts). Multiple Cat-2 nodes run in parallel. |
+| Cat-3 | `true`  | `false` | **Reader** — consumes the final footprint (e.g. a summarizer). |
+
+The compiler infers the correct execution order automatically from these
+categories even when the `edges` list is flat (no `children`/`fan_in`
+declarations). Cat-1 nodes run first, Cat-2 nodes run in parallel after all
+Cat-1 nodes complete, and Cat-3 nodes run after all Cat-2 nodes complete.
+
+### Global `footprints` key
+
+The top-level `footprints` key in the graph YAML configures the shared buffer:
+
+```yaml
+footprints: ./path/to/FOOTPRINT.md   # load initial content from a file (writes persist back)
+# or
+footprints: "# My Topic\n\n"          # inline markdown seed string
+```
+
+If `footprints` is omitted the buffer starts empty and writes are in-memory
+only (no file persistence).
+
+### YAML Example
+
+```yaml
+footprints: ./FOOTPRINT.md
+
+nodes:
+  - id: "assistant"
+    footprint:
+      read: false
+      write: true   # Cat-1: seeds the footprint
+    prompt:
+      template: 0
+      user_message: true
+
+  - id: "analyst"
+    footprint:
+      read: true
+      write: true   # Cat-2: enriches the footprint
+    prompt:
+      template: 1   # template uses {footprints}
+
+  - id: "summarizer"
+    footprint:
+      read: true
+      write: false  # Cat-3: consumes the final footprint
+    prompt:
+      template: 2   # template uses {footprints}
+```
+
+The `{footprints}` placeholder in a prompt template is automatically injected
+when `footprint.read: true` is set on the node. No additional `prompt_placeholders`
+entry is needed.
+
+### JSON Example
+
+```json
+{
+  "read": true,
+  "write": false
+}
+```
 
 ---
 
-## 5. `GraphNode`
+## 6. `GraphNode`
 
 | Field               | Type                         | Optional | Description |
 |---------------------|------------------------------|----------|-------------|
@@ -157,7 +289,8 @@ output: false
 | `temperature`       | `float`                      | No       | Sampling temperature for the LLM. |
 | `max_tokens`        | `int`                        | No       | Maximum token length for the LLM response. |
 | `show`              | `bool`                       | No       | Whether the node is visible in visualisations. |
-| `message_passing`   | `NodeMessagePassing`         | No       | Configuration of input/output passing. |
+| `message_passing`   | `NodeMessagePassing`         | Yes (default `{input: false, output: false}`) | Configuration of input/output passing. |
+| `footprint`         | `NodeFootprint` \| `None`    | Yes      | Footprint read/write participation. See §5 `NodeFootprint`. |
 | `chat_history`      | `str` \| `None`              | Yes      | Reference to a chat history key (e.g. `"global"`). |
 | `prompt`            | `NodePrompt` \| `None`       | Yes      | Prompt configuration. |
 | `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output. |
@@ -308,7 +441,7 @@ In this example, if the LLM determines the message is inappropriate, it returns 
 
 ---
 
-## 6. `GraphEdge`
+## 7. `GraphEdge`
 
 | Field      | Type                       | Optional | Description |
 |------------|----------------------------|----------|-------------|
@@ -420,7 +553,7 @@ edges:
 
 ---
 
-## 7. `Graph`
+## 8. `Graph`
 
 | Field              | Type                                   | Optional | Description |
 |--------------------|-----------------------------------------|----------|-------------|
@@ -432,6 +565,7 @@ edges:
 | `chat_history`     | `dict[str, list[dict[str, str]]]` \| `None` | Yes   | Historical messages keyed by scope. |
 | `user_message`     | `str` \| `None`                         | Yes      | Current user prompt. |
 | `retrieved_chunks` | `str` \| `None`                         | Yes      | Additional retrieved content (e.g., document snippets). |
+| `footprints`       | `str` \| `None`                         | Yes      | Path to a markdown file or an inline markdown string used as the shared footprint buffer. See §5 `NodeFootprint`. |
 | `nodes`            | `list[GraphNode]`                       | No       | All nodes in the graph. |
 | `edges`            | `list[GraphEdge]`                       | No       | Graph topology. |
 
@@ -565,7 +699,7 @@ edges:
 
 ---
 
-## 8. `LLMTool` (from `kegal.llm.llm_model`)
+## 9. `LLMTool` (from `kegal.llm.llm_model`)
 
 | Field        | Type                                   | Optional | Description |
 |--------------|-----------------------------------------|----------|-------------|
@@ -578,7 +712,7 @@ edges:
 > **Tip**: Use this model when you need to pass structured function‑call capabilities to the LLM.
 
 
-## 9. `LLMStructuredSchema` (from `kegal.llm.llm_model`)
+## 10. `LLMStructuredSchema` (from `kegal.llm.llm_model`)
 
 | Field         | Type                       | Optional | Description |
 |---------------|----------------------------|----------|-------------|

@@ -18,15 +18,12 @@ def search_kb(query: str) -> str:
 
 from kegal import Compiler
 
-compiler = Compiler(
+with Compiler(
     uri="path/to/your_graph.yml",
     tool_executors={"search_kb": search_kb},
-)
-try:
+) as compiler:
     compiler.compile()
     outputs = compiler.get_outputs()
-finally:
-    compiler.close()
 ```
 
 The tool name must match what the LLM receives in its tool list. Declare the
@@ -74,7 +71,7 @@ transports.
 1. Declare the server(s) in the top-level `mcp_servers` list.
 2. Reference the server by its list index in the `mcp_servers` field of every
    node that should have access to it.
-3. `Compiler.__init__` connects to each server automatically. `disconnect()`
+3. `Compiler.__init__` connects to each server automatically. `close()`
    shuts them all down cleanly.
 
 ### Step 1 — Write a server
@@ -102,7 +99,7 @@ if __name__ == "__main__":
 ```yaml
 models:
   - llm: "ollama"
-    model: "ministral-3:8b"
+    model: "ministral-3:3b"
     host: "http://localhost:11434"
 
 mcp_servers:
@@ -145,13 +142,11 @@ edges:
 ```python
 from kegal import Compiler
 
-compiler = Compiler(uri="path/to/graph.yml")
-try:
+with Compiler(uri="path/to/graph.yml") as compiler:
     compiler.compile()
     for node in compiler.get_outputs().nodes:
-        print(f"[{node.node_id}] {node.response.content}")
-finally:
-    compiler.close()   # stops the subprocess and closes the socket
+        for msg in node.response.messages or []:
+            print(f"[{node.node_id}] {msg}")
 ```
 
 ### SSE transport
@@ -375,7 +370,7 @@ model in the top-level `models` list and reference them by index on each node:
 ```yaml
 models:
   - llm: "ollama"
-    model: "ministral-3:8b"
+    model: "ministral-3:3b"
     host: "http://localhost:11434"
   - llm: "anthropic"
     model: "claude-sonnet-4-6"
@@ -400,11 +395,10 @@ field on the compiler (or in the YAML) and reference them with
 `{retrieved_chunks}` in a prompt template:
 
 ```python
-compiler = Compiler(uri="path/to/graph.yml")
-compiler.retrieved_chunks = my_retriever.query(user_question)
-compiler.user_message = user_question
-compiler.compile()
-compiler.close()
+with Compiler(uri="path/to/graph.yml") as compiler:
+    compiler.retrieved_chunks = my_retriever.query(user_question)
+    compiler.user_message = user_question
+    compiler.compile()
 ```
 
 ```yaml
@@ -430,4 +424,141 @@ nodes:
       template: 0
       user_message: true
       retrieved_chunks: true
+```
+
+---
+
+## 9. Footprint — shared markdown buffer across nodes
+
+The **footprint** is a persistent markdown document that nodes can read from and
+write to during a single `compile()` run. It is the idiomatic way to build
+multi-agent pipelines where a writer seeds context, enrichers extend it in
+parallel, and a final reader summarises the whole thread.
+
+### Node categories
+
+| Category | `read` | `write` | Role |
+|----------|--------|---------|------|
+| Cat-1 | `false` | `true`  | **Writer** — seeds the footprint. |
+| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends; multiple Cat-2 nodes run in parallel. |
+| Cat-3 | `true`  | `false` | **Reader** — consumes the final footprint. |
+
+The execution order (Cat-1 → Cat-2 in parallel → Cat-3) is **inferred
+automatically** from the flags even when `edges` is a flat list — no
+`children`/`fan_in` declarations are needed.
+
+### Step 1 — Configure the global footprint source
+
+Add `footprints` at the top level of the YAML. It accepts either a file path
+(content is loaded at init; writes are persisted back after each node) or an
+inline markdown string:
+
+```yaml
+footprints: ./FOOTPRINT.md    # file — writes persist to disk
+# or
+footprints: "# Topic\n\n"     # inline seed — in-memory only
+```
+
+### Step 2 — Mark nodes with footprint flags
+
+```yaml
+nodes:
+  - id: "assistant"          # Cat-1: write only
+    model: 0
+    temperature: 0.3
+    max_tokens: 200
+    show: false
+    footprint:
+      read: false
+      write: true
+    prompt:
+      template: 0
+      user_message: true
+
+  - id: "analyst_a"          # Cat-2: read + write (parallel with analyst_b)
+    model: 0
+    temperature: 0.5
+    max_tokens: 400
+    show: false
+    footprint:
+      read: true
+      write: true
+    prompt:
+      template: 1             # template uses {footprints}
+
+  - id: "analyst_b"          # Cat-2: read + write (parallel with analyst_a)
+    model: 0
+    temperature: 0.5
+    max_tokens: 400
+    show: false
+    footprint:
+      read: true
+      write: true
+    prompt:
+      template: 2             # template uses {footprints}
+
+  - id: "summarizer"         # Cat-3: read only
+    model: 0
+    temperature: 0.5
+    max_tokens: 800
+    show: true
+    footprint:
+      read: true
+      write: false
+    prompt:
+      template: 3             # template uses {footprints}
+
+edges:
+  - node: "assistant"
+  - node: "analyst_a"
+  - node: "analyst_b"
+  - node: "summarizer"
+```
+
+### Step 3 — Reference `{footprints}` in prompt templates
+
+Any node with `footprint.read: true` has the current buffer injected as
+`{footprints}`. No extra `prompt_placeholders` entry is required:
+
+```yaml
+prompts:
+  - template:                        # template 1 — analyst_a
+      system_template:
+        role: |
+          You are a business analyst.
+      prompt_template:
+        context: |
+          State of discussion:
+          {footprints}
+        instruction: |
+          Analyze the main economic implications. Max 200 words.
+```
+
+### Step 4 — Run
+
+```python
+from kegal import Compiler
+
+with Compiler(uri="path/to/graph.yml") as compiler:
+    compiler.compile()
+    outputs = compiler.get_outputs()
+    for node in outputs.nodes:
+        if node.show:
+            print(f"[{node.node_id}]")
+            for msg in node.response.messages or []:
+                print(msg)
+```
+
+After `compile()` the `FOOTPRINT.md` file on disk will contain the full
+accumulated thread: seed from `assistant`, extensions from both analysts,
+ready for the summarizer to consume.
+
+### Overriding the footprint at runtime
+
+You can reset or inject content before compiling:
+
+```python
+with Compiler(uri="path/to/graph.yml") as compiler:
+    compiler.footprints = "# Custom seed\n\nOverride the YAML-loaded content."
+    compiler.compile()
 ```

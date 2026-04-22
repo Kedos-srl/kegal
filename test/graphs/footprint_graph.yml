@@ -1,0 +1,158 @@
+# Footprint graph — 4-node fan-out / fan-in
+#
+# Topology:
+#   [assistant]  — footprint.write=true  (seeds the footprint)
+#       |
+#   children (fan-out — parallel)
+#   /                    \
+# [analyst_a]         [analyst_b]   — both read+write
+#   \                    /
+#    fan-in (aggregation)
+#        |
+#   [summarizer]  — footprint.read=true, write=false
+
+models:
+  - llm: ollama
+    model: ministral-3:3b
+    host: "http://localhost:11434"
+
+# =============================================================================
+# PROMPTS
+# =============================================================================
+prompts:
+  # 0 - assistant
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are a knowledgeable and helpful assistant.
+          You can:
+          - answer questions
+          - explain concepts
+          - provide guidance
+          - and adapt your responses to any topic.
+        behavioral_guidelines: |
+          - Be clear and accurate.
+          - Adapt the level of detail to the user's request.
+          - Provide structured, easy-to-read answers when helpful.
+          - Avoid unnecessary verbosity unless explicitly requested.
+          - Avoid direct address in your response
+      prompt_template:
+        instruction: |
+          Respond to the following user message appropriately with max 100 words:
+          "{user_message}"
+
+  # 1 - analyst_a (economic)
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are a business analyst. Evaluate the economic implications of the topic.
+        behavioral_guidelines: |
+          - Focus on economic impact.
+          - Be brief.
+          - Avoid unnecessary verbosity unless explicitly requested.
+          - Avoid direct address in your response
+      prompt_template:
+        context: |
+          State of discussion:
+          {footprints}
+        instruction: |
+          Analyze the topics and explain what are the main economic implications on the topic discussed.
+          Max 200 words
+  # 2 - analyst_b (environmental)
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are an environmental analyst. Evaluate the environmental implications of the topic.
+        behavioral_guidelines: |
+          - Focus on environmental impact.
+          - Avoid direct address in your response
+      prompt_template:
+        context: |
+          State of discussion:
+          {footprints}
+        instruction: |
+          Analyze the discussion and add the point of view of the environmental impact of the topics discussed.
+          Max 200 words
+  # 3 - summarizer
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You are a discussion summarizer. Produce a summary and conclusions on the discussions that took place around a topic.
+        behavioral_guidelines: |
+          - Avoid direct address in your response
+      prompt_template:
+        context: |
+          Topics covered:
+          {footprints}
+        instruction: |
+          -Summarize, rewrite the text and restructure into chapters based on the different contributions to the discussion:
+              # Intro
+              # Title of Contribution 1
+              # Title of Contribution 2
+              # Conclusions
+          Max 800 words, translate the final text in italian
+user_message: "What are the long-term impacts of switching to renewable energy?"
+footprints: ./test/graphs/FOOTPRINT.md
+
+# =============================================================================
+# NODES
+# =============================================================================
+nodes:
+  # ASSISTANT
+  - id: "assistant"
+    model: 0
+    temperature: 0.3
+    max_tokens: 200
+    show: false
+    footprint:
+      read: false
+      write: true
+    prompt:
+      template: 0
+      user_message: true
+
+  # ANALYST A (economic)
+  - id: "analyst_a"
+    model: 0
+    temperature: 0.5
+    max_tokens: 400
+    show: false
+    footprint:
+      read: true
+      write: true
+    prompt:
+      template: 1
+
+  # ANALYST B (environmental)
+  - id: "analyst_b"
+    model: 0
+    temperature: 0.5
+    max_tokens: 400
+    show: false
+    footprint:
+      read: true
+      write: true
+    prompt:
+      template: 2
+
+  # SUMMARIZER
+  - id: "summarizer"
+    model: 0
+    temperature: 0.5
+    max_tokens: 400
+    show: true
+    footprint:
+      read: true
+      write: false
+    prompt:
+      template: 3
+
+# =============================================================================
+# EDGES — fan-out from assistant, fan-in to summarizer
+# =============================================================================
+edges:
+  - node: "assistant"
+  - node: "analyst_a"
+  - node: "analyst_b"
+  - node: "summarizer"
+

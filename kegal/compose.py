@@ -47,8 +47,14 @@ def compose_node_prompt(prompt_template: dict[str, str],
 
     if len(placeholders) > 0:
         output = prompt_template.copy()
-        output["system"] = output["system"].format(**placeholders)
-        output["user"] = output["user"].format(**placeholders)
+        try:
+            output["system"] = output["system"].format(**placeholders)
+            output["user"]   = output["user"].format(**placeholders)
+        except KeyError as e:
+            raise KeyError(
+                f"Placeholder {e} used in prompt template but not activated in the node config. "
+                f"Available placeholders: {list(placeholders.keys())}"
+            ) from e
         return output
     return prompt_template
 

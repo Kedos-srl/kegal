@@ -1,7 +1,7 @@
 import unittest
 import os
 
-from kegal import LlmBedrock
+from kegal.llm import LlmBedrock
 from test import test_llm
 
 from pathlib import Path

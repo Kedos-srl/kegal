@@ -1,6 +1,6 @@
 models:
   - llm: ollama
-    model: ministral-3:8b 
+    model: ministral-3:3b 
 prompts:
   - template:
       system_template: 

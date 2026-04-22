@@ -52,7 +52,8 @@ def get_tools_prompt() -> dict:
         required=["city"],
     )
     return {
-        "user_message": "What is the weather in Rome?",
+        "system_prompt": "You have access to tools. Always use the appropriate tool to answer the user's question. Do not answer from memory.",
+        "user_message": "What is the weather in Rome? Use the get_weather tool.",
         "tools": [tool],
     }
 

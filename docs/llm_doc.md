@@ -14,16 +14,14 @@ Below is a high‑level overview of each module in the package, the public API t
 The package’s `__init__` simply re‑exports the public LLM classes so they can be imported directly from `kegal.llm`.
 
 ```python
-# kegal/llm/__init__.py
-__all__ = [
-    "LLMHandler",
-    "LLMImageData",
-    "LLMPdfData",
-    "LLMTool",
-    "LLMStructuredOutput",
-    "LLMStructuredSchema",
-    "LLMMessage",
-]
+from kegal.llm import (
+    LlmModel,
+    LlmHandler,
+    LlmAnthropic,
+    LlmOpenai,
+    LlmOllama,
+    LlmBedrock,
+)
 ```
 
 
@@ -210,13 +208,16 @@ outputs = compiler.get_outputs()
 
 ### Compilation Flow
 
-1. **DAG building** – `_build_dag()` resolves dependencies in three stages:
-   - *Stage 1 (structural)*: the recursive edge tree is traversed; `children` entries create fan-out dependencies (child waits for parent); `fan_in` entries create aggregation dependencies (node waits for all listed nodes).
+1. **Prompt validation** – `_validate_prompts()` is called at construction time. It uses `string.Formatter().parse()` to extract every `{placeholder}` from all prompt templates and warns if a placeholder is referenced but not activated in the node config. Misconfigurations are reported before the first `compile()` call.
+2. **DAG building** – `_build_dag()` resolves dependencies in four stages:
+   - *Stage 1 (structural)*: the recursive edge tree is traversed; `children` creates fan-out dependencies (child waits for parent); `fan_in` creates aggregation dependencies (node waits for all listed nodes).
    - *Stage 2 (message passing)*: any node with `message_passing.output=true` becomes a dependency of all later nodes with `message_passing.input=true`, based on declaration order.
    - *Stage 3 (guard barrier)*: nodes whose `structured_output` contains a `validation` field automatically precede all other nodes.
-2. **Topological scheduling** – `_topological_levels()` groups nodes into levels via Kahn's algorithm. Nodes in the same level have no dependency on each other.
-3. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one.
-4. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
+   - *Stage 4 (footprint)*: nodes are classified into Cat-1 (write-only), Cat-2 (read+write), Cat-3 (read-only) by their `footprint` flags. Cat-2 nodes depend on all prior Cat-1 nodes; Cat-3 nodes depend on all prior Cat-1 and Cat-2 nodes. This infers the correct execution order with flat edge declarations.
+3. **Topological scheduling** – `_topological_levels()` groups nodes into levels via Kahn's algorithm. Nodes in the same level have no dependency on each other.
+4. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one. Failures from parallel nodes are collected and re-raised as a `RuntimeError` after all futures complete.
+5. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
+6. **Footprint update** – after each node with `footprint.write=true`, its response is appended to the shared buffer (thread-safe). If the footprint was loaded from a file, the file is written back immediately.
 
 ### Output Models
 
@@ -238,31 +239,15 @@ outputs = compiler.get_outputs()
 
 ## 9. `kegal.compose`
 
-`compose.py` provides a small DSL to build a `Graph` programmatically.  
-Typical usage:
+`compose.py` contains prompt composition helpers used internally by the `Compiler` to assemble the final system and user prompts before each LLM call.
 
-```python
-from kegal.graph import Graph, GraphNode, GraphEdge
-
-graph = Graph(
-    models=[...],
-    prompts=[...],
-    nodes=[
-        GraphNode(
-            id="node1",
-            model=0,
-            temperature=0.5,
-            max_tokens=512,
-            show=True,
-            message_passing=NodeMessagePassing(input=True, output=True),
-            prompt=NodePrompt(template=0, user_message=True, retrieved_chunks=False),
-        ),
-    ],
-    edges=[
-        GraphEdge(node="node1"),
-    ],
-)
-```
+| Function | Description |
+|----------|-------------|
+| `compose_template_prompt(prompt_template)` | Convert a raw YAML template dict (with `system_template` and `prompt_template` sections) into a `{"system": str, "user": str}` dict. |
+| `compose_node_prompt(prompt_template, placeholders, ...)` | Substitute `{placeholder}` tokens into the compiled template using `str.format()`. Raises a descriptive `KeyError` listing available placeholders if a token is missing. |
+| `compose_images(data, indices)` | Build the `list[LLMImageData]` for a node from the graph-level image list. |
+| `compose_documents(data, indices)` | Build the `list[LLMPdfData]` for a node from the graph-level document list. |
+| `compose_tools(tools, names)` | Filter the graph-level `LLMTool` list to only those referenced by name in a node's `tools` field. |
 
 
 ---
@@ -273,10 +258,11 @@ Utility functions used across the package:
 
 | Function | Description |
 |----------|-------------|
-| `load_yaml(path: str) -> dict` | Load a YAML file into a Python dict. |
-| `to_json(obj: Any) -> str` | Serialize an object to JSON. |
-| `base64_encode(file_path: str) -> str` | Return a base64 string for a file. |
-| `extract_text_from_pdf(pdf_bytes: bytes) -> str` | Simple OCR/strip text from PDF. |
+| `load_yml(source)` | Load a YAML file into a Python dict. |
+| `load_json(source)` | Load a JSON file into a Python dict. |
+| `load_contents(source)` | Load a YAML or JSON file based on extension. |
+| `load_images_to_base64(source)` | Load an image from a path or URL and return `(media_type, base64_str)`. |
+| `load_pdfs_to_base64(source)` | Load a PDF from a path or URL and return `(media_type, base64_str)`. |
 
 ---
 
@@ -574,23 +560,4 @@ edges:
 
 ---
 
-# Quick Start
-
-```shell script
-# 1. Install the package dependencies
-pip install -r requirements.txt
-
-# 2. Create a YAML configuration (e.g. rag_graph.yml) using the templates above.
-#    Remember to set the correct credentials for your environment.
-
-# 3. Run the graph compiler
-python -m kegal.compiler rag_graph.yml
-
-# 4. Execute the compiled graph (the compiler will produce a Python module that can be imported)
-python -m kegal.execute compiled_graph.py
-```
-
-
-> For detailed runtime usage, refer to the `README.md` in the root of the repository.
-
----
+> For runtime usage and worked examples refer to [README.md](../README.md) and [tutorials.md](tutorials.md).

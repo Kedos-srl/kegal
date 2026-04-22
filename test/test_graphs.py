@@ -504,3 +504,158 @@ class TestDagGraph(unittest.TestCase):
         out_dir = CURRENT_DIR / "graph_outputs" / "dag_graph"
         self.compiler.save_outputs_as_json(out_dir / "dag_graph.json")
         self.compiler.save_outputs_as_markdown(out_dir / "dag_graph.md")
+
+
+# ---------------------------------------------------------------------------
+# _validate_prompts — placeholder pre-validation at init time
+# ---------------------------------------------------------------------------
+
+class TestValidatePrompts(unittest.TestCase):
+    """_validate_prompts() warns about prompt placeholders that are referenced in
+    a template but not activated in the corresponding node config."""
+
+    def _make(self, node_cfg: dict, template: dict[str, str]) -> Compiler:
+        """Build a minimal Compiler bypassing __init__, with only the fields
+        _validate_prompts() needs: nodes, edges, and prompts."""
+        source = {
+            "models": [{"llm": "ollama", "model": "dummy"}],
+            "prompts": [{"template": {"system_template": {}, "prompt_template": {}}}],
+            "nodes": [node_cfg],
+            "edges": [],
+        }
+        graph = Graph.model_validate(source)
+        c = object.__new__(Compiler)
+        c.nodes = {n.id: n for n in graph.nodes}
+        c.edges = graph.edges
+        c.prompts = [template]
+        return c
+
+    def _node_cfg(self, **overrides) -> dict:
+        base: dict = {
+            "id": "n", "model": 0, "temperature": 0.0, "max_tokens": 10,
+            "show": False, "prompt": {"template": 0},
+        }
+        base.update(overrides)
+        return base
+
+    def test_unactivated_footprints_warns(self):
+        """{footprints} in template but footprint.read not enabled → warning."""
+        c = self._make(
+            self._node_cfg(),
+            {"system": "", "user": "State of discussion:\n{footprints}\nAnalyze."},
+        )
+        with self.assertLogs("kegal.compiler", level=logging.WARNING) as cm:
+            c._validate_prompts()
+        self.assertTrue(any("footprints" in line for line in cm.output))
+
+    def test_unactivated_user_message_warns(self):
+        """{user_message} in template but user_message not enabled → warning."""
+        c = self._make(
+            self._node_cfg(),
+            {"system": "", "user": "Respond to: {user_message}"},
+        )
+        with self.assertLogs("kegal.compiler", level=logging.WARNING) as cm:
+            c._validate_prompts()
+        self.assertTrue(any("user_message" in line for line in cm.output))
+
+    def test_activated_user_message_no_warning(self):
+        """{user_message} with user_message: true → no warning."""
+        from unittest.mock import patch
+        c = self._make(
+            self._node_cfg(prompt={"template": 0, "user_message": True}),
+            {"system": "", "user": "Respond to: {user_message}"},
+        )
+        with patch.object(logging.getLogger("kegal.compiler"), "warning") as mock_warn:
+            c._validate_prompts()
+        mock_warn.assert_not_called()
+
+    def test_activated_footprints_no_warning(self):
+        """{footprints} with footprint.read=True → no warning."""
+        from unittest.mock import patch
+        c = self._make(
+            self._node_cfg(footprint={"read": True, "write": False}),
+            {"system": "", "user": "State: {footprints}\nAnalyze."},
+        )
+        with patch.object(logging.getLogger("kegal.compiler"), "warning") as mock_warn:
+            c._validate_prompts()
+        mock_warn.assert_not_called()
+
+    def test_prompt_placeholders_covers_custom_key(self):
+        """{custom_key} listed in prompt_placeholders → no warning."""
+        from unittest.mock import patch
+        c = self._make(
+            self._node_cfg(prompt={"template": 0,
+                                   "prompt_placeholders": {"custom_key": "value"}}),
+            {"system": "", "user": "Focus on: {custom_key}"},
+        )
+        with patch.object(logging.getLogger("kegal.compiler"), "warning") as mock_warn:
+            c._validate_prompts()
+        mock_warn.assert_not_called()
+
+    def test_template_with_no_placeholders_no_warning(self):
+        """Template containing no {} tokens emits no warning."""
+        from unittest.mock import patch
+        c = self._make(
+            self._node_cfg(),
+            {"system": "You are a helpful assistant.",
+             "user": "Answer the following question concisely."},
+        )
+        with patch.object(logging.getLogger("kegal.compiler"), "warning") as mock_warn:
+            c._validate_prompts()
+        mock_warn.assert_not_called()
+
+    def test_system_template_placeholder_also_checked(self):
+        """{user_message} in the system part of the template also triggers a warning."""
+        c = self._make(
+            self._node_cfg(),
+            {"system": "You handle: {user_message}", "user": ""},
+        )
+        with self.assertLogs("kegal.compiler", level=logging.WARNING) as cm:
+            c._validate_prompts()
+        self.assertTrue(any("user_message" in line for line in cm.output))
+
+
+# ---------------------------------------------------------------------------
+# _run_parallel — exception propagation
+# ---------------------------------------------------------------------------
+
+class TestRunParallelFailure(unittest.TestCase):
+    """_run_parallel raises RuntimeError after all futures drain when any node fails."""
+
+    def test_failure_raises_runtime_error(self):
+        """A node that raises during parallel execution → RuntimeError after pool drains."""
+        from unittest.mock import patch
+
+        c = _make_compiler([_node("A"), _node("B")], [])
+
+        def fail_on_a(node):
+            if node.id == "A":
+                raise ValueError("intentional failure in A")
+
+        with patch.object(c, "_run_node", side_effect=fail_on_a):
+            with self.assertRaises(RuntimeError) as ctx:
+                c._run_parallel(["A", "B"])
+        self.assertIn("A", str(ctx.exception))
+
+    def test_failure_is_chained_to_original_exception(self):
+        """RuntimeError.__cause__ is the original exception from the failing node."""
+        from unittest.mock import patch
+
+        c = _make_compiler([_node("A"), _node("B")], [])
+        original = ValueError("node A crashed")
+
+        def always_fail(_node):
+            raise original
+
+        with patch.object(c, "_run_node", side_effect=always_fail):
+            with self.assertRaises(RuntimeError) as ctx:
+                c._run_parallel(["A", "B"])
+        self.assertIs(ctx.exception.__cause__, original)
+
+    def test_all_succeed_no_exception(self):
+        """When all parallel nodes succeed _run_parallel returns without raising."""
+        from unittest.mock import patch
+
+        c = _make_compiler([_node("A"), _node("B")], [])
+        with patch.object(c, "_run_node", return_value=None):
+            c._run_parallel(["A", "B"])   # must not raise

@@ -11,6 +11,7 @@ from .graph import (
     GraphInputData,
     NodePrompt,
     NodeMessagePassing,
+    NodeFootprint,
     GraphNode,
     GraphEdge,
 )
@@ -39,7 +40,7 @@ from .validators import (
 # Import LLM subpackage
 from . import llm
 
-__version__ = "0.1.2"
+__version__ = "0.1.2.6"
 
 __all__ = [
     # Graph models
@@ -48,6 +49,7 @@ __all__ = [
     "GraphInputData",
     "NodePrompt",
     "NodeMessagePassing",
+    "NodeFootprint",
     "GraphNode",
     "GraphEdge",
     # Compiler

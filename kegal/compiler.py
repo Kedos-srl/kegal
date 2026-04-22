@@ -1,4 +1,6 @@
 import json
+import string
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -48,6 +50,10 @@ class Compiler:
         self.chat_history = graph.chat_history
         self.user_message = graph.user_message
         self.retrieved_chunks = graph.retrieved_chunks
+        self.footprints, self._footprints_path = self._load_footprints(graph.footprints)
+        self._footprints_lock = threading.Lock()
+        self._message_passing_lock = threading.Lock()
+        self._outputs_lock = threading.Lock()
         self.outputs: CompiledOutput = CompiledOutput()
         self.message_passing: list[Any] = []
         self.nodes = {node.id: node for node in graph.nodes}
@@ -66,6 +72,15 @@ class Compiler:
                 self.mcp_handlers[server_cfg.id] = handler
             except Exception as e:
                 logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
+
+        self._validate_prompts()
+
+    def __enter__(self) -> "Compiler":
+        return self
+
+    def __exit__(self, _exc_type, _exc_val, _exc_tb) -> bool:
+        self.close()
+        return False
 
     def close(self) -> None:
         """Release all resources held by this compiler.
@@ -105,6 +120,79 @@ class Compiler:
             else:
                 raise ValueError("Prompt input must have either 'template' or 'uri' defined")
         return prompts_templates
+
+    @staticmethod
+    def _load_footprints(value: str | None) -> tuple[str, Path | None]:
+        """Load footprints content from a file path or a plain markdown string.
+
+        Returns a (content, path) tuple where path is set only when value
+        pointed to an existing file (used later to persist writes back).
+        """
+        if value is None:
+            return "", None
+        path = Path(value)
+        if path.is_file():
+            return path.read_text(encoding="utf-8"), path
+        return value, None
+
+    def _validate_prompts(self) -> None:
+        """Warn about prompt placeholders referenced in a template but not activated
+        in the corresponding node config.
+
+        Called at the end of __init__ so misconfigurations surface before the
+        first compile() call rather than at runtime.
+        """
+        formatter = string.Formatter()
+
+        for node_id, node in self.nodes.items():
+            if node.prompt is None:
+                continue
+
+            template_idx = node.prompt.template
+            if template_idx >= len(self.prompts):
+                continue
+
+            template = self.prompts[template_idx]   # {"system": "...", "user": "..."}
+
+            # Collect all top-level placeholder names referenced in this template
+            referenced: set[str] = set()
+            for part in ("system", "user"):
+                text = template.get(part, "")
+                try:
+                    for _, field_name, _, _ in formatter.parse(text):
+                        if field_name is not None:
+                            # Normalise "foo.bar" or "foo[0]" → "foo"
+                            root = field_name.split(".")[0].split("[")[0]
+                            if root:
+                                referenced.add(root)
+                except (ValueError, KeyError):
+                    pass  # Malformed template — will raise at runtime anyway
+
+            if not referenced:
+                continue
+
+            # Build the set of placeholders that will be injected at runtime
+            activated: set[str] = set()
+            if node.prompt.prompt_placeholders:
+                activated.update(node.prompt.prompt_placeholders.keys())
+            if node.prompt.user_message:
+                activated.add("user_message")
+            if node.message_passing.input:
+                activated.add("message_passing")
+            if node.prompt.retrieved_chunks:
+                activated.add("retrieved_chunks")
+            if node.footprint is not None and node.footprint.read:
+                activated.add("footprints")
+
+            missing = referenced - activated
+            if missing:
+                logger.warning(
+                    f"Node '{node_id}': prompt template references placeholder(s) "
+                    f"{sorted(missing)} that are not activated in the node config. "
+                    f"This will raise a KeyError at compile time. "
+                    f"Enable the feature (user_message, message_passing, "
+                    f"retrieved_chunks, footprint.read) or add to prompt_placeholders."
+                )
 
     # -------------------------------------------------------------------------
     # DAG building
@@ -222,6 +310,34 @@ class Compiler:
             for gid in guard_ids:
                 deps[nid].add(gid)
 
+        # — Stage 4: footprint write→read inference ————————————————————————
+        # Nodes are classified into three categories by their footprint flags:
+        #   Cat-1  write=T read=F  pure writers  — seed the footprint
+        #   Cat-2  read=T  write=T enrichers     — read then extend, run in parallel
+        #   Cat-3  read=T  write=F pure readers  — consume the final footprint
+        #
+        # Dependency rules (applied by declaration order):
+        #   Cat-2 depends on all prior Cat-1 nodes (not on sibling Cat-2 nodes)
+        #   Cat-3 depends on all prior Cat-1 and Cat-2 nodes
+        #
+        # This lets enrichers (Cat-2) run in parallel after the writer(s) finish,
+        # and the final reader(s) wait for all of them — with flat edge declarations.
+        def _fp(nid): return self.nodes[nid].footprint
+
+        cat1 = [n for n in ordered_ids if _fp(n) and     _fp(n).write and not _fp(n).read]
+        cat2 = [n for n in ordered_ids if _fp(n) and     _fp(n).read  and     _fp(n).write]
+        cat3 = [n for n in ordered_ids if _fp(n) and     _fp(n).read  and not _fp(n).write]
+
+        for r in cat2:
+            for w in cat1:
+                if ordered_ids.index(w) < ordered_ids.index(r):
+                    deps[r].add(w)
+
+        for r in cat3:
+            for w in cat1 + cat2:
+                if ordered_ids.index(w) < ordered_ids.index(r):
+                    deps[r].add(w)
+
         return deps
 
     @staticmethod
@@ -304,18 +420,32 @@ class Compiler:
         self.outputs.compile_time = time.time() - global_start
 
     def _run_parallel(self, node_ids: list[str]):
-        """Execute independent nodes concurrently using a thread pool."""
+        """Execute independent nodes concurrently using a thread pool.
+
+        All futures are allowed to complete before raising so that partial
+        results and footprint writes from successful siblings are preserved.
+        If any node raises, a RuntimeError is raised after the pool drains.
+        """
         with ThreadPoolExecutor(max_workers=len(node_ids)) as executor:
             futures = {
                 executor.submit(self._run_node, self.nodes[nid]): nid
                 for nid in node_ids
             }
+            failures: list[tuple[str, Exception]] = []
             for future in as_completed(futures):
                 nid = futures[future]
                 try:
                     future.result()
                 except Exception as e:
                     logger.exception(f"Node '{nid}' failed during parallel execution: {e}")
+                    failures.append((nid, e))
+
+        if failures:
+            failed_ids = [nid for nid, _ in failures]
+            first_exc = failures[0][1]
+            raise RuntimeError(
+                f"Parallel execution failed for node(s) {failed_ids}."
+            ) from first_exc
 
     # -------------------------------------------------------------------------
     # Single-node execution
@@ -336,15 +466,17 @@ class Compiler:
             elapsed = time.time() - start
             logger.debug(f"Node '{node.id}' completed in {elapsed:.3f}s")
             self._record_output(node, response, elapsed, enable_history)
+            self._update_footprints(node, response)
             self._check_message_passing(response, node)
             return self._check_validation_gate(response)
         except Exception as e:
             logger.exception(f"Failed to execute node '{node.id}': {e}")
-            # if it's not a guard node, we re-raise the exception to fail fast and avoid running dependent nodes with potentially inconsistent state
-            if not is_guard :
-                raise e
-            # Guard node errors are treated as a failed validation — abort the graph
-            return not is_guard
+            if is_guard:
+                # Guard node errors are treated as a failed validation — abort the graph
+                return False
+            # Non-guard errors re-raise to fail fast and avoid running dependent
+            # nodes with potentially inconsistent state
+            raise
 
     def _run_tool_loop(self, node: GraphNode, model_body: dict[str, Any]) -> LLmResponse:
         """Call the LLM and execute tool calls until the model returns a final answer."""
@@ -482,6 +614,9 @@ class Compiler:
         if node.prompt.retrieved_chunks:
             prompt_elements["retrieved_chunks"] = self.retrieved_chunks
 
+        if node.footprint is not None and node.footprint.read:
+            prompt_elements["placeholders"]["footprints"] = self.footprints
+
         return compose_node_prompt(**prompt_elements)
 
     def _build_model_body(self, node) -> dict[str, Any]:
@@ -520,29 +655,50 @@ class Compiler:
         return body
 
     def _record_output(self, node, response: LLmResponse, compiled_time: float, enable_history: bool) -> None:
-        self.outputs.nodes.append(
-            CompiledNodeOutput(
-                node_id=node.id,
-                response=response,
-                compiled_time=compiled_time,
-                show=node.show,
-                history=enable_history,
+        with self._outputs_lock:
+            self.outputs.nodes.append(
+                CompiledNodeOutput(
+                    node_id=node.id,
+                    response=response,
+                    compiled_time=compiled_time,
+                    show=node.show,
+                    history=enable_history,
+                )
             )
-        )
-        self.outputs.input_size += response.input_size
-        self.outputs.output_size += response.output_size
+            self.outputs.input_size += response.input_size
+            self.outputs.output_size += response.output_size
+
+    def _update_footprints(self, node: GraphNode, response: LLmResponse) -> None:
+        """Append node response to the shared footprints buffer.
+
+        Thread-safe: multiple parallel nodes may write concurrently.
+        If footprints originated from a file the updated content is written back.
+        """
+        if node.footprint is None or not node.footprint.write:
+            return
+        if not response.messages:
+            return
+        new_content = "\n\n".join(response.messages)
+        with self._footprints_lock:
+            if self.footprints:
+                self.footprints = self.footprints.rstrip() + "\n\n" + new_content
+            else:
+                self.footprints = new_content
+            if self._footprints_path is not None:
+                self._footprints_path.write_text(self.footprints, encoding="utf-8")
 
     def _check_message_passing(self, response, node):
-        if not node.message_passing.input and not node.message_passing.output:
-            self.message_passing.clear()
-            return
-        if node.message_passing.output:
-            if (node.mcp_servers or node.tools) and response.tool_results:
-                self.message_passing.extend(response.tool_results)
-            elif response.messages is not None and len(response.messages) > 0:
-                self.message_passing.extend(response.messages)
-            elif response.json_output is not None:
-                self.message_passing.append(response.json_output)
+        with self._message_passing_lock:
+            if not node.message_passing.input and not node.message_passing.output:
+                self.message_passing.clear()
+                return
+            if node.message_passing.output:
+                if (node.mcp_servers or node.tools) and response.tool_results:
+                    self.message_passing.extend(response.tool_results)
+                elif response.messages is not None and len(response.messages) > 0:
+                    self.message_passing.extend(response.messages)
+                elif response.json_output is not None:
+                    self.message_passing.append(response.json_output)
 
     @staticmethod
     def _check_validation_gate(response: LLmResponse) -> bool:

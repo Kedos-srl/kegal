@@ -54,25 +54,23 @@ compiler.compile()
 outputs = compiler.get_outputs()
 ```
 
-Always call `compiler.close()` when you are done. It releases all resources the
-compiler holds:
+Always release the compiler when you are done. It frees:
 - **MCP servers** — stopped and their background threads joined (only if the graph uses MCP)
 - **LLM clients** — HTTP connection pools closed (only if the provider exposes `close()`)
 
 Without it, sockets may remain open until the garbage collector finalises the object,
 producing `ResourceWarning` noise in tests and connection leaks in long-running services.
-Safe to call more than once.
+
+The recommended pattern is the `with` statement — `close()` is called automatically
+on exit, even if `compile()` raises:
 
 ```python
-compiler = Compiler(uri="path/to/your_graph.yml")
-try:
+with Compiler(uri="path/to/your_graph.yml") as compiler:
     compiler.compile()
     outputs = compiler.get_outputs()
-finally:
-    compiler.close()
 ```
 
-Or use it as a context variable in `unittest`:
+In `unittest`, use `setUp` / `tearDown`:
 
 ```python
 class TestMyGraph(unittest.TestCase):
@@ -97,16 +95,21 @@ outputs = compiler.get_outputs()
 
 for node in outputs.nodes:
     print(f"[{node.node_id}]")
-    print(node.response.content)       # LLM text response
-    print(node.compiled_time)          # seconds this node took
+    if node.response.messages:
+        for msg in node.response.messages:   # LLM text response (list of strings)
+            print(msg)
+    if node.response.json_output:
+        print(node.response.json_output)     # structured JSON output
+    print(node.compiled_time)                # seconds this node took
 
 print(f"total time : {outputs.compile_time:.2f}s")
 print(f"input tokens : {outputs.input_size}")
 print(f"output tokens: {outputs.output_size}")
 ```
 
-Only nodes with `show: true` in their YAML configuration are included in the
-output list.
+All executed nodes are included in `outputs.nodes`. The `show` flag on a node
+is a display hint used by `save_outputs_as_markdown()`; it does not filter
+what is returned by `get_outputs()`.
 
 ### Overriding the user message at runtime
 
@@ -114,10 +117,9 @@ The `user_message` defined in the YAML is the default. You can replace it before
 calling `compile()` to drive the same graph with different inputs:
 
 ```python
-compiler = Compiler(uri="path/to/your_graph.yml")
-compiler.user_message = "Explain the risks of nuclear energy."
-compiler.compile()
-compiler.close()
+with Compiler(uri="path/to/your_graph.yml") as compiler:
+    compiler.user_message = "Explain the risks of nuclear energy."
+    compiler.compile()
 ```
 
 ### Loading from a dict
@@ -127,15 +129,14 @@ If the graph is built programmatically rather than read from a file, pass a
 
 ```python
 graph_dict = {
-    "models": [{"llm": "ollama", "model": "ministral-3:8b", "host": "http://localhost:11434"}],
+    "models": [{"llm": "ollama", "model": "ministral-3:3b", "host": "http://localhost:11434"}],
     "user_message": "Hello",
     "prompts": [...],
     "nodes": [...],
     "edges": [...],
 }
-compiler = Compiler(source=graph_dict)
-compiler.compile()
-compiler.close()
+with Compiler(source=graph_dict) as compiler:
+    compiler.compile()
 ```
 
 For more advanced usage — attaching Python tool executors, MCP servers, fan-out/fan-in
@@ -145,6 +146,7 @@ pipelines, guard nodes, RAG, and multi-provider graphs — see [docs/tutorials.m
 
 - **Graph-based workflows** – define multi-node agent pipelines in YAML or JSON
 - **Fan-out / fan-in edges** – `children` launches parallel sub-tasks; `fan_in` aggregates multiple branches before continuing; both are recursive and composable
+- **Footprint pipeline** – shared markdown buffer written and read across nodes; Cat-1 writers seed it, Cat-2 enrichers extend it in parallel, Cat-3 readers consume the final result. Execution order is inferred automatically from `footprint.read/write` flags even with flat edge declarations.
 - **Structured output** – enforce JSON schemas on LLM responses
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
 - **Message passing** – forward node outputs to downstream nodes
@@ -153,6 +155,7 @@ pipelines, guard nodes, RAG, and multi-provider graphs — see [docs/tutorials.m
 - **Multi-provider support** – use different LLMs in the same graph
 - **Chat history** – maintain conversational context across nodes
 - **RAG support** – inject retrieved document chunks into prompts
+- **Prompt validation** – at `Compiler()` construction, placeholder tokens in every prompt template are checked against the node config; misconfigurations are reported as warnings before the first `compile()` call
 - **Safe resource cleanup** – `compiler.close()` releases MCP server processes and LLM HTTP connection pools; idempotent and transport-aware
 
 ## Supported LLM Providers

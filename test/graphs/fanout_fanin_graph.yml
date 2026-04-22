@@ -14,7 +14,7 @@
 
 models:
   - llm: "ollama"
-    model: "ministral-3:8b"
+    model: ministral-3:3b
     host: "http://localhost:11434"
 
 user_message: "What are the benefits of renewable energy?"

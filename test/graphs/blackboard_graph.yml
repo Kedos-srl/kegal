@@ -1,15 +1,3 @@
-# Blackboard graph — 4-node fan-out / fan-in
-#
-# Topology:
-#   [assistant]  — blackboard.write=true  (seeds the blackboard)
-#       |
-#   children (fan-out — parallel)
-#   /                    \
-# [analyst_a]         [analyst_b]   — both read+write
-#   \                    /
-#    fan-in (aggregation)
-#        |
-#   [summarizer]  — blackboard.read=true, write=false
 
 models:
   - llm: ollama

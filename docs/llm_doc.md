@@ -208,16 +208,19 @@ outputs = compiler.get_outputs()
 
 ### Compilation Flow
 
-1. **Prompt validation** – `_validate_prompts()` is called at construction time. It uses `string.Formatter().parse()` to extract every `{placeholder}` from all prompt templates and warns if a placeholder is referenced but not activated in the node config. Misconfigurations are reported before the first `compile()` call.
-2. **DAG building** – `_build_dag()` resolves dependencies in four stages:
+1. **Index validation** – `_validate_indices()` is called at construction time. It checks that every node's `model` index is within the `models` list and every `node.prompt.template` index is within the `prompts` list. All out-of-range references are collected and raised as a single `ValueError` before any LLM client is used.
+2. **Prompt validation** – `_validate_prompts()` is called at construction time. It uses `string.Formatter().parse()` to extract every `{placeholder}` from all prompt templates and warns if a placeholder is referenced but not activated in the node config. Misconfigurations are reported before the first `compile()` call.
+3. **DAG building** – `_build_dag()` resolves dependencies in four stages:
    - *Stage 1 (structural)*: the recursive edge tree is traversed; `children` creates fan-out dependencies (child waits for parent); `fan_in` creates aggregation dependencies (node waits for all listed nodes).
    - *Stage 2 (message passing)*: any node with `message_passing.output=true` becomes a dependency of all later nodes with `message_passing.input=true`, based on declaration order.
    - *Stage 3 (guard barrier)*: nodes whose `structured_output` contains a `validation` field automatically precede all other nodes.
    - *Stage 4 (footprint)*: nodes are classified into Cat-1 (write-only), Cat-2 (read+write), Cat-3 (read-only) by their `footprint` flags. Cat-2 nodes depend on all prior Cat-1 nodes; Cat-3 nodes depend on all prior Cat-1 and Cat-2 nodes. This infers the correct execution order with flat edge declarations.
-3. **Topological scheduling** – `_topological_levels()` groups nodes into levels via Kahn's algorithm. Nodes in the same level have no dependency on each other.
-4. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one. Failures from parallel nodes are collected and re-raised as a `RuntimeError` after all futures complete.
-5. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
-6. **Footprint update** – after each node with `footprint.write=true`, its response is appended to the shared buffer (thread-safe). If the footprint was loaded from a file, the file is written back immediately.
+4. **Topological scheduling** – `_topological_levels()` groups nodes into levels via Kahn's algorithm. Nodes in the same level have no dependency on each other.
+5. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one. Failures from parallel nodes are collected and re-raised as a `RuntimeError` after all futures complete.
+6. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
+7. **Footprint update** – after each node with `footprint.write=true`, its response is appended to the shared buffer (thread-safe). If the footprint was loaded from a file, the file is written back immediately.
+
+> **`compile()` is safe to call multiple times.** Each invocation resets `outputs` and `message_passing` before execution — results from previous runs are not carried over.
 
 ### Output Models
 
@@ -263,6 +266,23 @@ Utility functions used across the package:
 | `load_contents(source)` | Load a YAML or JSON file based on extension. |
 | `load_images_to_base64(source)` | Load an image from a path or URL and return `(media_type, base64_str)`. |
 | `load_pdfs_to_base64(source)` | Load a PDF from a path or URL and return `(media_type, base64_str)`. |
+
+### URI security — HTTPS only
+
+All functions that accept a remote URI (`load_text_from_source`, `load_images_to_base64`, `load_pdfs_to_base64`) enforce an allowlist via `_check_uri_scheme()`. Only the `https` scheme is permitted; passing a `http://`, `file://`, `ftp://`, or any other scheme raises `ValueError` before any network call is made.
+
+Local file paths (no scheme, or a relative path) are unaffected and continue to work as before.
+
+```python
+# Allowed
+load_images_to_base64("https://example.com/diagram.png")
+load_images_to_base64("/local/path/to/image.png")
+
+# Raises ValueError — http is not in the allowlist
+load_images_to_base64("http://internal-host/image.png")
+```
+
+To extend the allowlist (e.g., to re-enable `http` in a trusted private network), edit the `_ALLOWED_URI_SCHEMES` constant in `kegal/utils.py`.
 
 ---
 
@@ -514,6 +534,17 @@ edges:
 
 The async MCP session runs on a dedicated background thread with its own event loop. The entire session lifetime — connect, tool calls, disconnect — executes within a single async task, so anyio cancel scopes are always entered and exited from the same task. The synchronous compiler calls `connect`, `call_tool`, and `close` without managing coroutines directly.
 
+### Constructor
+
+```python
+McpHandler(server: GraphMcpServer, call_timeout: float = 60)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `server` | `GraphMcpServer` | — | Server configuration loaded from the graph YAML. |
+| `call_timeout` | `float` | `60` | Per-call timeout in seconds. Each `call_tool()` invocation blocks for at most this duration; raises `concurrent.futures.TimeoutError` if the MCP server does not respond in time. |
+
 ### Public API
 
 | Method | Description |
@@ -522,7 +553,7 @@ The async MCP session runs on a dedicated background thread with its own event l
 | `disconnect()` | Close the MCP session and stop the background event loop. Called internally by `Compiler.close()`. |
 | `list_tools() -> list[LLMTool]` | Return all tools exposed by the server as `LLMTool` objects. |
 | `tool_names() -> set[str]` | Return the set of tool names available on this server. |
-| `call_tool(name, arguments) -> str` | Execute a tool call and return the result as a plain string. |
+| `call_tool(name, arguments) -> str` | Execute a tool call and return the result as a plain string. Raises `TimeoutError` if `call_timeout` is exceeded. |
 
 ### YAML configuration (`GraphMcpServer`)
 

@@ -30,16 +30,28 @@ PDF_MIME_TYPES = {
 # =========
 # UTILS
 # =========
+_ALLOWED_URI_SCHEMES = frozenset({"https"})
+
+
+def _check_uri_scheme(uri: str) -> None:
+    """Reject URI schemes that are not in the allowlist to prevent SSRF."""
+    parsed = urlparse(str(uri))
+    if parsed.scheme and parsed.scheme not in _ALLOWED_URI_SCHEMES:
+        raise ValueError(
+            f"URI scheme '{parsed.scheme}' is not allowed. "
+            f"Permitted schemes: {sorted(_ALLOWED_URI_SCHEMES)}. "
+            f"Use a local file path for local resources."
+        )
+
+
 def load_text_from_source(source: str | Path) -> str:
     """Load text content from a file path or URL."""
-    # Check if it's a URL
     parsed = urlparse(str(source))
     if parsed.scheme in ('http', 'https'):
-        # Load from URL
+        _check_uri_scheme(str(source))
         with urllib.request.urlopen(str(source)) as response:
             content = response.read().decode('utf-8')
     else:
-        # Load from file path
         file_path = Path(source)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -145,6 +157,7 @@ def _load_binary_from_source(
         return content_type, base64_data
 
     # Handle URL
+    _check_uri_scheme(str(source))
     req = urllib.request.Request(str(source), headers={'User-Agent': USER_AGENT})
 
     with urllib.request.urlopen(req) as response:

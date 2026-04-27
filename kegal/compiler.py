@@ -73,6 +73,7 @@ class Compiler:
             except Exception as e:
                 logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
 
+        self._validate_indices()
         self._validate_prompts()
 
     def __enter__(self) -> "Compiler":
@@ -134,6 +135,25 @@ class Compiler:
         if path.is_file():
             return path.read_text(encoding="utf-8"), path
         return value, None
+
+    def _validate_indices(self) -> None:
+        """Raise ValueError early if any node references an out-of-range model or template index."""
+        errors: list[str] = []
+        n_models = len(self.clients)
+        n_prompts = len(self.prompts)
+        for node_id, node in self.nodes.items():
+            if node.model >= n_models:
+                errors.append(
+                    f"Node '{node_id}': model index {node.model} is out of range "
+                    f"(graph defines {n_models} model(s), valid indices: 0–{n_models - 1})"
+                )
+            if node.prompt is not None and node.prompt.template >= n_prompts:
+                errors.append(
+                    f"Node '{node_id}': template index {node.prompt.template} is out of range "
+                    f"(graph defines {n_prompts} prompt(s), valid indices: 0–{n_prompts - 1})"
+                )
+        if errors:
+            raise ValueError("Graph configuration errors:\n" + "\n".join(f"  - {e}" for e in errors))
 
     def _validate_prompts(self) -> None:
         """Warn about prompt placeholders referenced in a template but not activated
@@ -376,6 +396,8 @@ class Compiler:
     # -------------------------------------------------------------------------
 
     def compile(self):
+        self.outputs = CompiledOutput()
+        self.message_passing = []
         global_start = time.time()
         deps = self._build_dag()
         levels = self._topological_levels(deps)
@@ -454,6 +476,11 @@ class Compiler:
     def _run_node(self, node: GraphNode) -> bool:
         """Execute a single node including the tool loop. Returns False if a validation gate fails."""
         if node.prompt is None:
+            if self._is_guard_node(node):
+                raise ValueError(
+                    f"Guard node '{node.id}' has no prompt — a guard node must have a prompt "
+                    f"to evaluate the validation gate."
+                )
             return True
         is_guard = self._is_guard_node(node)
         try:
@@ -521,11 +548,6 @@ class Compiler:
                     role="user",
                     content=f"[tool_result] {tool_call.name}: {result}"
                 ))
-
-            # tool node (inferred): stop after executing tools if results will be passed downstream
-            if (node.mcp_servers or node.tools) and node.message_passing.output:
-                response.tool_results = accumulated_tool_results
-                return response
 
         logger.warning(f"Node '{node.id}' hit tool loop limit ({MAX_ITERATIONS} iterations)")
         return response
@@ -689,8 +711,7 @@ class Compiler:
 
     def _check_message_passing(self, response, node):
         with self._message_passing_lock:
-            if not node.message_passing.input and not node.message_passing.output:
-                self.message_passing.clear()
+            if not node.message_passing.output:
                 return
             if node.message_passing.output:
                 if (node.mcp_servers or node.tools) and response.tool_results:

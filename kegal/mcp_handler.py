@@ -29,9 +29,13 @@ from .llm.llm_model import LLMTool, LLMStructuredSchema
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_CALL_TIMEOUT = 60  # seconds per tool call
+
+
 class McpHandler:
-    def __init__(self, server: GraphMcpServer) -> None:
+    def __init__(self, server: GraphMcpServer, call_timeout: float = _DEFAULT_CALL_TIMEOUT) -> None:
         self._server = server
+        self._call_timeout = call_timeout
         self._session: ClientSession | None = None
         self._tools: dict[str, LLMTool] = {}
 
@@ -94,7 +98,7 @@ class McpHandler:
     def _run(self, coro) -> Any:
         """Submit a coroutine to the background loop and block until done."""
         future: Future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return future.result()
+        return future.result(timeout=self._call_timeout)
 
     # ------------------------------------------------------------------
     # Lifecycle

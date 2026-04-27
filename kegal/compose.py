@@ -36,6 +36,8 @@ def compose_node_prompt(prompt_template: dict[str, str],
                         message_passing: list | None = None,
                         retrieved_chunks: str | None = None):
 
+    placeholders = dict(placeholders)  # copy — never mutate the caller's dict
+
     if user_message is not None:
         placeholders["user_message"] = user_message.strip()
 

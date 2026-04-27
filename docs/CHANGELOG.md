@@ -4,6 +4,26 @@ All notable changes to KeGAL are documented here.
 
 ---
 
+## [0.1.2.7] - 2026-04-27
+
+### Added
+- **`Compiler._validate_indices()`** — called at the end of `__init__`; checks that every node's `model` index is within the `models` list and every `node.prompt.template` index is within the `prompts` list. All violations are collected and reported in a single `ValueError` before the first `compile()` call, rather than raising an opaque `IndexError` at runtime.
+- **`_check_uri_scheme()`** (`utils.py`) — URI allowlist guard; only `https` scheme is permitted for remote URIs. Calling `load_text_from_source`, `load_images_to_base64`, or `load_pdfs_to_base64` with a `http://`, `file://`, or other non-HTTPS URI now raises `ValueError` immediately, preventing SSRF via graph-level `uri` fields.
+- **`McpHandler.call_timeout`** — new constructor parameter (default `60 s`) forwarded to `future.result(timeout=...)` for every tool call. Prevents the calling thread — and therefore `compile()` — from blocking indefinitely when an MCP server stalls mid-call.
+- **`test/test_bug_fixes.py`** — 30 unit tests (no LLM required) covering all 9 fixes in this release.
+
+### Changed
+- **`compile()`** — resets `self.outputs` and `self.message_passing` at the start of each invocation. Previously, calling `compile()` more than once on the same `Compiler` instance accumulated node outputs and token counts from all runs.
+- **`_run_tool_loop()`** — removed the early-exit shortcut that skipped the LLM synthesis step for nodes with `message_passing.output=true`. The loop now always gives the LLM a chance to produce a final answer from tool results before returning, regardless of the node's message-passing configuration.
+
+### Fixed
+- **`_check_message_passing()`** (`compiler.py`) — nodes with neither `input` nor `output` set previously called `self.message_passing.clear()`, wiping data written by upstream nodes before downstream consumers could read it. The destructive `clear()` has been removed; only nodes with `output=true` may write to the pipe.
+- **`LlmAnthropic._tools_data()`** (`llm_anthropic.py`) — `input_schema` was erroneously set to the entire serialised `LLMTool` dict (including `name`, `description`, `parameters`, `required` as siblings). It now correctly wraps the parameters in a JSON Schema object `{"type": "object", "properties": ..., "required": [...]}`, matching the Anthropic API contract.
+- **`_run_node()`** (`compiler.py`) — a guard node (one whose `structured_output` contains a `validation` field) with `prompt=None` previously returned `True` unconditionally, silently bypassing the validation gate. It now raises `ValueError` with a descriptive message; non-guard nodes with no prompt continue to return `True` as before.
+- **`compose_node_prompt()`** (`compose.py`) — the `placeholders` argument was mutated in place (keys `user_message`, `message_passing`, `retrieved_chunks` were added directly to the caller's dict). A shallow copy is now taken at the start of the function, so the node's `prompt_placeholders` config is never modified between `compile()` calls.
+
+---
+
 ## [0.1.2.6] - 2026-04-22
 
 ### Added

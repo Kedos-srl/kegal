@@ -300,6 +300,8 @@ entry is needed.
 | `tools`             | `list[str]` \| `None`        | Yes      | Names of tools (matching the `name` field in the top-level `tools` list) available to this node. |
 | `mcp_servers`       | `list[str]` \| `None`        | Yes      | IDs of MCP servers (matching the `id` field in the top-level `mcp_servers` list) available to this node. |
 
+> **Index validation**: `model` and `prompt.template` are validated at `Compiler` construction time. If either index is out of range, a `ValueError` listing all offending nodes is raised before the first `compile()` call.
+
 
 ### YAML Example
 
@@ -439,6 +441,8 @@ This mechanism is designed for **guard nodes** — nodes whose purpose is to che
 In this example, if the LLM determines the message is inappropriate, it returns `validation: false` and the graph execution halts before any downstream nodes are reached.
 
 > **Note**: The `validation` field is entirely optional. Nodes without it in their structured output will always allow compilation to proceed.
+
+> **Requirement**: A guard node (one with `validation` in its `structured_output`) **must** have a `prompt` block. Omitting `prompt` on a guard node raises `ValueError` at `compile()` time rather than silently passing the gate.
 
 ---
 

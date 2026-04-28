@@ -1,7 +1,7 @@
 ## Graph Response
  * Token Input size: 216
  * Token Output size: 29
- * Compile time: 5.604747295379639
+ * Compile time: 0.4374699592590332
 ### Node:  analyst_node
 ```
 product, total_revenue

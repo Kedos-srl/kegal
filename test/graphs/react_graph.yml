@@ -78,7 +78,7 @@ nodes:
         reasoning:
           type: string
       required:
-        - next_agent
+        - done
 
   - id: "math_agent"
     model: 0

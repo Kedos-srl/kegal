@@ -1,21 +1,21 @@
 ## Graph Response
- * Token Input size: 1625
- * Token Output size: 2217
- * Compile time: 133.81979608535767
+ * Token Input size: 1643
+ * Token Output size: 2464
+ * Compile time: 11.66646957397461
 ### Node:  assistant
 
 Token Input size:  148 
-  Token Output size:  129 
- ### Node:  analyst_a
-
-Token Input size:  252 
-  Token Output size:  318 
+  Token Output size:  131 
  ### Node:  analyst_b
 
-Token Input size:  241 
-  Token Output size:  387 
+Token Input size:  243 
+  Token Output size:  445 
+ ### Node:  analyst_a
+
+Token Input size:  254 
+  Token Output size:  272 
  ### Node:  summarizer
 
-Token Input size:  984 
-  Token Output size:  1383 
+Token Input size:  998 
+  Token Output size:  1616 
  

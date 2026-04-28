@@ -777,10 +777,11 @@ class Compiler:
             agent_edge = self._find_react_agent_edge(controller_edge, next_agent)
             if agent_edge is None:
                 available = [e.node for e in (controller_edge.react or [])]
-                raise RuntimeError(
-                    f"[ReAct] Controller '{node.id}': next_agent='{next_agent}' "
-                    f"not found in react list. Available: {available}"
+                logger.warning(
+                    f"[ReAct] '{node.id}': next_agent='{next_agent}' "
+                    f"not found in react list {available} — stopping"
                 )
+                break
 
             agent_output = self._run_react_agent(agent_edge, agent_input_str)
 

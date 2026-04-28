@@ -16,12 +16,12 @@
                 "input_size": 162,
                 "output_size": 121
             },
-            "compiled_time": 1.2244982719421387,
+            "compiled_time": 1.2421135902404785,
             "show": true,
             "history": false
         }
     ],
     "input_size": 162,
     "output_size": 121,
-    "compile_time": 1.2246015071868896
+    "compile_time": 1.2421901226043701
 }

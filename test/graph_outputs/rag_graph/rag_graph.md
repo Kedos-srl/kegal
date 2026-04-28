@@ -1,81 +1,33 @@
 ## Graph Response
  * Token Input size: 607
- * Token Output size: 690
- * Compile time: 4.399868965148926
+ * Token Output size: 274
+ * Compile time: 2.8343441486358643
 ### Node:  language_check
 ```json
  {
     "validation": true,
-    "action": "approve_with_suggestions_for_enhancement"
+    "action": "approve_with_notes"
 } 
 ```
 
 Token Input size:  141 
-  Token Output size:  42 
+  Token Output size:  40 
  ### Node:  test_rag_node
 ```json
  {
     "validation": true,
     "cost_metrics": {
-        "**Direct Financial Savings**": [
-            {
-                "savings_on_energy_costs": {
-                    "description": "Countries with higher adoption of renewables, such as solar and wind, have achieved **15% lower energy costs over 10-year periods** (Economic Report 2023).",
-                    "supporting_factors": [
-                        "Reduced reliance on volatile fossil fuel prices",
-                        "Stable, long-term power generation costs"
-                    ],
-                    "example": "Utility-scale solar\u2019s Levelized Cost of Energy (LCOE) fell to **$0.048/kWh** in 2023\u2014lower than many conventional power sources."
-                },
-                "energy_independence": {
-                    "description": "Switching to renewables enhances energy independence, saving countries **$42 billion annually** in imported fuel costs (Industry Study).",
-                    "supporting_factors": [
-                        "Diminished dependency on geopolitical fuel price fluctuations",
-                        "Lower trade deficits from reduced energy imports"
-                    ]
-                }
-            },
-            "**Economic Growth and Job Creation** (Retrieved Information):",
-            {
-                "jobs_created": {
-                    "description": "Renewable energy investments generated **$1.8 trillion globally** in 2023, creating **13.7 million jobs**\u2014a clear indicator of scalable economic growth (Economic Report 2023).",
-                    "impact": [
-                        "Accelerated industrialization in green sectors",
-                        "Boosts regional economies through localized job markets"
-                    ]
-                }
-            },
-            "**Price Volatility Reduction**",
-            {
-                "description": "Renewables mitigate energy price volatility caused by fossil fuel price swings (Market Analysis).",
-                "supporting_factors": [
-                    "More predictable electricity tariffs for consumers",
-                    "Reduced financial risk for businesses and utilities"
-                ]
-            }
-        ],
-        "**Macroeconomic Benefits**": {
-            "tax_incentives": {
-                "description": "Many governments subsidize renewables through tax credits, feed-in tariffs, and grants\u2014though these may shift to policy-neutral pricing models over time (not explicitly stated but implied by cost efficiency trends).",
-                "supporting_factors": [
-                    "Encourages private sector investment in clean energy infrastructure",
-                    "Supports regional economies through manufacturing and R&D sectors"
-                ]
-            },
-            "investment_efficiency": {
-                "description": "Low-cost renewables like solar and wind enable **larger-scale deployments**, reducing capital expenditures (CapEx) per unit of energy produced compared to fossil fuels.",
-                "supporting_factors": [
-                    "Faster payback periods",
-                    "Lower long-term operational costs"
-                ]
-            }
-        }
+        "global_investment": "$1.8 trillion globally in 2023 for renewable energy investments, creating 13.7 million jobs",
+        "cost_efficiency": "Countries with higher renewable adoption show a 15% reduction in energy costs over 10-year periods",
+        "energy_independence": "$42 billion annually saved in imported fuel costs through energy independence via renewables",
+        "price_volatility": "Reduction in price volatility compared to fossil fuels",
+        "lowest_cost_electricity": "Utility-scale solar offers the lowest cost electricity at $0.048/kWh in 2023"
     },
-    "growth_rate": 15,
-    "recommendation": "Long-term adoption of solar/wind should prioritize leveraging their cost advantages to reduce energy costs, stimulate job growth, and enhance energy security. Policymakers and businesses should explore **decentralized renewable microgrids** to maximize efficiency and resilience."
+    "growth_rate": 15000000,
+    "recommendation": "Switching to renewable energy offers substantial long-term economic benefits, driven by several key factors. Here is a detailed analysis, incorporating new retrieved data for a comprehensive understanding:"
 } 
 ```
 
 Token Input size:  466 
-  Token Output size:  648 
+  Token Output size:  234 
  

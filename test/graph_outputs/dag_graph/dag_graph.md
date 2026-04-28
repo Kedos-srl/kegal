@@ -1,7 +1,7 @@
 ## Graph Response
- * Token Input size: 437
- * Token Output size: 823
- * Compile time: 3.9658985137939453
+ * Token Input size: 423
+ * Token Output size: 1018
+ * Compile time: 4.858811378479004
 ### Node:  guard_node
 ```json
  {
@@ -11,16 +11,16 @@
 
 Token Input size:  129 
   Token Output size:  7 
- ### Node:  analyst_b
-
-Token Input size:  90 
-  Token Output size:  322 
  ### Node:  summarizer
 
 Token Input size:  92 
-  Token Output size:  40 
+  Token Output size:  26 
+ ### Node:  analyst_b
+
+Token Input size:  90 
+  Token Output size:  302 
  ### Node:  analyst_a
 
-Token Input size:  126 
-  Token Output size:  454 
+Token Input size:  112 
+  Token Output size:  683 
  

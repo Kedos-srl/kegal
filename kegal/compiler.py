@@ -230,6 +230,16 @@ class Compiler:
 
         for root_edge in self.edges:
             scan(root_edge)
+
+        for nid in controllers:
+            bb = self.nodes[nid].blackboard if nid in self.nodes else None
+            if bb is not None and (bb.read or bb.write):
+                logger.warning(
+                    f"Node '{nid}' is a ReAct controller — blackboard flags "
+                    f"(read={bb.read}, write={bb.write}) are ignored for controllers. "
+                    f"Use message_passing on agent nodes to share data with the controller."
+                )
+
         return controllers
 
     @staticmethod
@@ -275,6 +285,11 @@ class Compiler:
                 errors.append(
                     f"Node '{node_id}': template index {node.prompt.template} is out of range "
                     f"(graph defines {n_prompts} prompt(s), valid indices: 0–{n_prompts - 1})"
+                )
+            if node.prompt is None and self._is_guard_node(node):
+                errors.append(
+                    f"Node '{node_id}' is a guard node (structured output has a 'validation' field) "
+                    f"but has no prompt — a guard node must have a prompt to evaluate the gate."
                 )
         if errors:
             raise ValueError("Graph configuration errors:\n" + "\n".join(f"  - {e}" for e in errors))
@@ -618,11 +633,6 @@ class Compiler:
     def _run_node(self, node: GraphNode) -> bool:
         """Execute a single node including the tool loop. Returns False if a validation gate fails."""
         if node.prompt is None:
-            if self._is_guard_node(node):
-                raise ValueError(
-                    f"Guard node '{node.id}' has no prompt — a guard node must have a prompt "
-                    f"to evaluate the validation gate."
-                )
             return True
         is_guard = self._is_guard_node(node)
         try:
@@ -876,8 +886,16 @@ class Compiler:
                 elif last.response.json_output is not None:
                     result = json.dumps(last.response.json_output, ensure_ascii=False)
                 else:
+                    logger.warning(
+                        f"[ReAct] Agent subgraph '{agent_edge.node}' produced no extractable output "
+                        f"— echoing agent_input back to the controller."
+                    )
                     result = agent_input
             else:
+                logger.warning(
+                    f"[ReAct] Agent subgraph '{agent_edge.node}' ran no nodes or produced no output "
+                    f"— echoing agent_input back to the controller."
+                )
                 result = agent_input
         finally:
             self.message_passing = saved_mp
@@ -957,7 +975,14 @@ class Compiler:
     def _chat_history_check(self, node) -> bool:
         if node.prompt is None or node.prompt.chat_history is None or self.chat_history is None:
             return False
-        return node.prompt.chat_history in self.chat_history
+        key = node.prompt.chat_history
+        if key not in self.chat_history:
+            logger.warning(
+                f"Node '{node.id}': chat_history key '{key}' not found in provided chat_history — "
+                f"node will run without conversation history."
+            )
+            return False
+        return True
 
     def _images_check(self, node) -> bool:
         if node.images is None or self.images is None:

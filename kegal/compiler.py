@@ -742,8 +742,13 @@ class Compiler:
         final_answer: str | None = None
         start = time.time()
 
+        logger.info(
+            f"[ReAct] ── controller '{node.id}' starting "
+            f"(max_iterations={react_cfg.max_iterations}) ──────────────────────"
+        )
+
         for iteration in range(react_cfg.max_iterations):
-            logger.info(f"[ReAct] '{node.id}' — iteration {iteration}")
+            logger.info(f"[ReAct] ┌─ iteration {iteration + 1}/{react_cfg.max_iterations}")
 
             response = client.complete(
                 system_prompt=system_prompt,
@@ -764,9 +769,11 @@ class Compiler:
             agent_input_str = routing.get("agent_input") or reasoning or ""
             final_answer = routing.get("final_answer") or reasoning
 
+            if reasoning:
+                logger.info(f"[ReAct] │  reasoning  : {reasoning}")
             logger.info(
-                f"[ReAct] '{node.id}' iter {iteration}: "
-                f"next_agent={next_agent}, done={done}"
+                f"[ReAct] │  next_agent : {next_agent or '—'}   done={done}   "
+                f"tokens in={response.input_size} out={response.output_size}"
             )
 
             # Append controller decision to conversation
@@ -776,11 +783,14 @@ class Compiler:
             ))
 
             if done:
+                if final_answer:
+                    logger.info(f"[ReAct] │  final answer: {final_answer}")
+                logger.info(f"[ReAct] └─ done ✓")
                 break
 
             if not next_agent:
                 logger.warning(
-                    f"[ReAct] '{node.id}': no next_agent and done=False — stopping"
+                    f"[ReAct] └─ no next_agent and done=False — stopping early"
                 )
                 break
 
@@ -788,12 +798,17 @@ class Compiler:
             if agent_edge is None:
                 available = [e.node for e in (controller_edge.react or [])]
                 logger.warning(
-                    f"[ReAct] '{node.id}': next_agent='{next_agent}' "
-                    f"not found in react list {available} — stopping"
+                    f"[ReAct] └─ next_agent='{next_agent}' not in react list "
+                    f"{available} — stopping"
                 )
                 break
 
+            logger.info(f"[ReAct] │  → dispatching '{next_agent}'")
+            logger.info(f"[ReAct] │    input : {agent_input_str[:120]}"
+                        + ("…" if len(agent_input_str) > 120 else ""))
             agent_output = self._run_react_agent(agent_edge, agent_input_str)
+            logger.info(f"[ReAct] │    output: {agent_output[:120]}"
+                        + ("…" if len(agent_output) > 120 else ""))
 
             trace_iters.append(ReactIteration(
                 iteration=iteration,
@@ -816,10 +831,16 @@ class Compiler:
                 )
         else:
             logger.warning(
-                f"[ReAct] '{node.id}' reached max_iterations={react_cfg.max_iterations}"
+                f"[ReAct] └─ max_iterations={react_cfg.max_iterations} reached — stopping"
             )
 
         elapsed = time.time() - start
+        logger.info(
+            f"[ReAct] ── controller '{node.id}' finished — "
+            f"iterations={len(trace_iters)}  done={done}  "
+            f"total tokens in={total_in} out={total_out}  "
+            f"elapsed={elapsed:.1f}s ────────────────────────"
+        )
 
         final_response = LLmResponse(
             messages=[final_answer] if final_answer else None,
@@ -915,8 +936,9 @@ class Compiler:
             return
 
         logger.info(
-            f"[ReAct] '{node.id}': compacting conversation "
-            f"({last_response.input_size} / {node.max_tokens} tokens)"
+            f"[ReAct] │  compacting conversation "
+            f"({last_response.input_size}/{node.max_tokens} tokens, "
+            f"threshold={threshold:.0%})"
         )
 
         compact_prompt = (
@@ -940,7 +962,7 @@ class Compiler:
             conversation.append(
                 LLmMessage(role="user", content=f"[compacted state]\n{compacted}")
             )
-            logger.info(f"[ReAct] '{node.id}': conversation compacted")
+            logger.info(f"[ReAct] │  conversation compacted")
 
     # -------------------------------------------------------------------------
     # Output helpers — react trace

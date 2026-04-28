@@ -1,0 +1,142 @@
+# ReAct research-synthesis graph
+#
+# Topology:
+#   [research_controller]
+#       react:
+#         [history_agent]  — answers history / biography questions
+#         [science_agent]  — explains scientific concepts
+#         [writer_agent]   — synthesises facts into prose
+#
+# The controller must call history_agent and science_agent to collect two
+# facts, then pass both to writer_agent to produce a short report, and
+# finally signal done=true with the finished paragraph.
+
+models:
+  - llm: "ollama"
+    model: gemma4:latest
+    host: "http://localhost:11434"
+
+user_message: >
+  Prepare a brief electricity report:
+  find out who invented the light bulb,
+  explain Ohm's law,
+  then write a one-paragraph summary that combines both facts.
+
+prompts:
+  # 0 — research controller
+  - template:
+      system_template:
+        role: |
+          You are a research coordinator. Complete ALL of these steps in order:
+            Step 1 — call history_agent: ask who invented the light bulb.
+            Step 2 — call science_agent: ask for Ohm's law.
+            Step 3 — call writer_agent: pass BOTH facts and ask for a one-paragraph summary.
+            Step 4 — set done=true and provide the finished report as final_answer.
+
+          Available agents:
+            - history_agent  : answers history and biography questions
+            - science_agent  : explains scientific concepts and laws
+            - writer_agent   : writes coherent prose from provided facts
+
+          Return JSON with:
+            - next_agent   (string)  : which agent to call; omit only when done=true
+            - agent_input  (string)  : exact input to pass to the agent
+            - done         (boolean) : true ONLY after all three steps are finished
+            - final_answer (string)  : the complete report (only when done=true)
+            - reasoning    (string)  : your current step and plan
+      prompt_template:
+        task: "{user_message}"
+
+  # 1 — history agent
+  - template:
+      system_template:
+        role: |
+          You are a history expert. Answer in one concise sentence.
+      prompt_template:
+        question: "{message_passing}"
+
+  # 2 — science agent
+  - template:
+      system_template:
+        role: |
+          You are a science expert. Explain the concept in one concise sentence.
+      prompt_template:
+        concept: "{message_passing}"
+
+  # 3 — writer agent
+  - template:
+      system_template:
+        role: |
+          You are a technical writer. Write a single clear paragraph
+          combining the facts provided in the input. Do not add headings.
+      prompt_template:
+        facts: "{message_passing}"
+
+nodes:
+  - id: "research_controller"
+    model: 0
+    temperature: 0.0
+    max_tokens: 600
+    show: true
+    prompt:
+      template: 0
+      user_message: true
+    react:
+      max_iterations: 8
+      resume: false
+    react_output:
+      type: object
+      properties:
+        next_agent:
+          type: string
+          enum: ["history_agent", "science_agent", "writer_agent"]
+        agent_input:
+          type: string
+        done:
+          type: boolean
+        final_answer:
+          type: string
+        reasoning:
+          type: string
+      required:
+        - done
+
+  - id: "history_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 80
+    show: true
+    message_passing:
+      input: true
+      output: true
+    prompt:
+      template: 1
+
+  - id: "science_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 80
+    show: true
+    message_passing:
+      input: true
+      output: true
+    prompt:
+      template: 2
+
+  - id: "writer_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 150
+    show: true
+    message_passing:
+      input: true
+      output: true
+    prompt:
+      template: 3
+
+edges:
+  - node: "research_controller"
+    react:
+      - node: "history_agent"
+      - node: "science_agent"
+      - node: "writer_agent"

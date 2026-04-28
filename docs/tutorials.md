@@ -200,6 +200,12 @@ execution. They are recursive and composable.
 When a node has `children`, those children start simultaneously as soon as the
 parent completes:
 
+```mermaid
+flowchart LR
+    D[dispatcher] --> EA[economic_analyst]
+    D --> ENV[environmental_analyst]
+```
+
 ```yaml
 edges:
   - node: "dispatcher"
@@ -207,13 +213,17 @@ edges:
       - node: "economic_analyst"
       - node: "environmental_analyst"
 ```
-
-Execution order: `dispatcher` → `economic_analyst` ‖ `environmental_analyst`
 
 ### Fan-in: wait for multiple branches
 
 `fan_in` makes a node wait for every listed node before it starts:
 
+```mermaid
+flowchart LR
+    EA[economic_analyst] --> S[synthesizer]
+    ENV[environmental_analyst] --> S
+```
+
 ```yaml
 edges:
   - node: "synthesizer"
@@ -222,9 +232,15 @@ edges:
       - node: "environmental_analyst"
 ```
 
-Execution order: `economic_analyst` ‖ `environmental_analyst` → `synthesizer`
-
 ### Combined pipeline
+
+```mermaid
+flowchart LR
+    D[dispatcher] --> EA[economic_analyst]
+    D --> ENV[environmental_analyst]
+    EA --> S[synthesizer]
+    ENV --> S
+```
 
 ```yaml
 edges:
@@ -237,8 +253,6 @@ edges:
       - node: "economic_analyst"
       - node: "environmental_analyst"
 ```
-
-Execution order: `dispatcher` → `economic_analyst` ‖ `environmental_analyst` → `synthesizer`
 
 Both primitives are recursive — a child can itself have `children` or `fan_in`,
 enabling arbitrarily deep task trees.
@@ -251,6 +265,15 @@ A guard node is a node whose `structured_output` schema contains a boolean field
 named `validation`. When the LLM returns `validation: false`, the compiler
 aborts execution and no downstream nodes run. This is the standard pattern for
 content moderation and prompt injection prevention.
+
+```mermaid
+flowchart TD
+    G[guard_node\nvalidation gate] --> V{validation?}
+    V -- false --> STOP([Abort — no downstream\nnodes execute])
+    V -- true --> N1[node_a]
+    V -- true --> N2[node_b]
+    V -- true --> N3[node_c]
+```
 
 ```yaml
 nodes:
@@ -293,6 +316,11 @@ executed = {n.node_id for n in outputs.nodes}
 
 Message passing allows one node's response to flow into the next node's prompt as
 the `{message_passing}` placeholder.
+
+```mermaid
+flowchart LR
+    S["summarizer\noutput: true"] -->|"{message_passing}"| A["analyst\ninput: true"]
+```
 
 ```yaml
 nodes:
@@ -446,6 +474,16 @@ the whole thread.
 | Cat-2 | `true`  | `true`  | **Enricher** — reads then extends; multiple Cat-2 nodes run in parallel. |
 | Cat-3 | `true`  | `false` | **Reader** — consumes the final blackboard. |
 
+```mermaid
+flowchart TD
+    W["assistant\nCat-1 — write only"] -->|seeds| BB[(Blackboard)]
+    BB -->|reads| EA["analyst_a\nCat-2 — read+write"]
+    BB -->|reads| EB["analyst_b\nCat-2 — read+write"]
+    EA -->|extends| BB
+    EB -->|extends| BB
+    BB -->|reads| S["summarizer\nCat-3 — read only"]
+```
+
 The execution order (Cat-1 → Cat-2 in parallel → Cat-3) is **inferred
 automatically** from the flags even when `edges` is a flat list — no
 `children`/`fan_in` declarations are needed.
@@ -564,4 +602,197 @@ You can reset or inject content before compiling:
 with Compiler(uri="path/to/graph.yml") as compiler:
     compiler.blackboard = "# Custom seed\n\nOverride the YAML-loaded content."
     compiler.compile()
+```
+
+---
+
+## 10. ReAct loop — iterative agent dispatch
+
+The ReAct (Reason + Act) pattern lets a **controller** node reason across multiple
+turns, dispatching sub-tasks to **agent** nodes one at a time, observing their
+outputs, and deciding what to do next. Useful for open-ended tasks where the
+number of steps is not known in advance.
+
+### How it works
+
+```mermaid
+flowchart TD
+    START([compile]) --> INIT["Build initial prompt\n+ conversation buffer"]
+    INIT --> LLM["Call controller LLM\nreturns routing JSON"]
+    LLM --> DONE{done = true?}
+    DONE -- yes --> RECORD["Record final_answer\nto outputs"]
+    DONE -- no --> AGENT["Run selected agent\n(isolated execution)"]
+    AGENT --> OBS["Inject observation\ninto conversation"]
+    OBS --> MAX{max_iterations?}
+    MAX -- no --> LLM
+    MAX -- yes --> FORCED([Stop — max reached])
+    RECORD --> END([End])
+    FORCED --> END
+```
+
+The controller's `react_output` schema defines what the LLM must return each turn:
+
+| Field          | Required | Description |
+|----------------|----------|-------------|
+| `next_agent`   | Yes      | Name of the agent to call next. |
+| `done`         | No       | `true` to stop the loop and emit the final answer. |
+| `agent_input`  | No       | Text passed to the agent via `message_passing`. Falls back to `reasoning` if absent. |
+| `reasoning`    | No       | Internal chain-of-thought (logged in the trace). |
+| `final_answer` | No       | Summary answer written when `done: true`. |
+
+### Step 1 — Define prompts
+
+```yaml
+prompts:
+  # 0 — controller
+  - template:
+      system_template:
+        role: |
+          You are a task coordinator. Dispatch sub-questions one at a time.
+          Available agents:
+            - math_agent: arithmetic calculations
+            - knowledge_agent: factual questions
+          Return JSON: next_agent, agent_input, done (true when finished), final_answer, reasoning.
+      prompt_template:
+        task: |
+          Handle this request step by step: {user_message}
+
+  # 1 — math agent
+  - template:
+      system_template:
+        role: You are a calculator. Answer concisely.
+      prompt_template:
+        question: "{message_passing}"
+
+  # 2 — knowledge agent
+  - template:
+      system_template:
+        role: You are a knowledge assistant. Answer concisely.
+      prompt_template:
+        question: "{message_passing}"
+```
+
+### Step 2 — Define nodes
+
+The controller node uses `react:` for loop config and `react_output:` for the
+routing schema. Agent nodes are normal nodes with `message_passing.input: true`
+to receive the controller's `agent_input`.
+
+```yaml
+nodes:
+  - id: "controller"
+    model: 0
+    temperature: 0.0
+    max_tokens: 512
+    show: true
+    prompt:
+      template: 0
+      user_message: true
+    react:
+      max_iterations: 6
+    react_output:
+      type: object
+      properties:
+        next_agent:   { type: string }
+        agent_input:  { type: string }
+        done:         { type: boolean }
+        final_answer: { type: string }
+        reasoning:    { type: string }
+      required: [next_agent]
+
+  - id: "math_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 64
+    show: true
+    message_passing: { input: true, output: true }
+    prompt:
+      template: 1
+
+  - id: "knowledge_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 64
+    show: true
+    message_passing: { input: true, output: true }
+    prompt:
+      template: 2
+```
+
+### Step 3 — Declare edges
+
+Agent nodes are listed in the controller's `react:` edge list. They are **excluded
+from the main DAG** and only run when the controller dispatches to them.
+
+```yaml
+edges:
+  - node: "controller"
+    react:
+      - node: "math_agent"
+      - node: "knowledge_agent"
+```
+
+```mermaid
+flowchart TD
+    CTRL["controller\n(ReAct loop)"] -->|"next_agent=math_agent"| MA["math_agent"]
+    CTRL -->|"next_agent=knowledge_agent"| KA["knowledge_agent"]
+    MA -->|observation| CTRL
+    KA -->|observation| CTRL
+    CTRL -->|"done=true"| OUT([final_answer])
+```
+
+### Step 4 — Run and inspect the trace
+
+```python
+from kegal import Compiler
+
+with Compiler(uri="path/to/react_graph.yml") as compiler:
+    compiler.compile()
+
+    # Standard output (controller's final answer)
+    outputs = compiler.get_outputs()
+    for node in outputs.nodes:
+        if node.node_id == "controller" and node.response.json_output:
+            print("Final answer:", node.response.json_output.get("final_answer"))
+
+    # Detailed per-iteration trace
+    trace = compiler.get_react_trace("controller")
+    print(f"Iterations: {trace.total_iterations}, done: {trace.done}")
+    for it in trace.iterations:
+        print(f"  [{it.iteration}] → {it.agent_name}: {it.agent_output[:80]}")
+```
+
+### Resume: automatic conversation compaction
+
+For long loops the conversation buffer can grow beyond the model's context window.
+Set `resume: true` to compact it automatically when `input_size` reaches
+`resume_threshold × max_tokens`:
+
+```yaml
+react:
+  max_iterations: 20
+  resume: true
+  resume_threshold: 0.75   # compact when 75% of max_tokens used as input
+```
+
+A built-in compact prompt is used by default (instructs the LLM to compress the
+conversation into a dense state record). To use your own:
+
+```yaml
+react_compact_prompts:
+  - template:
+      system_template:
+        instruction: |
+          Compress the conversation into a structured record. Preserve ALL findings.
+          Do not summarise — compact.
+      prompt_template:
+        action: |
+          Compact the above conversation now.
+```
+
+Or point to an external file:
+
+```yaml
+react_compact_prompts:
+  - uri: "./prompts/compact_prompt.yml"
 ```

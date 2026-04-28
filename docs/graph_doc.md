@@ -7,6 +7,36 @@ For each model we list the fields, their types, optionality, and provide concret
 
 ---
 
+## Architecture overview
+
+```mermaid
+graph TD
+    subgraph Config["Graph YAML / JSON"]
+        M["models\n(LLM providers)"]
+        P["prompts\n(templates)"]
+        N["nodes\n(LLM call units)"]
+        E["edges\n(topology)"]
+        RCP["react_compact_prompts\n(optional)"]
+    end
+
+    M -- index --> N
+    P -- index --> N
+    N -- declared in --> E
+
+    subgraph Compiler
+        DAG["DAG Scheduler\n_build_dag()"]
+        EXEC["Executor\ncompile()"]
+        REACT["ReAct Loop\n_run_react_loop()"]
+    end
+
+    E --> DAG
+    DAG --> EXEC
+    EXEC -- controller node --> REACT
+    RCP -- compaction prompt --> REACT
+```
+
+---
+
 ## 1. `GraphModel`
 
 | Field             | Type           | Optional | Description |
@@ -176,8 +206,13 @@ nodes:
 | `input`  | `bool`| Yes (default `false`) | Inject the message pipe content into the node’s prompt via `{message_passing}`. |
 | `output` | `bool`| Yes (default `false`) | Append this node’s response to the message pipe after execution. |
 
-
 Both fields default to `false` — the entire `message_passing` block can be omitted from YAML if neither flag is set.
+
+```mermaid
+flowchart LR
+    A["node_a\noutput: true"] -->|appends to pipe| PIPE[("message\npipe")]
+    PIPE -->|"{message_passing}"| B["node_b\ninput: true"]
+```
 
 ### YAML Example
 
@@ -458,6 +493,48 @@ Configuration block for a **ReAct controller** node. Placed inside `GraphNode.re
 | `resume`            | `bool`  | Yes      | `false` | When `true`, automatically compacts the conversation buffer when it approaches `max_tokens`. |
 | `resume_threshold`  | `float` | Yes      | `0.8`   | Fraction of `max_tokens` at which compaction is triggered (only relevant when `resume: true`). |
 
+### ReAct execution loop
+
+```mermaid
+flowchart TD
+    START([compile]) --> BUILD[Build controller prompt\nfrom node config]
+    BUILD --> CALL[Call controller LLM\nwith conversation buffer]
+    CALL --> PARSE{Parse routing JSON}
+    PARSE -- done=true --> FINAL[Record final answer\nto outputs]
+    PARSE -- next_agent=X --> FIND[Find agent edge X\nin react list]
+    FIND --> RUN["Run agent subgraph\n(isolated state)"]
+    RUN --> OBS[Inject observation\ninto conversation buffer]
+    OBS --> RESUME{resume=true and\nthreshold exceeded?}
+    RESUME -- yes --> COMPACT[Compact conversation\nwith compact prompt]
+    RESUME -- no --> CHECK
+    COMPACT --> CHECK{max_iterations\nexceeded?}
+    CHECK -- no --> CALL
+    CHECK -- yes --> STOP([Stop loop])
+    FINAL --> END([End])
+    STOP --> END
+```
+
+### Agent subgraph isolation
+
+```mermaid
+flowchart LR
+    subgraph Main["Main Compiler State"]
+        MP[message_passing]
+        OUT[outputs]
+    end
+    subgraph Agent["Agent Execution (isolated)"]
+        AMP["local message_passing\n(= agent_input)"]
+        AN[agent nodes run\nsequentially]
+        RES[result extracted]
+    end
+    MP -->|saved| AMP
+    OUT -->|saved| Agent
+    AN --> RES
+    RES -->|observation| CONV[controller\nconversation buffer]
+    AMP -->|restored| MP
+    Agent -->|restored| OUT
+```
+
 ### YAML Example
 
 ```yaml
@@ -489,6 +566,50 @@ react:
 - `children` (fan-out): node A completes → children B, C, D start in parallel.
 - `fan_in` (aggregation): node E starts only when all nodes listed in its `fan_in` have completed.
 - `react` (ReAct dispatch): controller C iteratively calls agents from its `react` list until it signals `done: true`.
+
+### Topology diagrams
+
+#### Fan-out
+
+```mermaid
+flowchart LR
+    A[A] --> B[B]
+    A --> C[C]
+    A --> D[D]
+```
+
+#### Fan-in
+
+```mermaid
+flowchart LR
+    B[B] --> E[E]
+    C[C] --> E
+    D[D] --> E
+```
+
+#### Fan-out + fan-in
+
+```mermaid
+flowchart LR
+    A[A] --> B[B]
+    A --> C[C]
+    A --> D[D]
+    B --> E[E]
+    C --> E
+    D --> E
+    E --> F[F]
+```
+
+#### ReAct controller
+
+```mermaid
+flowchart TD
+    CTRL[controller\nReAct loop] -->|iterative dispatch| AGT1[agent_a]
+    CTRL -->|iterative dispatch| AGT2[agent_b]
+    AGT1 -->|observation| CTRL
+    AGT2 -->|observation| CTRL
+    CTRL -->|done| OUT([final answer])
+```
 
 **Guard nodes** (nodes whose `structured_output` contains a `validation` boolean field) automatically precede all other nodes regardless of edge declarations.
 
@@ -630,6 +751,20 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | `edges`                 | `list[GraphEdge]`                      | No       | Graph topology. |
 
 
+
+### DAG execution phases per topological level
+
+```mermaid
+flowchart TD
+    subgraph Level["Each topological level"]
+        P1["Phase 1 — Guard nodes\n(sequential, abort on false)"]
+        P2["Phase 2 — Regular nodes\n(parallel if > 1)"]
+        P3["Phase 3 — ReAct controllers\n(sequential, after regular nodes)"]
+    end
+    P1 -->|validation passed| P2
+    P2 --> P3
+    P1 -->|validation=false| ABORT([Abort graph])
+```
 
 ### YAML Example (trimmed to essential fields)
 

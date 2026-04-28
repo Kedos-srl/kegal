@@ -1,7 +1,7 @@
 ## Graph Response
  * Token Input size: 2135
  * Token Output size: 510
- * Compile time: 45.19272565841675
+ * Compile time: 19.562661170959473
 ### Node:  research_controller
 ```json
  {

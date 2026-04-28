@@ -796,3 +796,303 @@ Or point to an external file:
 react_compact_prompts:
   - uri: "./prompts/compact_prompt.yml"
 ```
+
+### Controller vs agent feature support
+
+The controller and agent nodes run through different code paths, so not every node
+feature is available on both sides.
+
+| Feature | Controller | Agent nodes |
+|---|---|---|
+| `tools` | ✗ ignored — warning at init | ✓ full tool loop |
+| `mcp_servers` | ✗ ignored — warning at init | ✓ full tool loop |
+| `blackboard.read` / `.write` | ✗ ignored — warning at init | ✓ writes persist globally across iterations |
+| `message_passing.input` | ✓ seeds the initial conversation | ✓ receives `agent_input` |
+| `message_passing.output` | ✓ pushes `final_answer` to shared buffer | ✓ result returned to controller |
+| `images` / `pdfs` | ✓ included in every LLM call | ✓ standard |
+| `chat_history` | ✓ seeds the conversation buffer | ✓ standard |
+| `user_message` | ✓ first turn in the conversation | ✓ standard |
+
+> **Rule of thumb:** put tools and MCP on the agent nodes, never on the controller.
+> If the controller needs information, dispatch an agent that has the tool.
+
+### Using tools inside an agent
+
+Agent nodes participate in the normal tool loop — the model may call tools across
+multiple turns before returning its final output to the controller.
+
+```yaml
+models:
+  - llm: "ollama"
+    model: "qwen2.5:7b"
+
+tools:
+  - name: "get_exchange_rate"
+    description: "Returns the current exchange rate between two currencies."
+    input_schema:
+      type: object
+      properties:
+        from_currency: { type: string }
+        to_currency:   { type: string }
+      required: [from_currency, to_currency]
+
+prompts:
+  # 0 — controller
+  - template:
+      system_template:
+        role: |
+          You are a finance coordinator. Available agents:
+            - fx_agent: retrieves live exchange rates
+          Return JSON: next_agent, agent_input, done, final_answer, reasoning.
+      prompt_template:
+        task: "{user_message}"
+
+  # 1 — fx agent (has tool access)
+  - template:
+      system_template:
+        role: Use the get_exchange_rate tool to answer the question.
+      prompt_template:
+        question: "{message_passing}"
+
+nodes:
+  - id: "controller"
+    model: 0
+    temperature: 0.0
+    max_tokens: 512
+    prompt: { template: 0, user_message: true }
+    react:
+      max_iterations: 4
+    react_output:
+      type: object
+      properties:
+        next_agent:   { type: string }
+        agent_input:  { type: string }
+        done:         { type: boolean }
+        final_answer: { type: string }
+        reasoning:    { type: string }
+      required: [done]
+
+  - id: "fx_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 256
+    message_passing: { input: true, output: true }
+    prompt: { template: 1 }
+    tools: [0]               # ← tool assigned to the agent, NOT the controller
+
+edges:
+  - node: "controller"
+    react:
+      - node: "fx_agent"
+```
+
+Wire up the tool executor in Python:
+
+```python
+def get_exchange_rate(from_currency: str, to_currency: str) -> str:
+    # call your real FX API here
+    return f"1 {from_currency} = 1.08 {to_currency}"
+
+with Compiler(
+    uri="path/to/fx_graph.yml",
+    tool_executors={"get_exchange_rate": get_exchange_rate},
+) as compiler:
+    compiler.compile()
+    trace = compiler.get_react_trace("controller")
+    print(trace.final_answer)
+```
+
+### Using MCP servers inside an agent
+
+```yaml
+mcp_servers:
+  - id: "sqlite"
+    type: "stdio"
+    command: "python"
+    args: ["mcp_sqlite_server.py", "--db", "data.db"]
+
+nodes:
+  - id: "db_agent"
+    model: 0
+    max_tokens: 256
+    message_passing: { input: true, output: true }
+    prompt: { template: 1 }
+    mcp_servers: ["sqlite"]  # ← MCP on the agent, NOT the controller
+```
+
+The MCP tool loop runs inside the agent's isolated execution context — tool calls
+are made, results are injected, and only the final answer is returned to the
+controller as an observation.
+
+### Multi-agent synthesis pattern
+
+A common ReAct pattern is to gather information from multiple specialist agents
+before synthesising a final answer with a writer agent.
+
+```mermaid
+flowchart TD
+    CTRL["research_controller"] -->|"Step 1"| HA["history_agent"]
+    CTRL -->|"Step 2"| SA["science_agent"]
+    CTRL -->|"Step 3\n(both facts passed)"| WA["writer_agent"]
+    HA -->|observation| CTRL
+    SA -->|observation| CTRL
+    WA -->|observation| CTRL
+    CTRL -->|"done=true"| OUT([final_answer])
+```
+
+Each observation is injected into the controller's conversation buffer, so by the
+time `writer_agent` is dispatched the controller can pass both facts in
+`agent_input`. See `test/graphs/react_research_graph.yml` for a complete working
+example with three specialist agents (`history_agent`, `science_agent`,
+`writer_agent`).
+
+### Piping the controller's result to a downstream node
+
+Once the ReAct loop finishes and emits a `final_answer`, you can forward it to a
+regular **post-processing node** using `message_passing` — exactly like Tutorial 5.
+Set `message_passing.output: true` on the controller and `message_passing.input: true`
+on the downstream node. The scheduler infers the dependency and places the
+post-processor at a later topological level automatically; no `fan_in` is needed.
+
+```mermaid
+flowchart LR
+    MA["math_agent"]  -->|observation| CTRL
+    KA["knowledge_agent"] -->|observation| CTRL
+    CTRL["controller\n(ReAct loop)"] -->|"message_passing\nfinal_answer"| PP["formatter"]
+```
+
+**YAML — full example**
+
+```yaml
+models:
+  - llm: "ollama"
+    model: "qwen2.5:7b"
+    host: "http://localhost:11434"
+
+user_message: "What is 12 * 8, and what is the capital of Japan?"
+
+prompts:
+  # 0 — controller
+  - template:
+      system_template:
+        role: |
+          You are a task coordinator. Dispatch sub-questions one at a time.
+          Available agents:
+            - math_agent    : arithmetic calculations
+            - knowledge_agent : factual questions
+          Return JSON: next_agent, agent_input, done, final_answer, reasoning.
+          Set done=true only after all questions are answered.
+      prompt_template:
+        task: "{user_message}"
+
+  # 1 — math agent
+  - template:
+      system_template:
+        role: "You are a calculator. Answer in one sentence."
+      prompt_template:
+        question: "{message_passing}"
+
+  # 2 — knowledge agent
+  - template:
+      system_template:
+        role: "You are a geography assistant. Answer in one sentence."
+      prompt_template:
+        question: "{message_passing}"
+
+  # 3 — post-processor (receives controller final_answer)
+  - template:
+      system_template:
+        role: |
+          You are a report formatter. Take the raw findings below and rewrite
+          them as two clearly numbered bullet points. No prose, no headings.
+      prompt_template:
+        findings: "{message_passing}"
+
+nodes:
+  - id: "controller"
+    model: 0
+    temperature: 0.0
+    max_tokens: 512
+    show: true
+    prompt:
+      template: 0
+      user_message: true
+    message_passing:
+      input: false
+      output: true          # final_answer is written to the message pipe
+    react:
+      max_iterations: 6
+    react_output:
+      type: object
+      properties:
+        next_agent:   { type: string, enum: ["math_agent", "knowledge_agent"] }
+        agent_input:  { type: string }
+        done:         { type: boolean }
+        final_answer: { type: string }
+        reasoning:    { type: string }
+      required: [done]
+
+  - id: "math_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 64
+    show: true
+    message_passing: { input: true, output: true }
+    prompt:
+      template: 1
+
+  - id: "knowledge_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 64
+    show: true
+    message_passing: { input: true, output: true }
+    prompt:
+      template: 2
+
+  - id: "formatter"
+    model: 0
+    temperature: 0.0
+    max_tokens: 128
+    show: true
+    message_passing:
+      input: true           # receives the controller's final_answer
+      output: false
+    prompt:
+      template: 3
+
+edges:
+  - node: "controller"
+    react:
+      - node: "math_agent"
+      - node: "knowledge_agent"
+  - node: "formatter"
+```
+
+The message_passing inference stage reads the edge declaration order and adds
+`deps[formatter] → controller` automatically — exactly as it does for any two
+consecutive nodes in Tutorial 5. No `fan_in` required.
+
+> **Warning:** if you set `message_passing.output: true` on a controller but no
+> downstream node has `message_passing.input: true`, KeGAL logs a warning at init
+> time: *"the output will not be consumed"*.
+
+**Python**
+
+```python
+from kegal import Compiler
+
+with Compiler(uri="path/to/react_post_graph.yml") as compiler:
+    compiler.compile()
+
+    # Controller's raw final_answer
+    trace = compiler.get_react_trace("controller")
+    print("Raw answer:", trace.final_answer)
+
+    # Formatter's polished output
+    outputs = compiler.get_outputs()
+    for node in outputs.nodes:
+        if node.node_id == "formatter":
+            for msg in node.response.messages or []:
+                print("Formatted:\n", msg)
+```

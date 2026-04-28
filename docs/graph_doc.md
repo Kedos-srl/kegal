@@ -544,6 +544,24 @@ react:
   resume_threshold: 0.75
 ```
 
+### Controller vs agent feature support
+
+The controller and agent nodes have different execution paths and therefore support different feature sets.
+
+| Feature | Controller | Agent nodes |
+|---|---|---|
+| `tools` | ✗ ignored — warning at init | ✓ full tool loop |
+| `mcp_servers` | ✗ ignored — warning at init | ✓ full tool loop |
+| `blackboard.read` / `.write` | ✗ ignored — warning at init | ✓ writes persist globally across iterations |
+| `message_passing.input` | ✓ seeds the initial conversation message | ✓ receives `agent_input` from controller |
+| `message_passing.output` | ✓ pushes `final_answer` to the shared buffer | ✓ result observed by controller |
+| `images` / `pdfs` | ✓ included in every controller LLM call | ✓ standard behaviour |
+| `structured_output` | — overridden by `react_output` | ✓ standard behaviour |
+| `chat_history` | ✓ seeds the conversation buffer | ✓ standard behaviour |
+| `user_message` | ✓ first user turn in the conversation | ✓ standard behaviour |
+
+**Why tools and MCP are excluded from the controller:** the controller LLM call must return a routing JSON (`react_output`). Mixing a tool loop inside that conversation would create ambiguity — the model cannot simultaneously return routing JSON and invoke tools. If the controller needs to look something up, dispatch a dedicated agent node that has the tool assigned.
+
 ---
 
 ## 8. `GraphEdge`

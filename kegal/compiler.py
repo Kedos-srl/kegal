@@ -216,6 +216,30 @@ class Compiler:
             scan_edge(root_edge)
         return main_ids
 
+    def _collect_ordered_main_ids(self) -> list[str]:
+        """Return main-DAG node IDs in DFS pre-order (same traversal as _build_dag Stage 2)."""
+        react_agent_ids = self._collect_react_agent_ids()
+        ordered_ids: list[str] = []
+
+        def collect(e: GraphEdge) -> None:
+            if e.node in react_agent_ids:
+                return
+            if e.node not in ordered_ids:
+                ordered_ids.append(e.node)
+            for child in (e.children or []):
+                collect(child)
+            for fi in (e.fan_in or []):
+                collect(fi)
+
+        for edge in self.edges:
+            collect(edge)
+
+        for node_id in self.nodes:
+            if node_id not in ordered_ids and node_id not in react_agent_ids:
+                ordered_ids.append(node_id)
+
+        return ordered_ids
+
     def _build_react_controller_map(self) -> dict[str, GraphEdge]:
         """Return a map of controller node ID → its edge (which carries the react list)."""
         controllers: dict[str, GraphEdge] = {}
@@ -232,13 +256,48 @@ class Compiler:
             scan(root_edge)
 
         for nid in controllers:
-            bb = self.nodes[nid].blackboard if nid in self.nodes else None
+            node = self.nodes.get(nid)
+            if node is None:
+                continue
+
+            bb = node.blackboard
             if bb is not None and (bb.read or bb.write):
                 logger.warning(
                     f"Node '{nid}' is a ReAct controller — blackboard flags "
                     f"(read={bb.read}, write={bb.write}) are ignored for controllers. "
                     f"Use message_passing on agent nodes to share data with the controller."
                 )
+
+            if node.tools is not None:
+                logger.warning(
+                    f"Node '{nid}' is a ReAct controller — 'tools' is ignored for controllers. "
+                    f"Assign tools to the agent nodes instead."
+                )
+
+            if node.mcp_servers:
+                logger.warning(
+                    f"Node '{nid}' is a ReAct controller — 'mcp_servers' is ignored for controllers. "
+                    f"Assign MCP servers to the agent nodes instead."
+                )
+
+            if node.message_passing.output:
+                ordered_main = self._collect_ordered_main_ids()
+                try:
+                    ctrl_idx = ordered_main.index(nid)
+                except ValueError:
+                    ctrl_idx = -1
+                has_downstream_input = any(
+                    self.nodes[mid].message_passing.input
+                    for mid in ordered_main[ctrl_idx + 1:]
+                    if mid in self.nodes
+                )
+                if not has_downstream_input:
+                    logger.warning(
+                        f"Node '{nid}' is a ReAct controller with message_passing.output=true, "
+                        f"but no downstream node has message_passing.input=true — the output "
+                        f"will not be consumed. Declare a post-processing node after the "
+                        f"controller (using fan_in) with message_passing.input=true."
+                    )
 
         return controllers
 
@@ -274,6 +333,31 @@ class Compiler:
                 errors.append(
                     f"React agent node '{nid}' is not defined in 'nodes:'"
                 )
+
+        # A react edge must not also carry children or fan_in — these mechanisms
+        # are mutually exclusive: react is for agent dispatch, children/fan_in are
+        # for the main DAG topology.
+        def _check_react_edge_mixing(edge: GraphEdge) -> None:
+            if edge.react:
+                if edge.children:
+                    errors.append(
+                        f"Node '{edge.node}' has both 'react' and 'children' on the same edge. "
+                        f"These are mutually exclusive — use message_passing to order the "
+                        f"controller's output into the next node."
+                    )
+                if edge.fan_in:
+                    errors.append(
+                        f"Node '{edge.node}' has both 'react' and 'fan_in' on the same edge. "
+                        f"These are mutually exclusive — use message_passing to order "
+                        f"dependencies around the controller."
+                    )
+            for child in (edge.children or []):
+                _check_react_edge_mixing(child)
+            for fi in (edge.fan_in or []):
+                _check_react_edge_mixing(fi)
+
+        for root_edge in self.edges:
+            _check_react_edge_mixing(root_edge)
 
         for node_id, node in self.nodes.items():
             if node.model >= n_models:
@@ -855,6 +939,7 @@ class Compiler:
 
         enable_history = self._chat_history_check(node)
         self._record_output(node, final_response, elapsed, enable_history)
+        self._check_message_passing(final_response, node)
 
         self._react_trace[node.id] = ReactTrace(
             controller_id=node.id,

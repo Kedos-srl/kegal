@@ -1,7 +1,7 @@
 import yaml
 import json
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -60,11 +60,19 @@ class GraphNode(BaseModel):
     chat_history: str | None = None
     prompt: NodePrompt | None
     structured_output: dict[str, Any] | None = None
+    react_output: dict[str, Any] | None = None
+    react: NodeReact | None = None
     images: list[int] | None = None
     documents: list[int] | None = None
     tools: list[str] | None = None
     mcp_servers: list[str] | None = None
     blackboard: NodeBlackboard | None = None
+
+class NodeReact(BaseModel):
+    max_iterations: int = 10
+    resume: bool = False
+    resume_threshold: float = 0.8
+
 
 class GraphEdge(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -72,6 +80,15 @@ class GraphEdge(BaseModel):
     node: str
     children: list["GraphEdge"] | None = None  # fan-out: sub-task decomposition
     fan_in: list["GraphEdge"] | None = None    # aggregation: wait for all listed nodes
+    react: list["GraphEdge"] | None = None     # ReAct: available agent subgraphs
+
+    @model_validator(mode="after")
+    def _check_mutual_exclusivity(self) -> "GraphEdge":
+        if self.react is not None and self.children is not None:
+            raise ValueError(
+                f"Edge for node '{self.node}': 'react' and 'children' are mutually exclusive"
+            )
+        return self
 
 class Graph(BaseModel):
     models: list[GraphModel]
@@ -80,6 +97,7 @@ class Graph(BaseModel):
     tools: list[LLMTool] | None = None
     mcp_servers: list[GraphMcpServer] | None = None
     prompts: list[GraphInputData]
+    react_compact_prompts: list[GraphInputData] | None = None
     chat_history: dict[str, list[dict[str, str]]] | None = None
     user_message: str | None = None
     retrieved_chunks: str | None = None

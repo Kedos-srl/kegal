@@ -215,7 +215,7 @@ outputs = compiler.get_outputs()
    - *Stage 2 (message passing)*: any node with `message_passing.output=true` becomes a dependency of all later nodes with `message_passing.input=true`, based on declaration order.
    - *Stage 3 (guard barrier)*: nodes whose `structured_output` contains a `validation` field automatically precede all other nodes.
    - *Stage 4 (footprint)*: nodes are classified into Cat-1 (write-only), Cat-2 (read+write), Cat-3 (read-only) by their `footprint` flags. Cat-2 nodes depend on all prior Cat-1 nodes; Cat-3 nodes depend on all prior Cat-1 and Cat-2 nodes. This infers the correct execution order with flat edge declarations.
-4. **Topological scheduling** – `_topological_levels()` groups nodes into levels via Kahn's algorithm. Nodes in the same level have no dependency on each other.
+4. **Topological scheduling** – `_topological_levels()` groups nodes into levels via [Kahn's algorithm](https://en.wikipedia.org/wiki/Topological_sorting) . Nodes in the same level have no dependency on each other. 
 5. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one. Failures from parallel nodes are collected and re-raised as a `RuntimeError` after all futures complete.
 6. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
 7. **Footprint update** – after each node with `footprint.write=true`, its response is appended to the shared buffer (thread-safe). If the footprint was loaded from a file, the file is written back immediately.

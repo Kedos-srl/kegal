@@ -1,0 +1,109 @@
+# ReAct graph
+#
+# Topology:
+#   [controller]   — ReAct loop controller
+#       react:
+#         [math_agent]      — answers arithmetic questions
+#         [knowledge_agent] — answers factual questions
+#
+# The controller iteratively dispatches to agents until it signals done:true.
+
+models:
+  - llm: "ollama"
+    model: ministral-3:3b
+    host: "http://localhost:11434"
+
+user_message: "What is 3 multiplied by 7? Also, what continent is Brazil on?"
+
+prompts:
+  # 0 — controller system + task prompt
+  - template:
+      system_template:
+        role: |
+          You are a task coordinator. Dispatch sub-questions to the right agent one at a time.
+          Available agents:
+            - math_agent: answers arithmetic and mathematical questions
+            - knowledge_agent: answers factual and geography questions
+          Return a JSON object with:
+            - next_agent (string): which agent to call
+            - agent_input (string): the exact question to pass to the agent
+            - done (boolean): true only when ALL questions are fully answered
+            - final_answer (string): summary of all answers (only when done=true)
+            - reasoning (string): your internal reasoning
+      prompt_template:
+        task: |
+          Handle this request step by step: {user_message}
+
+  # 1 — math agent
+  - template:
+      system_template:
+        role: |
+          You are a calculator. Answer the arithmetic question concisely. One sentence only.
+      prompt_template:
+        question: |
+          {message_passing}
+
+  # 2 — knowledge agent
+  - template:
+      system_template:
+        role: |
+          You are a knowledge assistant. Answer the factual question concisely. One sentence only.
+      prompt_template:
+        question: |
+          {message_passing}
+
+nodes:
+  - id: "controller"
+    model: 0
+    temperature: 0.0
+    max_tokens: 512
+    show: true
+    prompt:
+      template: 0
+      user_message: true
+    react:
+      max_iterations: 6
+      resume: false
+    react_output:
+      type: object
+      properties:
+        next_agent:
+          type: string
+        agent_input:
+          type: string
+        done:
+          type: boolean
+        final_answer:
+          type: string
+        reasoning:
+          type: string
+      required:
+        - next_agent
+
+  - id: "math_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 64
+    show: true
+    message_passing:
+      input: true
+      output: true
+    prompt:
+      template: 1
+
+  - id: "knowledge_agent"
+    model: 0
+    temperature: 0.0
+    max_tokens: 64
+    show: true
+    message_passing:
+      input: true
+      output: true
+    prompt:
+      template: 2
+
+edges:
+  - node: "controller"
+    react:
+      - node: "math_agent"
+      - node: "knowledge_agent"

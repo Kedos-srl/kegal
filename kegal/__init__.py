@@ -12,10 +12,11 @@ from .graph import (
     NodePrompt,
     NodeMessagePassing,
     NodeBlackboard,
+    NodeReact,
     GraphNode,
     GraphEdge,
 )
-from .compiler import Compiler, CompiledOutput, CompiledNodeOutput
+from .compiler import Compiler, CompiledOutput, CompiledNodeOutput, ReactTrace, ReactIteration
 from .compose import (
     compose_template_prompt,
     compose_node_prompt,
@@ -40,7 +41,7 @@ from .validators import (
 # Import LLM subpackage
 from . import llm
 
-__version__ = "0.1.2.6"
+__version__ = "0.1.2.8"
 
 __all__ = [
     # Graph models
@@ -50,12 +51,15 @@ __all__ = [
     "NodePrompt",
     "NodeMessagePassing",
     "NodeBlackboard",
+    "NodeReact",
     "GraphNode",
     "GraphEdge",
     # Compiler
     "Compiler",
     "CompiledOutput",
     "CompiledNodeOutput",
+    "ReactTrace",
+    "ReactIteration",
     # Compose utilities
     "compose_template_prompt",
     "compose_node_prompt",

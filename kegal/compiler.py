@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 from .compose import compose_template_prompt, compose_node_prompt, compose_images, compose_documents, compose_tools
-from .graph import Graph, GraphEdge, GraphNode
+from .graph import Graph, GraphEdge, GraphNode, NodeReact
 from .mcp_handler import McpHandler
 from .utils import load_contents
 from .llm.llm_handler import LlmHandler
@@ -17,6 +17,15 @@ from .llm.llm_model import LLmResponse, LLMStructuredOutput, LLMStructuredSchema
 import logging
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_REACT_COMPACT_PROMPT = {
+    "system": (
+        "You are a conversation compactor. Compress the conversation history into a dense, "
+        "structured record that preserves ALL key findings, tool results, and decisions. "
+        "Do not drop any factual content — compact it so reasoning can continue from this record."
+    ),
+    "user": "Compact the above conversation into a dense state record.",
+}
 
 
 class CompiledNodeOutput(BaseModel):
@@ -31,6 +40,25 @@ class CompiledOutput(BaseModel):
     input_size: int = 0
     output_size: int = 0
     compile_time: float = 0
+
+
+class ReactIteration(BaseModel):
+    iteration: int
+    agent_name: str
+    agent_output: str
+    reasoning: str | None = None
+    agent_input: str | None = None
+    controller_input_tokens: int = 0
+    controller_output_tokens: int = 0
+
+class ReactTrace(BaseModel):
+    controller_id: str
+    iterations: list[ReactIteration] = []
+    total_iterations: int = 0
+    done: bool = False
+    final_answer: str | None = None
+    total_controller_input_tokens: int = 0
+    total_controller_output_tokens: int = 0
 
 
 class Compiler:
@@ -73,8 +101,15 @@ class Compiler:
             except Exception as e:
                 logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
 
+        self.react_compact_prompts: list[dict[str, str]] = (
+            self._load_prompt_inputs(graph.react_compact_prompts)
+            if graph.react_compact_prompts else []
+        )
+        self._react_trace: dict[str, ReactTrace] = {}
+
         self._validate_indices()
         self._validate_prompts()
+        self._react_controllers: dict[str, GraphEdge] = self._build_react_controller_map()
 
     def __enter__(self) -> "Compiler":
         return self
@@ -108,15 +143,17 @@ class Compiler:
 
     @staticmethod
     def _get_graph_prompts_templates(graph):
+        return Compiler._load_prompt_inputs(graph.prompts)
+
+    @staticmethod
+    def _load_prompt_inputs(prompt_inputs) -> list[dict[str, str]]:
         prompts_templates: list[dict[str, str]] = []
-        for prompt_input in graph.prompts:
+        for prompt_input in prompt_inputs:
             if prompt_input.template is not None:
                 prompts_templates.append(compose_template_prompt(prompt_input.template))
             elif prompt_input.uri is not None:
                 prompts_templates.append(
-                    compose_template_prompt(
-                        load_contents(prompt_input.uri)
-                    )
+                    compose_template_prompt(load_contents(prompt_input.uri))
                 )
             else:
                 raise ValueError("Prompt input must have either 'template' or 'uri' defined")
@@ -136,11 +173,98 @@ class Compiler:
             return path.read_text(encoding="utf-8"), path
         return value, None
 
+    # -------------------------------------------------------------------------
+    # React topology helpers
+    # -------------------------------------------------------------------------
+
+    def _collect_react_agent_ids(self) -> set[str]:
+        """Return IDs of all nodes that appear exclusively inside react lists."""
+        agent_ids: set[str] = set()
+
+        def scan_edge(edge: GraphEdge) -> None:
+            for react_edge in (edge.react or []):
+                self._collect_subgraph_ids(react_edge, agent_ids)
+            for child in (edge.children or []):
+                scan_edge(child)
+            for fi in (edge.fan_in or []):
+                scan_edge(fi)
+
+        for root_edge in self.edges:
+            scan_edge(root_edge)
+        return agent_ids
+
+    def _collect_subgraph_ids(self, edge: GraphEdge, result: set[str]) -> None:
+        result.add(edge.node)
+        for child in (edge.children or []):
+            self._collect_subgraph_ids(child, result)
+        for fi in (edge.fan_in or []):
+            self._collect_subgraph_ids(fi, result)
+
+    def _collect_main_edge_ids(self) -> set[str]:
+        """Return IDs of all nodes in the main edge tree (not inside react lists)."""
+        main_ids: set[str] = set()
+
+        def scan_edge(edge: GraphEdge) -> None:
+            main_ids.add(edge.node)
+            for child in (edge.children or []):
+                scan_edge(child)
+            for fi in (edge.fan_in or []):
+                scan_edge(fi)
+            # deliberately do NOT recurse into edge.react
+
+        for root_edge in self.edges:
+            scan_edge(root_edge)
+        return main_ids
+
+    def _build_react_controller_map(self) -> dict[str, GraphEdge]:
+        """Return a map of controller node ID → its edge (which carries the react list)."""
+        controllers: dict[str, GraphEdge] = {}
+
+        def scan(edge: GraphEdge) -> None:
+            if edge.react:
+                controllers[edge.node] = edge
+            for child in (edge.children or []):
+                scan(child)
+            for fi in (edge.fan_in or []):
+                scan(fi)
+
+        for root_edge in self.edges:
+            scan(root_edge)
+        return controllers
+
+    @staticmethod
+    def _find_react_agent_edge(controller_edge: GraphEdge, agent_name: str) -> GraphEdge | None:
+        for react_edge in (controller_edge.react or []):
+            if react_edge.node == agent_name:
+                return react_edge
+        return None
+
+    # -------------------------------------------------------------------------
+    # Validation
+    # -------------------------------------------------------------------------
+
     def _validate_indices(self) -> None:
         """Raise ValueError early if any node references an out-of-range model or template index."""
         errors: list[str] = []
         n_models = len(self.clients)
         n_prompts = len(self.prompts)
+
+        # React agent nodes must not also appear in the main edge tree
+        react_agent_ids = self._collect_react_agent_ids()
+        main_edge_ids = self._collect_main_edge_ids()
+        for nid in react_agent_ids & main_edge_ids:
+            errors.append(
+                f"Node '{nid}' appears both in a react list and in the main edge tree. "
+                f"React agent nodes must not be used as regular DAG nodes."
+            )
+
+        # React agent nodes must be defined in nodes:
+        for nid in react_agent_ids:
+            if nid not in self.nodes:
+                errors.append(
+                    f"React agent node '{nid}' is not defined in 'nodes:'"
+                )
+
         for node_id, node in self.nodes.items():
             if node.model >= n_models:
                 errors.append(
@@ -221,26 +345,22 @@ class Compiler:
     def _build_dag(self) -> dict[str, set[str]]:
         """Return a dependency map: node_id → set of node_ids that must finish first.
 
-        Dependencies are resolved in three stages:
-        1. Explicit structural dependencies from the recursive edge tree:
-           - ``children``: fan-out — each child depends on its parent node.
-           - ``fan_in``: aggregation — the node depends on every node listed.
-        2. Inferred from ``message_passing``: any node with ``output:true``
-           is a dependency of any node with ``input:true`` that appears later
-           in the collected node order.
-        3. Guard nodes (structured_output contains ``validation``) implicitly
-           precede every non-guard node.
-
-        Known limitation: ``detect_cycles`` catches cycles within a single
-        recursive edge declaration but not cross-root cycles (e.g. root A has
-        child B, root B has child A). Cross-root cycles are caught downstream
-        by ``_topological_levels`` via Kahn's algorithm.
+        React agent nodes (inside react lists) are excluded from the main DAG.
+        They are executed on demand by _run_react_loop.
         """
-        deps: dict[str, set[str]] = {node_id: set() for node_id in self.nodes}
+        react_agent_ids = self._collect_react_agent_ids()
+        # Only main-DAG nodes participate in the topology
+        deps: dict[str, set[str]] = {
+            node_id: set()
+            for node_id in self.nodes
+            if node_id not in react_agent_ids
+        }
         declared_structure: dict[str, GraphEdge] = {}
 
         # — Cycle detection ————————————————————————————————————————————————
         def detect_cycles(edge: GraphEdge, path: set[str]) -> None:
+            if edge.node in react_agent_ids:
+                return
             if edge.node in path:
                 raise ValueError(
                     f"Cycle detected in edges involving node '{edge.node}'"
@@ -254,6 +374,10 @@ class Compiler:
         # — Recursive traversal ————————————————————————————————————————————
         def traverse(edge: GraphEdge) -> None:
             node_id = edge.node
+
+            # React agent nodes are not part of the main DAG
+            if node_id in react_agent_ids:
+                return
 
             if node_id not in self.nodes:
                 raise ValueError(
@@ -276,12 +400,16 @@ class Compiler:
             # fan_in: node_id depends on every node listed in fan_in
             for fi_edge in (edge.fan_in or []):
                 traverse(fi_edge)               # validate before accessing deps
-                deps[node_id].add(fi_edge.node)
+                if fi_edge.node in deps:
+                    deps[node_id].add(fi_edge.node)
 
             # children: every child depends on node_id
             for child_edge in (edge.children or []):
                 traverse(child_edge)             # validate before accessing deps
-                deps[child_edge.node].add(node_id)
+                if child_edge.node in deps:
+                    deps[child_edge.node].add(node_id)
+
+            # react list: do NOT traverse — agent nodes run outside the DAG
 
         # — Stage 1: explicit dependencies from edge tree ——————————————————
         for root_edge in self.edges:
@@ -294,6 +422,8 @@ class Compiler:
         ordered_ids: list[str] = []
 
         def collect_ids(e: GraphEdge) -> None:
+            if e.node in react_agent_ids:
+                return
             if e.node not in ordered_ids:
                 ordered_ids.append(e.node)
             for child in (e.children or []):
@@ -305,7 +435,7 @@ class Compiler:
             collect_ids(edge)
 
         for node_id in self.nodes:
-            if node_id not in ordered_ids:
+            if node_id not in ordered_ids and node_id not in react_agent_ids:
                 ordered_ids.append(node_id)
 
         output_nodes = [
@@ -324,8 +454,8 @@ class Compiler:
                     deps[in_nid].add(out_nid)
 
         # — Stage 3: guard nodes precede all non-guard nodes (unchanged) ———
-        guard_ids = [nid for nid, n in self.nodes.items() if self._is_guard_node(n)]
-        non_guard_ids = [nid for nid in self.nodes if nid not in guard_ids]
+        guard_ids = [nid for nid, n in self.nodes.items() if self._is_guard_node(n) and nid not in react_agent_ids]
+        non_guard_ids = [nid for nid in self.nodes if nid not in guard_ids and nid not in react_agent_ids]
         for nid in non_guard_ids:
             for gid in guard_ids:
                 deps[nid].add(gid)
@@ -344,9 +474,9 @@ class Compiler:
         # and the final reader(s) wait for all of them — with flat edge declarations.
         def _fp(nid): return self.nodes[nid].blackboard
 
-        cat1 = [n for n in ordered_ids if _fp(n) and     _fp(n).write and not _fp(n).read]
-        cat2 = [n for n in ordered_ids if _fp(n) and     _fp(n).read  and     _fp(n).write]
-        cat3 = [n for n in ordered_ids if _fp(n) and     _fp(n).read  and not _fp(n).write]
+        cat1 = [n for n in ordered_ids if _fp(n) and _fp(n).write and not _fp(n).read]
+        cat2 = [n for n in ordered_ids if _fp(n) and _fp(n).read  and     _fp(n).write]
+        cat3 = [n for n in ordered_ids if _fp(n) and _fp(n).read  and not _fp(n).write]
 
         for r in cat2:
             for w in cat1:
@@ -423,7 +553,15 @@ class Compiler:
 
         for level in levels:
             guard_ids   = [nid for nid in level if self._is_guard_node(self.nodes[nid])]
-            regular_ids = [nid for nid in level if nid not in guard_ids]
+            react_ids   = [nid for nid in level if nid in self._react_controllers and nid not in guard_ids]
+            regular_ids = [nid for nid in level if nid not in guard_ids and nid not in react_ids]
+
+            if len(react_ids) > 1:
+                raise ValueError(
+                    f"Concurrent react controllers are not allowed. "
+                    f"Controllers at the same DAG level: {react_ids}. "
+                    f"Restructure the graph so each controller is at a unique level."
+                )
 
             # Phase 1 — run guard nodes sequentially first
             for nid in guard_ids:
@@ -438,6 +576,10 @@ class Compiler:
                 self._run_parallel(regular_ids)
             elif len(regular_ids) == 1:
                 self._run_node(self.nodes[regular_ids[0]])
+
+            # Phase 3 — react controller (always sequential, after regular nodes)
+            for nid in react_ids:
+                self._run_react_loop(self._react_controllers[nid], self.nodes[nid])
 
         self.outputs.compile_time = time.time() - global_start
 
@@ -551,6 +693,243 @@ class Compiler:
 
         logger.warning(f"Node '{node.id}' hit tool loop limit ({MAX_ITERATIONS} iterations)")
         return response
+
+    # -------------------------------------------------------------------------
+    # ReAct loop
+    # -------------------------------------------------------------------------
+
+    def _run_react_loop(self, controller_edge: GraphEdge, node: GraphNode) -> None:
+        """Execute the ReAct reasoning loop for a controller node."""
+        react_cfg = node.react or NodeReact()
+        client = self.clients[node.model]
+
+        # Build base body (system_prompt, images, docs, etc.) then extract
+        base_body = self._build_model_body(node)
+        # Use react_output as the routing schema (overrides structured_output)
+        if node.react_output is not None:
+            base_body["structured_output"] = LLMStructuredOutput(
+                json_output=LLMStructuredSchema(**node.react_output)
+            )
+
+        system_prompt: str | None = base_body.pop("system_prompt", None)
+        initial_user_msg: str | None = base_body.pop("user_message", None)
+
+        # Conversation buffer: grows across iterations
+        conversation: list[LLmMessage] = list(base_body.pop("chat_history", None) or [])
+        if initial_user_msg:
+            conversation.append(LLmMessage(role="user", content=initial_user_msg))
+
+        # Carry-over fields for each LLM call
+        call_extras: dict[str, Any] = {
+            k: base_body[k] for k in ("structured_output", "imgs_b64", "pdfs_b64")
+            if k in base_body
+        }
+
+        trace_iters: list[ReactIteration] = []
+        total_in = 0
+        total_out = 0
+        done = False
+        final_answer: str | None = None
+        start = time.time()
+
+        for iteration in range(react_cfg.max_iterations):
+            logger.info(f"[ReAct] '{node.id}' — iteration {iteration}")
+
+            response = client.complete(
+                system_prompt=system_prompt,
+                user_message=None,
+                chat_history=conversation,
+                temperature=node.temperature,
+                max_tokens=node.max_tokens,
+                **call_extras,
+            )
+
+            total_in += response.input_size
+            total_out += response.output_size
+
+            routing = response.json_output or {}
+            next_agent = routing.get("next_agent")
+            done = bool(routing.get("done", False))
+            reasoning = routing.get("reasoning")
+            agent_input_str = routing.get("agent_input") or reasoning or ""
+            final_answer = routing.get("final_answer") or reasoning
+
+            logger.info(
+                f"[ReAct] '{node.id}' iter {iteration}: "
+                f"next_agent={next_agent}, done={done}"
+            )
+
+            # Append controller decision to conversation
+            conversation.append(LLmMessage(
+                role="assistant",
+                content=json.dumps(routing, ensure_ascii=False),
+            ))
+
+            if done:
+                break
+
+            if not next_agent:
+                logger.warning(
+                    f"[ReAct] '{node.id}': no next_agent and done=False — stopping"
+                )
+                break
+
+            agent_edge = self._find_react_agent_edge(controller_edge, next_agent)
+            if agent_edge is None:
+                available = [e.node for e in (controller_edge.react or [])]
+                raise RuntimeError(
+                    f"[ReAct] Controller '{node.id}': next_agent='{next_agent}' "
+                    f"not found in react list. Available: {available}"
+                )
+
+            agent_output = self._run_react_agent(agent_edge, agent_input_str)
+
+            trace_iters.append(ReactIteration(
+                iteration=iteration,
+                agent_name=next_agent,
+                agent_output=agent_output,
+                reasoning=reasoning,
+                agent_input=agent_input_str,
+                controller_input_tokens=response.input_size,
+                controller_output_tokens=response.output_size,
+            ))
+
+            conversation.append(LLmMessage(
+                role="user",
+                content=f"[observation from {next_agent}]\n{agent_output}",
+            ))
+
+            if react_cfg.resume:
+                self._maybe_compact(
+                    conversation, node, react_cfg.resume_threshold, response
+                )
+        else:
+            logger.warning(
+                f"[ReAct] '{node.id}' reached max_iterations={react_cfg.max_iterations}"
+            )
+
+        elapsed = time.time() - start
+
+        final_response = LLmResponse(
+            messages=[final_answer] if final_answer else None,
+            json_output={
+                "done": done,
+                "iterations": len(trace_iters),
+                "final_answer": final_answer,
+            },
+            input_size=total_in,
+            output_size=total_out,
+        )
+
+        enable_history = self._chat_history_check(node)
+        self._record_output(node, final_response, elapsed, enable_history)
+
+        self._react_trace[node.id] = ReactTrace(
+            controller_id=node.id,
+            iterations=trace_iters,
+            total_iterations=len(trace_iters),
+            done=done,
+            final_answer=final_answer,
+            total_controller_input_tokens=total_in,
+            total_controller_output_tokens=total_out,
+        )
+
+    def _run_react_agent(self, agent_edge: GraphEdge, agent_input: str) -> str:
+        """Run an agent subgraph in isolation and return its text output."""
+        # Build local dependency map for this subgraph
+        local_deps: dict[str, set[str]] = {}
+
+        def collect(edge: GraphEdge) -> None:
+            nid = edge.node
+            if nid not in local_deps:
+                local_deps[nid] = set()
+            for child in (edge.children or []):
+                collect(child)
+                local_deps[child.node].add(nid)
+            for fi in (edge.fan_in or []):
+                collect(fi)
+                local_deps[nid].add(fi.node)
+
+        collect(agent_edge)
+        levels = self._topological_levels(local_deps)
+
+        # Swap global state for isolated execution
+        saved_mp = self.message_passing
+        saved_out = self.outputs
+        self.message_passing = [agent_input] if agent_input else []
+        initial_mp_len = len(self.message_passing)
+        self.outputs = CompiledOutput()
+
+        try:
+            for level in levels:
+                for nid in sorted(level):  # sequential — no concurrency in react agents
+                    self._run_node(self.nodes[nid])
+
+            # Result priority: new message_passing entries > last node response
+            if len(self.message_passing) > initial_mp_len:
+                result = "\n\n".join(str(m) for m in self.message_passing[initial_mp_len:])
+            elif self.outputs.nodes:
+                last = self.outputs.nodes[-1]
+                if last.response.messages:
+                    result = "\n\n".join(last.response.messages)
+                elif last.response.json_output is not None:
+                    result = json.dumps(last.response.json_output, ensure_ascii=False)
+                else:
+                    result = agent_input
+            else:
+                result = agent_input
+        finally:
+            self.message_passing = saved_mp
+            self.outputs = saved_out
+
+        return result
+
+    def _maybe_compact(
+        self,
+        conversation: list[LLmMessage],
+        node: GraphNode,
+        threshold: float,
+        last_response: LLmResponse,
+    ) -> None:
+        """Compact the conversation buffer when it approaches the token budget."""
+        if last_response.input_size < node.max_tokens * threshold:
+            return
+
+        logger.info(
+            f"[ReAct] '{node.id}': compacting conversation "
+            f"({last_response.input_size} / {node.max_tokens} tokens)"
+        )
+
+        compact_prompt = (
+            self.react_compact_prompts[0]
+            if self.react_compact_prompts
+            else _DEFAULT_REACT_COMPACT_PROMPT
+        )
+
+        client = self.clients[node.model]
+        compact_response = client.complete(
+            system_prompt=compact_prompt.get("system"),
+            user_message=compact_prompt.get("user"),
+            chat_history=conversation,
+            temperature=0.1,
+            max_tokens=node.max_tokens,
+        )
+
+        if compact_response.messages:
+            compacted = "\n".join(compact_response.messages)
+            conversation.clear()
+            conversation.append(
+                LLmMessage(role="user", content=f"[compacted state]\n{compacted}")
+            )
+            logger.info(f"[ReAct] '{node.id}': conversation compacted")
+
+    # -------------------------------------------------------------------------
+    # Output helpers — react trace
+    # -------------------------------------------------------------------------
+
+    def get_react_trace(self, controller_id: str) -> ReactTrace | None:
+        """Return the ReAct execution trace for a controller node, or None."""
+        return self._react_trace.get(controller_id)
 
     def _execute_tool_call(self, name: str, parameters: dict, node: GraphNode) -> str:
         """Route a tool call to either a static executor or an MCP server."""
@@ -723,7 +1102,7 @@ class Compiler:
 
     @staticmethod
     def _check_validation_gate(response: LLmResponse) -> bool:
-        if response.json_output is not None and "validation" in response.json_output:
+        if isinstance(response.json_output, dict) and "validation" in response.json_output:
             return bool(response.json_output["validation"])
         return True
 

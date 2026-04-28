@@ -4,6 +4,34 @@ All notable changes to KeGAL are documented here.
 
 ---
 
+## [0.1.2.8] - 2026-04-28
+
+### Added
+
+- **ReAct loop** (`compiler.py`, `graph.py`) — iterative Reason+Act execution pattern for controller nodes:
+  - **`NodeReact`** model (`graph.py`): `max_iterations` (default 10), `resume` (bool), `resume_threshold` (float 0.8). Set on `GraphNode.react` to mark a node as a ReAct controller.
+  - **`GraphNode.react_output`** — JSON schema for the controller's routing output. Reserved fields: `next_agent` (which agent to call), `done` (stop signal), `reasoning` (internal reasoning), `agent_input` (passed to agent), `final_answer` (result when done).
+  - **`GraphEdge.react`** — list of available agent subgraph edges on the controller's edge entry. Mutually exclusive with `children` (validated at parse time by Pydantic `model_validator`).
+  - **`Graph.react_compact_prompts`** — optional list of `GraphInputData` (same format as `prompts:`) for custom conversation compaction prompts. Index 0 overrides the built-in default compact prompt.
+  - **`Compiler._run_react_loop()`** — ReAct execution loop: calls the controller LLM, parses routing JSON, dispatches to the selected agent subgraph, injects the observation into the growing conversation buffer, and repeats until `done: true` or `max_iterations` is reached.
+  - **`Compiler._run_react_agent()`** — isolated agent subgraph execution: swaps out global `message_passing` and `outputs` state, runs the subgraph sequentially (no concurrency inside agents), restores state, and returns the agent's text result.
+  - **`Compiler._maybe_compact()`** — triggered when `resume: true` and `last_response.input_size ≥ max_tokens × resume_threshold`; calls the LLM with the compact prompt to replace the conversation buffer with a dense state record.
+  - **`Compiler.get_react_trace(controller_id)`** — returns a `ReactTrace` object with per-iteration detail: `agent_name`, `agent_output`, `reasoning`, `agent_input`, token counts.
+  - **`ReactTrace`** and **`ReactIteration`** Pydantic models — exported from `kegal`.
+  - **`Compiler._build_react_controller_map()`** — builds `{controller_id → edge}` at init time.
+  - **`Compiler._collect_react_agent_ids()`**, **`_collect_main_edge_ids()`**, **`_find_react_agent_edge()`** — react topology helpers.
+  - **`_build_dag()`** extended: react agent nodes are excluded from the main DAG; cycle detection and `ordered_ids` collection both skip react lists.
+  - **`compile()`** extended: Phase 3 runs ReAct controllers sequentially after regular nodes at the same level; concurrent controllers at the same level raise `ValueError`.
+  - **`_validate_indices()`** extended: detects double-execution (agent node also in main edges) and undefined agent nodes (react agent not in `nodes:`).
+  - **`test/test_react.py`** — 32 tests (27 unit, 5 integration): schema validation, DAG exclusion, validate-indices errors, concurrent-controller detection, `_run_react_agent` isolation, `_run_react_loop` with mocked LLM (done signal, max-iterations, unknown agent, trace content, token totals), integration tests against Ollama.
+  - **`test/graphs/react_graph.yml`** — reference YAML: controller dispatches to `math_agent` and `knowledge_agent` for a two-part question.
+
+### Fixed
+
+- **`_check_validation_gate()`** — guarded `"validation" in response.json_output` with `isinstance(response.json_output, dict)` to prevent `TypeError` when an agent LLM returns a non-dict JSON value (e.g. a plain integer).
+
+---
+
 ## [0.1.2.7] - 2026-04-27
 
 ### Added

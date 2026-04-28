@@ -294,7 +294,9 @@ entry is needed.
 | `blackboard`        | `NodeBlackboard` \| `None`   | Yes      | Blackboard read/write participation. See §5 `NodeBlackboard`. |
 | `chat_history`      | `str` \| `None`              | Yes      | Reference to a chat history key (e.g. `"global"`). |
 | `prompt`            | `NodePrompt` \| `None`       | Yes      | Prompt configuration. |
-| `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output. |
+| `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output (guard nodes, data extraction). |
+| `react_output`      | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the routing output of a ReAct controller. Reserved fields: `next_agent` (str), `done` (bool), `reasoning` (str), `agent_input` (str), `final_answer` (str). |
+| `react`             | `NodeReact` \| `None`        | Yes      | ReAct loop config. When set, the node acts as a controller that iteratively dispatches to agents. See §7 `NodeReact`. |
 | `images`            | `list[int]` \| `None`        | Yes      | Indices of images to be provided to the node. |
 | `documents`         | `list[int]` \| `None`        | Yes      | Indices of documents to be provided to the node. |
 | `tools`             | `list[str]` \| `None`        | Yes      | Names of tools (matching the `name` field in the top-level `tools` list) available to this node. |
@@ -446,22 +448,47 @@ In this example, if the LLM determines the message is inappropriate, it returns 
 
 ---
 
-## 7. `GraphEdge`
+## 7. `NodeReact`
+
+Configuration block for a **ReAct controller** node. Placed inside `GraphNode.react`.
+
+| Field               | Type    | Optional | Default | Description |
+|---------------------|---------|----------|---------|-------------|
+| `max_iterations`    | `int`   | Yes      | `10`    | Maximum number of agent dispatches before the loop is force-stopped. |
+| `resume`            | `bool`  | Yes      | `false` | When `true`, automatically compacts the conversation buffer when it approaches `max_tokens`. |
+| `resume_threshold`  | `float` | Yes      | `0.8`   | Fraction of `max_tokens` at which compaction is triggered (only relevant when `resume: true`). |
+
+### YAML Example
+
+```yaml
+react:
+  max_iterations: 8
+  resume: true
+  resume_threshold: 0.75
+```
+
+---
+
+## 8. `GraphEdge`
 
 | Field      | Type                       | Optional | Description |
 |------------|----------------------------|----------|-------------|
 | `node`     | `str`                      | No       | Unique identifier of the node this edge entry describes. |
 | `children` | `list[GraphEdge]` \| `None`| Yes      | **Fan-out**: nodes to launch in parallel when this node completes. Each entry is itself a `GraphEdge`, allowing recursive sub-structure at any depth. |
 | `fan_in`   | `list[GraphEdge]` \| `None`| Yes      | **Aggregation**: nodes this node waits for before starting. This node will not execute until every node listed here has completed. |
+| `react`    | `list[GraphEdge]` \| `None`| Yes      | **ReAct agent list**: nodes available to the controller for iterative dispatch. Each entry is a `GraphEdge` (with optional `children`/`fan_in` for multi-step agent subgraphs). Mutually exclusive with `children`. |
+
+> **Mutual exclusivity**: `react` and `children` cannot both be set on the same edge entry. A `ValidationError` is raised at parse time if both are present.
 
 ### Dependency semantics
 
 **`edges` describe execution order only** — which node must complete before another can start. Data exchange between nodes is controlled independently by `message_passing` (`input`/`output`) on the nodes themselves.
 
-**Two dependency patterns:**
+**Three dependency patterns:**
 
 - `children` (fan-out): node A completes → children B, C, D start in parallel.
 - `fan_in` (aggregation): node E starts only when all nodes listed in its `fan_in` have completed.
+- `react` (ReAct dispatch): controller C iteratively calls agents from its `react` list until it signals `done: true`.
 
 **Guard nodes** (nodes whose `structured_output` contains a `validation` boolean field) automatically precede all other nodes regardless of edge declarations.
 
@@ -544,6 +571,32 @@ edges:
 
 > **Note**: `children` always means fan-out (B launches X and Y after B completes). E depends only on B, not on X or Y. If E must also wait for X and Y, declare them explicitly in `fan_in`.
 
+#### ReAct controller with two agents
+
+```yaml
+edges:
+  - node: "controller"
+    react:
+      - node: "math_agent"
+      - node: "knowledge_agent"
+```
+
+The `controller` node runs the ReAct loop; `math_agent` and `knowledge_agent` are **excluded from the main DAG** and only run when the controller dispatches to them.
+
+#### ReAct agent with internal fan-out
+
+```yaml
+edges:
+  - node: "controller"
+    react:
+      - node: "research_agent"
+        children:
+          - node: "web_search"
+          - node: "db_lookup"
+```
+
+Agent subgraphs can use `children` and `fan_in` internally to structure their own execution.
+
 ### JSON Example
 
 ```json
@@ -558,22 +611,23 @@ edges:
 
 ---
 
-## 8. `Graph`
+## 9. `Graph`
 
-| Field              | Type                                   | Optional | Description |
-|--------------------|-----------------------------------------|----------|-------------|
-| `models`           | `list[GraphModel]`                      | No       | List of LLM configurations. |
-| `images`           | `list[GraphInputData]` \| `None`        | Yes      | Image sources used in the graph. |
-| `documents`        | `list[GraphInputData]` \| `None`        | Yes      | Document sources used in the graph. |
-| `tools`            | `list[LLMTool]` \| `None`               | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |
-| `mcp_servers`      | `list[GraphMcpServer]` \| `None`        | Yes      | MCP server configurations. Each server is referenced by its `id` in `GraphNode.mcp_servers`. |
-| `prompts`          | `list[GraphInputData]`                  | No       | Prompt templates. |
-| `chat_history`     | `dict[str, list[dict[str, str]]]` \| `None` | Yes   | Historical messages keyed by scope. |
-| `user_message`     | `str` \| `None`                         | Yes      | Current user prompt. |
-| `retrieved_chunks` | `str` \| `None`                         | Yes      | Additional retrieved content (e.g., document snippets). |
-| `blackboard`       | `str` \| `None`                         | Yes      | Path to a markdown file or an inline markdown string used as the shared blackboard buffer. See §5 `NodeBlackboard`. |
-| `nodes`            | `list[GraphNode]`                       | No       | All nodes in the graph. |
-| `edges`            | `list[GraphEdge]`                       | No       | Graph topology. |
+| Field                   | Type                                   | Optional | Description |
+|-------------------------|----------------------------------------|----------|-------------|
+| `models`                | `list[GraphModel]`                     | No       | List of LLM configurations. |
+| `images`                | `list[GraphInputData]` \| `None`       | Yes      | Image sources used in the graph. |
+| `documents`             | `list[GraphInputData]` \| `None`       | Yes      | Document sources used in the graph. |
+| `tools`                 | `list[LLMTool]` \| `None`              | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |
+| `mcp_servers`           | `list[GraphMcpServer]` \| `None`       | Yes      | MCP server configurations. Each server is referenced by its `id` in `GraphNode.mcp_servers`. |
+| `prompts`               | `list[GraphInputData]`                 | No       | Prompt templates (indexed by `NodePrompt.template`). |
+| `react_compact_prompts` | `list[GraphInputData]` \| `None`       | Yes      | Compact prompts for ReAct conversation compaction. Accepts `uri` or `template` like regular `prompts`. Index 0 replaces the built-in default compact prompt. |
+| `chat_history`          | `dict[str, list[dict[str, str]]]` \| `None` | Yes | Historical messages keyed by scope. |
+| `user_message`          | `str` \| `None`                        | Yes      | Current user prompt. |
+| `retrieved_chunks`      | `str` \| `None`                        | Yes      | Additional retrieved content (e.g., document snippets). |
+| `blackboard`            | `str` \| `None`                        | Yes      | Path to a markdown file or an inline markdown string used as the shared blackboard buffer. See §5 `NodeBlackboard`. |
+| `nodes`                 | `list[GraphNode]`                      | No       | All nodes in the graph. |
+| `edges`                 | `list[GraphEdge]`                      | No       | Graph topology. |
 
 
 
@@ -705,7 +759,7 @@ edges:
 
 ---
 
-## 9. `LLMTool` (from `kegal.llm.llm_model`)
+## 10. `LLMTool` (from `kegal.llm.llm_model`)
 
 | Field        | Type                                   | Optional | Description |
 |--------------|-----------------------------------------|----------|-------------|
@@ -718,7 +772,7 @@ edges:
 > **Tip**: Use this model when you need to pass structured function‑call capabilities to the LLM.
 
 
-## 10. `LLMStructuredSchema` (from `kegal.llm.llm_model`)
+## 11. `LLMStructuredSchema` (from `kegal.llm.llm_model`)
 
 | Field         | Type                       | Optional | Description |
 |---------------|----------------------------|----------|-------------|

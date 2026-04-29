@@ -45,6 +45,7 @@ graph TD
 | `model`          | `str`          | No       | Full model name or ARN (e.g. `"arn:aws:bedrock:...:claude-sonnet-4-5-20250929-v1:0"`). |
 | `api_key`        | `str` \| `None`| Yes      | API key if required. |
 | `host`           | `str` \| `None`| Yes      | Custom host endpoint. |
+| `context_window` | `int` \| `None`| Yes      | Token context window of the model (e.g. `32768`). When set, used as the compaction threshold in the ReAct `resume` feature instead of `max_tokens`, and shown as a context-utilization percentage in markdown output. |
 | `aws_region_name`| `str` \| `None`| Yes      | AWS region when using Bedrock. |
 | `aws_access_key` | `str` \| `None`| Yes      | AWS access key. |
 | `aws_secret_key` | `str` \| `None`| Yes      | AWS secret key. |
@@ -60,11 +61,10 @@ Provided Models
 ### YAML Example
 
 ```yaml
-llm: ""
-model: ""
-aws_region_name: ""
-aws_access_key: ""
-aws_secret_key: ""
+llm: "ollama"
+model: "qwen2.5:7b"
+host: "http://localhost:11434"
+context_window: 32768   # optional — enables accurate resume threshold and utilization output
 ```
 
 
@@ -72,11 +72,10 @@ aws_secret_key: ""
 
 ```json
 {
-  "llm": "",
-  "model": "",
-  "aws_region_name": "",
-  "aws_access_key": "",
-  "aws_secret_key": ""
+  "llm": "ollama",
+  "model": "qwen2.5:7b",
+  "host": "http://localhost:11434",
+  "context_window": 32768
 }
 ```
 
@@ -327,7 +326,6 @@ entry is needed.
 | `show`              | `bool`                       | No       | Whether the node is visible in visualisations. |
 | `message_passing`   | `NodeMessagePassing`         | Yes (default `{input: false, output: false}`) | Configuration of input/output passing. |
 | `blackboard`        | `NodeBlackboard` \| `None`   | Yes      | Blackboard read/write participation. See §5 `NodeBlackboard`. |
-| `chat_history`      | `str` \| `None`              | Yes      | Reference to a chat history key (e.g. `"global"`). |
 | `prompt`            | `NodePrompt` \| `None`       | Yes      | Prompt configuration. |
 | `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output (guard nodes, data extraction). |
 | `react_output`      | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the routing output of a ReAct controller. Reserved fields: `next_agent` (str), `done` (bool), `reasoning` (str), `agent_input` (str), `final_answer` (str). |
@@ -490,8 +488,8 @@ Configuration block for a **ReAct controller** node. Placed inside `GraphNode.re
 | Field               | Type    | Optional | Default | Description |
 |---------------------|---------|----------|---------|-------------|
 | `max_iterations`    | `int`   | Yes      | `10`    | Maximum number of agent dispatches before the loop is force-stopped. |
-| `resume`            | `bool`  | Yes      | `false` | When `true`, automatically compacts the conversation buffer when it approaches `max_tokens`. |
-| `resume_threshold`  | `float` | Yes      | `0.8`   | Fraction of `max_tokens` at which compaction is triggered (only relevant when `resume: true`). |
+| `resume`            | `bool`  | Yes      | `false` | When `true`, automatically compacts the conversation buffer when it approaches the context limit. |
+| `resume_threshold`  | `float` | Yes      | `0.8`   | Fraction of the model's `context_window` (or `max_tokens` if `context_window` is not set) at which compaction is triggered. Only relevant when `resume: true`. |
 
 ### ReAct execution loop
 
@@ -571,9 +569,9 @@ The controller and agent nodes have different execution paths and therefore supp
 | `node`     | `str`                      | No       | Unique identifier of the node this edge entry describes. |
 | `children` | `list[GraphEdge]` \| `None`| Yes      | **Fan-out**: nodes to launch in parallel when this node completes. Each entry is itself a `GraphEdge`, allowing recursive sub-structure at any depth. |
 | `fan_in`   | `list[GraphEdge]` \| `None`| Yes      | **Aggregation**: nodes this node waits for before starting. This node will not execute until every node listed here has completed. |
-| `react`    | `list[GraphEdge]` \| `None`| Yes      | **ReAct agent list**: nodes available to the controller for iterative dispatch. Each entry is a `GraphEdge` (with optional `children`/`fan_in` for multi-step agent subgraphs). Mutually exclusive with `children`. |
+| `react`    | `list[GraphEdge]` \| `None`| Yes      | **ReAct agent list**: nodes available to the controller for iterative dispatch. Each entry is a `GraphEdge` (with optional `children`/`fan_in` for multi-step agent subgraphs). Mutually exclusive with `children` and `fan_in`. |
 
-> **Mutual exclusivity**: `react` and `children` cannot both be set on the same edge entry. A `ValidationError` is raised at parse time if both are present.
+> **Mutual exclusivity**: `react` cannot be combined with `children` or `fan_in` on the same edge entry. `react` + `children` raises a `ValidationError` at parse time; `react` + `fan_in` raises a `ValueError` at `Compiler` construction. Use `message_passing` to order the controller relative to other nodes — the inference stage handles scheduling automatically.
 
 ### Dependency semantics
 

@@ -4,6 +4,35 @@ All notable changes to KeGAL are documented here.
 
 ---
 
+## [0.1.2.9] - 2026-04-29
+
+### Added
+
+- **`GraphModel.context_window`** (`graph.py`) — optional `int` field declaring the model's token context window. When set, it is used by `_maybe_compact` as the compaction threshold denominator (previously `max_tokens` was used, which is the *output* budget — an incorrect proxy). Also stored on the compiler as `Compiler.context_windows: list[int | None]`, parallel to `clients`.
+- **`CompiledNodeOutput.context_window`** — the context window of the model used for the node is now recorded in the output object and included in the JSON export.
+- **Context utilization in markdown output** — `save_outputs_as_markdown()` now prints `Context utilization: X/Y (Z%)` beneath each node's token counts when `context_window` is set.
+- **Controller → downstream `message_passing`** — a ReAct controller with `message_passing.output: true` now actually writes its `final_answer` to the shared message pipe after the loop completes (previously `_check_message_passing` was never called for controllers). A downstream node with `message_passing.input: true` declared after the controller in the edges list receives the final answer automatically — no `fan_in` required; message-passing inference handles ordering exactly as for any two consecutive nodes.
+- **Warning for unused controller output** — `_build_react_controller_map()` emits a `WARNING` at init time when a controller has `message_passing.output: true` but no downstream main-DAG node has `message_passing.input: true`.
+- **Validation: `react` and `fan_in` mutually exclusive** — `_validate_indices()` now raises `ValueError` if any edge carries both `react` and `fan_in`. These mechanisms are mutually exclusive; use `message_passing` to order dependencies around a controller.
+- **`_collect_ordered_main_ids()`** (`compiler.py`) — new helper that returns main-DAG node IDs in DFS pre-order, the same traversal used by `_build_dag` Stage 2. Used by the controller message-passing check to determine downstream consumers.
+- **Tutorial 10 extended** — new sub-section "Piping the controller's result to a downstream node" with a complete YAML + Python example showing controller → formatter via `message_passing`.
+
+### Fixed
+
+- **`compose_node_prompt()`** (`compose.py`) — `message_passing` was serialized as a Python list repr (`"['text']"`) via `str(list)`. Now joined with `"\n\n"` so downstream nodes receive clean text.
+- **`save_outputs_as_markdown()` — messages missing in default mode** — plain text node responses (`response.messages`) were never written in the default (non-`only_content`) branch. Only `json_output`, `tools`, and `tool_results` were emitted; for regular text-output nodes the markdown contained only token counts.
+- **`save_outputs_as_markdown()` — wrong separator position in `only_content` mode** — the `---` separator was appended *after* the current node's content (for `i > 0`), placing it between the wrong pair of nodes. Now inserted *before* the current node for all nodes after the first.
+- **`compile()` does not reset `_react_trace`** — calling `compile()` twice on the same instance returned stale trace data from the first run for controllers that did not execute in the second run. `self._react_trace = {}` is now reset at the start of each `compile()` call alongside `outputs` and `message_passing`.
+- **`final_answer` set from `reasoning` on every iteration** — `final_answer = routing.get("final_answer") or reasoning` ran unconditionally each iteration, causing intermediate chain-of-thought reasoning to silently overwrite the actual final answer when `done` was not yet set. The assignment is now guarded by `if done:`.
+- **`_check_message_passing()` — redundant double condition** — the second `if node.message_passing.output:` after the early-return guard was always `True` at that point. Removed.
+- **`_check_react_edge_mixing()` — unreachable `children` branch** — `GraphEdge._check_mutual_exclusivity` already raises `ValidationError` at parse time when both `react` and `children` are set, making the compiler-level check for `children` unreachable. The dead branch was removed; only the `fan_in` check (not covered by the Pydantic validator) remains.
+
+### Removed
+
+- **`GraphNode.chat_history`** (`graph.py`) — dead field never read anywhere in the compiler. Chat history is configured exclusively via `NodePrompt.chat_history`. Removed to avoid user confusion.
+
+---
+
 ## [0.1.2.8] - 2026-04-28
 
 ### Added

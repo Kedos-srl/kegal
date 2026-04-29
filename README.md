@@ -101,6 +101,9 @@ for node in outputs.nodes:
     if node.response.json_output:
         print(node.response.json_output)     # structured JSON output
     print(node.compiled_time)                # seconds this node took
+    if node.context_window:                  # context utilization (when context_window is set)
+        pct = node.response.input_size / node.context_window * 100
+        print(f"context: {node.response.input_size}/{node.context_window} ({pct:.1f}%)")
 
 print(f"total time : {outputs.compile_time:.2f}s")
 print(f"input tokens : {outputs.input_size}")
@@ -147,12 +150,14 @@ pipelines, guard nodes, RAG, and multi-provider graphs — see [docs/tutorials.m
 - **Graph-based workflows** – define multi-node agent pipelines in YAML or JSON
 - **Fan-out / fan-in edges** – `children` launches parallel sub-tasks; `fan_in` aggregates multiple branches before continuing; both are recursive and composable
 - **Blackboard pipeline** – shared markdown buffer (Blackboard pattern) written and read across nodes; Cat-1 writers seed it, Cat-2 enrichers extend it in parallel, Cat-3 readers consume the final result. Execution order is inferred automatically from `blackboard.read/write` flags even with flat edge declarations.
+- **ReAct loop** – controller node iteratively reasons and dispatches to specialist agent nodes until it signals `done: true`; supports automatic conversation compaction (`resume: true`) for long loops; controller output flows to downstream nodes via `message_passing` like any regular node
 - **Structured output** – enforce JSON schemas on LLM responses
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
-- **Message passing** – forward node outputs to downstream nodes
+- **Message passing** – forward node outputs to downstream nodes; ordering inferred automatically from flags and declaration order — no explicit edge required for linear pipelines
 - **MCP support** – connect nodes to external tool servers via the Model Context Protocol (stdio and SSE transports)
 - **Python tool executors** – attach plain Python callables as tools without running a separate process
 - **Multi-provider support** – use different LLMs in the same graph
+- **Context window tracking** – declare `context_window` on a model to get accurate `resume` compaction thresholds and per-node context-utilization percentages in markdown output
 - **Chat history** – maintain conversational context across nodes
 - **RAG support** – inject retrieved document chunks into prompts
 - **Prompt validation** – at `Compiler()` construction, placeholder tokens in every prompt template are checked against the node config; misconfigurations are reported as warnings before the first `compile()` call

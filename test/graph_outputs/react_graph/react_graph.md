@@ -1,7 +1,7 @@
 ## Graph Response
  * Token Input size: 162
- * Token Output size: 120
- * Compile time: 1.1580328941345215
+ * Token Output size: 121
+ * Compile time: 1.2326478958129883
 ### Node:  controller
 ```json
  {
@@ -12,5 +12,5 @@
 ```
 
 Token Input size:  162 
-  Token Output size:  120 
+  Token Output size:  121 
  

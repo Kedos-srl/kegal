@@ -1,29 +1,41 @@
 ## Graph Response
  * Token Input size: 607
- * Token Output size: 239
- * Compile time: 1.9967477321624756
+ * Token Output size: 495
+ * Compile time: 3.346543550491333
 ### Node:  language_check
 ```json
  {
     "validation": true,
-    "action": "APPROVED (with minor suggestion): The question is intellectually sound and relevant to business discussions, particularly in sectors like sustainability, corporate responsibility, or energy transition strategies. It demonstrates thoughtful engagement with a forward-thinking topic, which aligns well with professional and corporate environments where stakeholders may seek insights into long-term economic implications for innovation, cost savings, or regulatory compliance. For maximum impact, consider framing it as a discussion starter or research inquiry (e.g., \u2018How might renewable energy adoption reshape our industry\u2019s economic landscape over the next decade?\u2019) to encourage deeper engagement with colleagues or clients."
+    "action": "Approved with minor contextual note: **Professional and suitable for business communication.** Here\u2019s why it\u2019s appropriate and how to refine it further if needed:"
 } 
 ```
 
 Token Input size:  141 
-  Token Output size:  135 
+  Token Output size:  65 
  ### Node:  test_rag_node
 ```json
  {
     "validation": true,
     "cost_metrics": {
-        "analysis": "The retrieved data highlights significant long-term economic benefits of transitioning to renewable energy, particularly solar and wind, which now offer the most cost-effective electricity generation options globally."
+        "job_creation": "The transition to renewables has already generated **$1.8 trillion in global investments** while creating **13.7 million jobs** across the sector. This demonstrates substantial job growth and economic dynamism.",
+        "job_creation_details": {
+            "industries": "Industries like solar panel manufacturing, wind turbine assembly, and grid management have seen explosive hiring. In the EU alone, renewable energy jobs grew by **~30% annually** between 2015\u20132022.",
+            "local_jobs": "Small-scale solar/wind installations in developing nations have also created localized employment opportunities in construction, maintenance, and installation."
+        },
+        "cost_reduction": {
+            "10-year_period": "Countries with high renewable adoption saw **15% lower energy costs** over a 10-year period, reducing total expenses despite fluctuating commodity prices.",
+            "energy_independence": "Renewables contribute to **$42 billion in annual fuel cost savings** by reducing reliance on imported fossil fuels (per IPCC estimates)."
+        },
+        "market_competitiveness": {
+            "lcoe_reduction": "Utility-scale solar now has a **Levelized Cost of Energy (LCOE) of $0.048/kWh**\u2014lower than fossil fuels in most markets (e.g., gas averages $0.06/kWh). This makes solar the cheapest source of new electricity generation globally."
+        },
+        "price_volatility": "Renewables reduce energy cost volatility by eliminating price spikes tied to crude oil or coal prices."
     },
-    "growth_rate": 0,
-    "recommendation": "Here\u2019s a comprehensive analysis of the long-term economic impacts, incorporating our previous discussion and the new retrieved insights:"
+    "growth_rate": 10,
+    "recommendation": "For long-term economic benefit, policymakers should accelerate renewable adoption through incentives (e.g., feed-in tariffs), R&D subsidies, and infrastructure investments. This will maximize job creation, cost savings, and energy independence."
 } 
 ```
 
 Token Input size:  466 
-  Token Output size:  104 
+  Token Output size:  430 
  

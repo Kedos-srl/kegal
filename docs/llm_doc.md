@@ -1,11 +1,10 @@
-# Documentation – `kegal.llm` Framework
+# Documentation – KeGAL Internal Modules
 
-The **`kegal.llm`** package implements a small, extensible LLM abstraction layer that powers the `Graph` system.  
-Below is a high‑level overview of each module in the package, the public API they expose, and concrete YAML/JSON examples that can be used as a starting point for your own graph definitions.
+This document covers the internal modules that power the KeGAL framework: the LLM abstraction layer (`kegal.llm.*`), the graph compiler (`kegal.compiler`), the prompt composer (`kegal.compose`), the utilities (`kegal.utils`), and the MCP handler (`kegal.mcp_handler`).
 
-> **Important** – Any secrets, AWS keys, or personal access tokens that appear in the original example files have been replaced with an empty string (`""`) for safety.
+Most users never interact with these modules directly — the `Compiler` class is the public entry point. This reference is useful when extending the framework, writing custom LLM backends, or debugging graph execution.
 
-> The documentation follows the same style as the existing `graph_doc.md`.  Wherever a data model is used, we provide a table that lists fields, types, optionality, and a short description.  YAML and JSON snippets are also included for quick reference.
+> **Important** – Any secrets, AWS keys, or personal access tokens that appear in the example files have been replaced with an empty string (`""`) for safety.
 
 ## Table of Contents
 
@@ -48,20 +47,26 @@ This module defines the core **abstract base class** (`LlmModel`) and the Pydant
 
 ### `LlmModel` (Abstract Base Class)
 
+**Public methods**
+
 | Method | Purpose |
 |--------|---------|
-| `complete(...)` | Main entry point for generating a response from an LLM. |
-| `_chat_message(...)` | Convert a plain string into the LLM‑specific chat message format. |
-| `_chat_history(...)` | Convert a history of messages into the LLM‑specific format. |
-| `_images_data(...)` | Convert images into the LLM‑specific data payload. |
-| `_pdfs_data(...)` | Convert PDFs into the LLM‑specific data payload. |
-| `_tools_data(...)` | Convert a list of `LLMTool` objects into the LLM‑specific function‑call payload. |
-| `_structured_output_data(...)` | Convert a `LLMStructuredOutput` into the LLM‑specific schema. |
-| `extract_format_from_media_type(media_type: str)` | Normalises a MIME type (e.g. `image/jpg` → `jpeg`). |
-| `extract_images_from_pdf(pdf: LLMPdfData)` | Extracts embedded images from a PDF. |
-| `_is_json(...)` | Helper to validate JSON strings. |
+| `complete(...)` | Main entry point for generating a response from an LLM. Returns an `LLMResponse` with the text output, token counts, and any tool calls. |
+| `extract_format_from_media_type(media_type: str)` | Normalises a MIME type string (e.g. `"image/jpg"` → `"jpeg"`). |
+| `extract_images_from_pdf(pdf: LLMPdfData)` | Extracts embedded images from a PDF and returns them as `LLMImageData` objects. |
 
-> **Note** – Concrete LLM classes (Anthropic, Bedrock, OpenAI, Ollama) implement the abstract methods.
+**Abstract methods** (implemented by each concrete subclass — not called directly)
+
+| Method | Purpose |
+|--------|---------|
+| `_chat_message(...)` | Convert a plain string into the provider-specific chat message format. |
+| `_chat_history(...)` | Convert a list of `LLMMessage` objects into the provider-specific history format. |
+| `_images_data(...)` | Convert `LLMImageData` objects into the provider-specific image payload. |
+| `_pdfs_data(...)` | Convert `LLMPdfData` objects into the provider-specific document payload. |
+| `_tools_data(...)` | Convert `LLMTool` objects into the provider-specific function-call schema. |
+| `_structured_output_data(...)` | Convert an `LLMStructuredOutput` into the provider-specific schema constraint. |
+
+> **Note** – You never call these methods directly. `complete()` assembles the full provider request internally. To add a new LLM backend, subclass `LlmModel` and implement the abstract methods above.
 
 ### Pydantic Models
 
@@ -89,14 +94,18 @@ This module defines the core **abstract base class** (`LlmModel`) and the Pydant
 
 #### `LLMStructuredSchema`
 
+The most commonly used fields:
+
 | Field | Type | Optional | Description |
 |-------|------|----------|-------------|
-| `type` | `str` | No | JSON schema type. |
-| `enum` | `list[Any]` | Yes | Allowed values (if any). |
-| `description` | `str` | Yes | Human readable description. |
-| `properties` | `dict[str, Any]` | Yes | For `"object"` types: nested schema. |
-| `items` | `dict[str, Any]` | Yes | For `"array"` types: element schema. |
-| `required` | `list[str]` | Yes | Required properties for objects. |
+| `type` | `str` | Yes | JSON schema type (`"string"`, `"boolean"`, `"number"`, `"integer"`, `"object"`, `"array"`). |
+| `enum` | `list[Any]` | Yes | Allowed literal values. |
+| `description` | `str` | Yes | Human-readable description shown to the LLM. |
+| `properties` | `dict[str, Any]` | Yes | For `"object"` types: nested field schemas. |
+| `items` | `dict[str, Any]` | Yes | For `"array"` types: schema for each element. |
+| `required` | `list[str]` | Yes | Required property names for objects. |
+
+> The full schema supports all JSON Schema Draft 2020-12 keywords (min/max, pattern, allOf, anyOf, etc.). See [graph_doc.md §11 `LLMStructuredSchema`](graph_doc.md#11-llmstructuredschema-from-kegalllmllm_model) for the complete field reference.
 
 #### `LLMStructuredOutput`
 
@@ -115,7 +124,7 @@ This module defines the core **abstract base class** (`LlmModel`) and the Pydant
 
 ## 3. `kegal.llm.llm_handler`
 
-`LLMHandler` is the factory and dispatcher that selects the appropriate concrete LLM implementation based on the configuration in a `Graph` node.
+`LLMHandler` is the factory that selects and instantiates the correct concrete LLM backend based on the `llm` field in a `GraphModel` entry. The `Compiler` calls it once per model during initialisation; users never need to call it directly.
 
 ```python
 class LLMHandler:
@@ -123,32 +132,38 @@ class LLMHandler:
     def get_llm_instance(self) -> LlmModel
 ```
 
-
 | Argument | Type | Description |
 |----------|------|-------------|
 | `model_config` | `GraphModel` | Configuration for a single LLM (model name, provider, credentials). |
 
-`LLMHandler.get_llm_instance()` returns an instance of a subclass of `LlmModel` that can be used to call `complete(...)`.
+`get_llm_instance()` reads `model_config.llm` and returns the matching subclass:
+
+| `GraphModel.llm` value | Concrete class | Provider |
+|---|---|---|
+| `"anthropic"` | `LlmAnthropic` | Anthropic API (direct) |
+| `"anthropic_aws"` | `LlmAnthropic` | Anthropic via AWS Bedrock inference profile |
+| `"bedrock"` | `LlmBedrock` | Amazon Bedrock (native Bedrock models, e.g. Nova) |
+| `"ollama"` | `LlmOllama` | Ollama local server |
+| `"openai"` | `LlmOpenai` | OpenAI API |
 
 ---
 
 ## 4. `kegal.llm.llm_anthropic`
 
-Concrete implementation for **Anthropic** (via the official client or the Anthropic API wrapper).  
-The class inherits from `LlmModel` and implements all abstract methods.
+Concrete implementation for **Anthropic** (direct API via `llm: "anthropic"`, or Bedrock inference profile via `llm: "anthropic_aws"`). Instantiated automatically by `LLMHandler` — not created directly.
 
-Key attributes:
+Key attributes set from `GraphModel`:
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `model` | `str` | Full model identifier (e.g., `"claude-3-5-sonnet-20240620"`). |
-| `api_key` | `str` | Anthropic API key (empty string in public docs). |
+| `model` | `str` | Full model identifier (e.g., `"claude-sonnet-4-6"`) or Bedrock ARN. |
+| `api_key` | `str` | Anthropic API key. Not required when using `anthropic_aws`. |
 
-Typical usage:
+Advanced — calling `complete()` directly (the compiler handles this normally):
 
 ```python
-anthropic = LLMHandler(model_config).get_llm_instance()
-response = anthropic.complete(
+instance = LLMHandler(model_config).get_llm_instance()
+response = instance.complete(
     system_prompt="You are a helpful assistant.",
     user_message="Tell me about renewable energy.",
     chat_history=[],
@@ -166,44 +181,42 @@ response = anthropic.complete(
 
 ## 5. `kegal.llm.llm_bedrock`
 
-Concrete implementation for **Amazon Bedrock**.  
-It handles the conversion of LLM data structures to the Bedrock API payload and vice‑versa.
+Concrete implementation for **Amazon Bedrock** native models (e.g. Amazon Nova) — use `llm: "bedrock"`. For Anthropic Claude via Bedrock, use `llm: "anthropic_aws"` instead. Instantiated automatically by `LLMHandler`.
 
-Key attributes:
+Key attributes set from `GraphModel`:
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `model` | `str` | Bedrock model ARN or short name. |
+| `model` | `str` | Bedrock model ARN or short name (e.g. `"amazon.nova-lite-v1:0"`). |
 | `aws_region_name` | `str` | AWS region (e.g., `"eu-west-1"`). |
-| `aws_access_key` | `str` | AWS access key ID (empty string in public docs). |
-| `aws_secret_key` | `str` | AWS secret access key (empty string in public docs). |
+| `aws_access_key` | `str` | AWS access key ID. |
+| `aws_secret_key` | `str` | AWS secret access key. |
 
 ---
 
 ## 6. `kegal.llm.llm_ollama`
 
-Concrete implementation for **Ollama** (local LLM host).  
-No external credentials are required; it communicates with the local HTTP API.
+Concrete implementation for **Ollama** (`llm: "ollama"`). Communicates with the local Ollama HTTP API — no external credentials required. Instantiated automatically by `LLMHandler`.
 
-Key attributes:
+Key attributes set from `GraphModel`:
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `model` | `str` | Local model name (e.g., `"llama3.2"`). |
+| `model` | `str` | Local model name (e.g., `"qwen2.5:7b"`). |
+| `host` | `str` | Ollama server URL (default `"http://localhost:11434"`). |
 
 ---
 
 ## 7. `kegal.llm.llm_openai`
 
-Concrete implementation for **OpenAI** (ChatGPT, GPT‑4, etc.).  
-Uses the official `openai` Python client.
+Concrete implementation for **OpenAI** (`llm: "openai"`). Uses the official `openai` Python client. Instantiated automatically by `LLMHandler`.
 
-Key attributes:
+Key attributes set from `GraphModel`:
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `model` | `str` | OpenAI model ID (e.g., `"gpt-4o-mini"`). |
-| `api_key` | `str` | OpenAI API key (empty string in public docs). |
+| `api_key` | `str` | OpenAI API key. |
 
 ---
 
@@ -229,20 +242,34 @@ outputs = compiler.get_outputs()
    - *Stage 1 (structural)*: the recursive edge tree is traversed; `children` creates fan-out dependencies (child waits for parent); `fan_in` creates aggregation dependencies (node waits for all listed nodes).
    - *Stage 2 (message passing)*: any node with `message_passing.output=true` becomes a dependency of all later nodes with `message_passing.input=true`, based on declaration order.
    - *Stage 3 (guard barrier)*: nodes whose `structured_output` contains a `validation` field automatically precede all other nodes.
-   - *Stage 4 (footprint)*: nodes are classified into Cat-1 (write-only), Cat-2 (read+write), Cat-3 (read-only) by their `footprint` flags. Cat-2 nodes depend on all prior Cat-1 nodes; Cat-3 nodes depend on all prior Cat-1 and Cat-2 nodes. This infers the correct execution order with flat edge declarations.
-4. **Topological scheduling** – `_topological_levels()` groups nodes into levels via [Kahn's algorithm](https://en.wikipedia.org/wiki/Topological_sorting) . Nodes in the same level have no dependency on each other. 
-5. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one. Failures from parallel nodes are collected and re-raised as a `RuntimeError` after all futures complete.
+   - *Stage 4 (blackboard)*: nodes are classified into Cat-1 (write-only), Cat-2 (read+write), Cat-3 (read-only) by their `blackboard` flags. Cat-2 nodes depend on all prior Cat-1 nodes; Cat-3 nodes depend on all prior Cat-1 and Cat-2 nodes. This infers the correct execution order with flat edge declarations.
+4. **Topological scheduling** – `_topological_levels()` groups nodes into levels via [Kahn's algorithm](https://en.wikipedia.org/wiki/Topological_sorting). Nodes in the same level have no dependency on each other.
+5. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one. ReAct controllers run last within the level, after all regular nodes complete. Failures from parallel nodes are collected and re-raised as a `RuntimeError` after all futures complete.
 6. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
-7. **Footprint update** – after each node with `footprint.write=true`, its response is appended to the shared buffer (thread-safe). If the footprint was loaded from a file, the file is written back immediately.
+7. **Blackboard update** – after each node with `blackboard.write=true`, its response is appended to the shared buffer (thread-safe). If the blackboard was loaded from a file, the file is written back immediately.
 
 > **`compile()` is safe to call multiple times.** Each invocation resets `outputs` and `message_passing` before execution — results from previous runs are not carried over.
 
 ### Output Models
 
-| Class | Description |
-|-------|-------------|
-| `CompiledNodeOutput` | Holds the response from a single node (`node_id`, `response`, `compiled_time`, `show`). |
-| `CompiledOutput` | Aggregated output of the entire graph (`nodes`, `input_size`, `output_size`, `compile_time`). |
+**`CompiledNodeOutput`** — result of a single node execution:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `node_id` | `str` | ID of the node. |
+| `response` | `LLMResponse` | LLM response object (`messages`, `json_output`, `input_size`, `output_size`). |
+| `compiled_time` | `float` | Wall-clock seconds this node took to execute. |
+| `show` | `bool` | Whether to include this node in the markdown report. |
+| `context_window` | `int \| None` | Token context window of the model used, if declared in `GraphModel.context_window`. |
+
+**`CompiledOutput`** — aggregated result of the full graph:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `nodes` | `list[CompiledNodeOutput]` | All executed nodes in execution order. |
+| `input_size` | `int` | Total input tokens consumed across all nodes. |
+| `output_size` | `int` | Total output tokens produced across all nodes. |
+| `compile_time` | `float` | Total wall-clock seconds for the full `compile()` call. |
 
 ### Serialisation
 
@@ -301,12 +328,11 @@ To extend the allowlist (e.g., to re-enable `http` in a trusted private network)
 
 ---
 
-# Example Configurations
+## Example Configurations
 
-Below are sanitized YAML/JSON snippets that illustrate how a `Graph` configuration can be written.  
-Replace the empty string values with your own credentials when you deploy.
+Below are sanitized YAML/JSON snippets that illustrate how a `Graph` configuration can be written. Replace the empty string values with your own credentials when you deploy.
 
-## 1. Graph with an Anthropic Bedrock LLM and two prompt templates
+### Graph with an Anthropic Bedrock LLM and two prompt templates
 
 **`rag_graph.yml`** (sanitized)
 

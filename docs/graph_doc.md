@@ -1,4 +1,4 @@
-#  Documentation – `Graph` Framework
+# Documentation – `Graph` Framework
 
 Below is a detailed description of every Pydantic model that constitutes the `Graph` class hierarchy.  
 For each model we list the fields, their types, optionality, and provide concrete YAML and JSON examples that represent a minimal valid instance of the model.
@@ -15,6 +15,7 @@ For each model we list the fields, their types, optionality, and provide concret
 - [4. `NodeMessagePassing`](#4-nodemessagepassing)
 - [5. `NodeBlackboard`](#5-nodeblackboard)
 - [6. `GraphNode`](#6-graphnode)
+  - [Reserved `react_output` Fields](#reserved-react_output-fields)
 - [7. `NodeReact`](#7-nodereact)
 - [8. `GraphEdge`](#8-graphedge)
 - [9. `Graph`](#9-graph)
@@ -102,13 +103,11 @@ context_window: 32768   # optional — enables accurate resume threshold and uti
 
 | Field     | Type              | Optional | Description |
 |-----------|-------------------|----------|-------------|
-| `uri`     | `str` \| `None`   | Yes      | Remote or local path to the file (PDF, image, etc.). |
-| `base64`  | `str` \| `None`   | Yes      | Base-64 encoded content. |
-| `template`| `dict[str, Any]` \| `None` | Yes | Optional template data for the node that consumes the input. |
+| `uri`     | `str` \| `None`   | Yes      | Remote or local path to a file (PDF, image, prompt template file, etc.). |
+| `base64`  | `str` \| `None`   | Yes      | Base-64 encoded binary content (alternative to `uri` for images and documents). |
+| `template`| `dict[str, Any]` \| `None` | Yes | Inline prompt template as a nested dict. Used in the `prompts` and `react_compact_prompts` lists as an alternative to loading a template from a `uri`. The structure is free-form; all keys are passed as-is to the prompt composer. |
 
-
-
-*Only one of `uri` or `base64` should be provided for a given instance.*
+*Provide at most one of `uri`, `base64`, or `template` per instance, depending on the context: `uri`/`base64` for images and documents; `uri` or `template` for prompt definitions.*
 
 ### YAML Example
 
@@ -136,7 +135,7 @@ uri: "https://example.com/documents/report.pdf"
 | `prompt_placeholders` | `dict[str, Any]` \| `None` | Yes      | Key/value map used to substitute placeholders in the prompt template. |
 | `user_message`      | `bool` \| `None`         | Yes      | Whether to include the user’s message. |
 | `retrieved_chunks`  | `bool` \| `None`         | Yes      | Whether to include retrieved document chunks. |
-| `chat_history`      | `str` \| `None`          | Yes      | Key into the top-level `chat_history` map; injects conversation history into this node’s LLM call. |
+| `chat_history`      | `str` \| `None`          | Yes      | Named key into the top-level `chat_history` dict. When set, the corresponding list of `{role, content}` message pairs is prepended to this node’s LLM call as prior conversation turns. |
 
 
 ### YAML Example
@@ -339,12 +338,12 @@ entry is needed.
 | `model`             | `int`                        | No       | Index of the model in the global `models` list. |
 | `temperature`       | `float`                      | No       | Sampling temperature for the LLM. |
 | `max_tokens`        | `int`                        | No       | Maximum token length for the LLM response. |
-| `show`              | `bool`                       | No       | Whether the node is visible in visualisations. |
+| `show`              | `bool`                       | No       | Display hint for `save_outputs_as_markdown()`. When `false`, the node is still executed and included in `get_outputs()`, but omitted from the markdown report. |
 | `message_passing`   | `NodeMessagePassing`         | Yes (default `{input: false, output: false}`) | Configuration of input/output passing. |
 | `blackboard`        | `NodeBlackboard` \| `None`   | Yes      | Blackboard read/write participation. See §5 `NodeBlackboard`. |
 | `prompt`            | `NodePrompt` \| `None`       | Yes      | Prompt configuration. |
 | `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output (guard nodes, data extraction). |
-| `react_output`      | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the routing output of a ReAct controller. Reserved fields: `next_agent` (str), `done` (bool), `reasoning` (str), `agent_input` (str), `final_answer` (str). |
+| `react_output`      | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the routing output of a ReAct controller. The LLM must return a response conforming to this schema on every iteration. The compiler reads five reserved fields from it — see [Reserved `react_output` Fields](#reserved-react_output-fields) below. |
 | `react`             | `NodeReact` \| `None`        | Yes      | ReAct loop config. When set, the node acts as a controller that iteratively dispatches to agents. See §7 `NodeReact`. |
 | `images`            | `list[int]` \| `None`        | Yes      | Indices of images to be provided to the node. |
 | `documents`         | `list[int]` \| `None`        | Yes      | Indices of documents to be provided to the node. |
@@ -353,6 +352,43 @@ entry is needed.
 
 > **Index validation**: `model` and `prompt.template` are validated at `Compiler` construction time. If either index is out of range, a `ValueError` listing all offending nodes is raised before the first `compile()` call.
 
+### Reserved `react_output` Fields
+
+When a node has a `react` block (i.e. it is a ReAct controller), the compiler reads the following fields from its structured output on every iteration. Declare them in `react_output.parameters` and include the mandatory ones in `react_output.required`.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `reasoning` | `str` | Recommended | The controller's chain-of-thought for this step. Logged in the ReAct trace for debugging but **not** sent back to the controller as an observation. |
+| `done` | `bool` | Yes | `true` signals the loop to stop. When `true`, `next_agent` and `agent_input` are ignored and `final_answer` is expected. |
+| `next_agent` | `str` | When `done` is `false` | ID of the agent node to dispatch this iteration. Must match a node declared in the edge's `react` list. |
+| `agent_input` | `str` | When `done` is `false` | Instruction or question to send to the chosen agent. If the agent node has `message_passing.input: true`, this value is injected into its prompt via `{message_passing}`. |
+| `final_answer` | `str` | When `done` is `true` | The controller's synthesized answer after all reasoning steps. Recorded in `CompiledNodeOutput`. If the controller has `message_passing.output: true`, this value is also pushed to the shared message pipe for downstream nodes. |
+
+#### Minimal `react_output` schema
+
+```yaml
+react_output:
+  description: "Routing decision for the ReAct controller"
+  parameters:
+    reasoning:
+      type: "string"
+      description: "Step-by-step thinking before deciding what to do next."
+    done:
+      type: "boolean"
+      description: "Set to true when the task is complete and no further dispatch is needed."
+    next_agent:
+      type: "string"
+      description: "ID of the agent to dispatch. Omit when done is true."
+    agent_input:
+      type: "string"
+      description: "Task or question to send to the selected agent. Omit when done is true."
+    final_answer:
+      type: "string"
+      description: "Synthesized final answer. Populate only when done is true."
+  required:
+    - "reasoning"
+    - "done"
+```
 
 ### YAML Example
 
@@ -774,8 +810,8 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | `tools`                 | `list[LLMTool]` \| `None`              | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |
 | `mcp_servers`           | `list[GraphMcpServer]` \| `None`       | Yes      | MCP server configurations. Each server is referenced by its `id` in `GraphNode.mcp_servers`. |
 | `prompts`               | `list[GraphInputData]`                 | No       | Prompt templates (indexed by `NodePrompt.template`). |
-| `react_compact_prompts` | `list[GraphInputData]` \| `None`       | Yes      | Compact prompts for ReAct conversation compaction. Accepts `uri` or `template` like regular `prompts`. Index 0 replaces the built-in default compact prompt. |
-| `chat_history`          | `dict[str, list[dict[str, str]]]` \| `None` | Yes | Historical messages keyed by scope. |
+| `react_compact_prompts` | `list[GraphInputData]` \| `None`       | Yes      | Custom prompts used to summarize the ReAct conversation buffer when `resume: true` triggers compaction. Accepts `uri` or inline `template` exactly like regular `prompts`. Index 0 overrides the built-in default compaction prompt. |
+| `chat_history`          | `dict[str, list[dict[str, str]]]` \| `None` | Yes | Conversation history as a dict mapping scope names to lists of `{role, content}` message pairs. A node references its history by name via `NodePrompt.chat_history`. |
 | `user_message`          | `str` \| `None`                        | Yes      | Current user prompt. |
 | `retrieved_chunks`      | `str` \| `None`                        | Yes      | Additional retrieved content (e.g., document snippets). |
 | `blackboard`            | `str` \| `None`                        | Yes      | Path to a markdown file or an inline markdown string used as the shared blackboard buffer. See §5 `NodeBlackboard`. |
@@ -938,6 +974,35 @@ edges:
 
 > **Tip**: Use this model when you need to pass structured function‑call capabilities to the LLM.
 
+### YAML Example
+
+```yaml
+tools:
+  - name: "search_kb"
+    description: "Search the knowledge base for relevant content."
+    parameters:
+      query:
+        type: "string"
+        description: "The search query string."
+    required:
+      - "query"
+```
+
+### JSON Example
+
+```json
+{
+  "name": "search_kb",
+  "description": "Search the knowledge base for relevant content.",
+  "parameters": {
+    "query": {
+      "type": "string",
+      "description": "The search query string."
+    }
+  },
+  "required": ["query"]
+}
+```
 
 ## 11. `LLMStructuredSchema` (from `kegal.llm.llm_model`)
 
@@ -988,7 +1053,10 @@ edges:
 | `dependentSchemas` | `dict[str, dict[str, Any]]` or `None` | Yes | Schema depending on property presence. |
 | `model_config` | `dict` or `None`        | Yes      | Pydantic model configuration (e.g., `{"extra": "allow"}`). |
 
-### YAML Example
+This model is used inside `LLMTool.parameters` and `structured_output.parameters` / `react_output.parameters` on `GraphNode` to describe each field of a schema the LLM should return.
+
+### YAML Example (String with enum)
+
 ```yaml
 type: "string"
 enum:
@@ -996,7 +1064,9 @@ enum:
   - "reject"
 description: "Whether the message is appropriate for business use."
 ```
-### JSON Example
+
+### JSON Example (String with enum)
+
 ```json
 {
   "type": "string",
@@ -1004,7 +1074,9 @@ description: "Whether the message is appropriate for business use."
   "description": "Whether the message is appropriate for business use."
 }
 ```
+
 ### YAML Example (Object)
+
 ```yaml
 type: "object"
 description: "User profile information"
@@ -1023,7 +1095,9 @@ required:
   - "name"
   - "status"
 ```
+
 ### JSON Example (Array)
+
 ```json
 {
   "type": "array",
@@ -1034,7 +1108,6 @@ required:
   }
 }
 ```
-This model is used inside `LLMTool.parameters` and `LLMStructuredOutput.parameters` to describe each field of a structured schema the LLM should adhere to or return.
 
 
 

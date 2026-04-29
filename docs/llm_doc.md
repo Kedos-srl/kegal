@@ -7,6 +7,21 @@ Below is a high‑level overview of each module in the package, the public API t
 
 > The documentation follows the same style as the existing `graph_doc.md`.  Wherever a data model is used, we provide a table that lists fields, types, optionality, and a short description.  YAML and JSON snippets are also included for quick reference.
 
+## Table of Contents
+
+- [1. `kegal.llm.__init__`](#1-kegalllm__init__)
+- [2. `kegal.llm.llm_model`](#2-kegalllmllm_model)
+- [3. `kegal.llm.llm_handler`](#3-kegalllmllm_handler)
+- [4. `kegal.llm.llm_anthropic`](#4-kegalllmllm_anthropic)
+- [5. `kegal.llm.llm_bedrock`](#5-kegalllmllm_bedrock)
+- [6. `kegal.llm.llm_ollama`](#6-kegalllmllm_ollama)
+- [7. `kegal.llm.llm_openai`](#7-kegalllmllm_openai)
+- [8. `kegal.compiler`](#8-kegalcompiler)
+- [9. `kegal.compose`](#9-kegalcompose)
+- [10. `kegal.utils`](#10-kegalutils)
+- [Example Configurations](#example-configurations)
+- [11. `kegal.mcp_handler`](#11-kegalmcp_handler)
+
 ---
 
 ## 1. `kegal.llm.__init__`

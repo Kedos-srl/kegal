@@ -3,6 +3,19 @@
 Worked examples covering the main features of the framework. Each tutorial is
 self-contained — you can read them in any order.
 
+## Table of Contents
+
+- [1. Attaching Python tool executors](#1-attaching-python-tool-executors)
+- [2. MCP servers](#2-mcp-servers)
+- [3. Fan-out and fan-in edges](#3-fan-out-and-fan-in-edges)
+- [4. Guard nodes (validation gate)](#4-guard-nodes-validation-gate)
+- [5. Message passing](#5-message-passing)
+- [6. Structured output](#6-structured-output)
+- [7. Multi-provider graphs](#7-multi-provider-graphs)
+- [8. RAG — injecting retrieved chunks](#8-rag--injecting-retrieved-chunks)
+- [9. Blackboard — shared markdown buffer across nodes](#9-blackboard--shared-markdown-buffer-across-nodes)
+- [10. ReAct loop — iterative agent dispatch](#10-react-loop--iterative-agent-dispatch)
+
 ---
 
 ## 1. Attaching Python tool executors

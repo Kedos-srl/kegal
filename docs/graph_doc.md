@@ -5,6 +5,22 @@ For each model we list the fields, their types, optionality, and provide concret
 
 > **Note**: All models are defined in `kegal/graph.py` (or the corresponding `graph.py` file). They are used to serialise, deserialise, and validate graph configurations.
 
+## Table of Contents
+
+- [Architecture overview](#architecture-overview)
+- [1. `GraphModel`](#1-graphmodel)
+- [2. `GraphInputData`](#2-graphinputdata)
+- [3. `NodePrompt`](#3-nodeprompt)
+  - [3.1 Prompt Placeholders](#31-prompt-placeholders)
+- [4. `NodeMessagePassing`](#4-nodemessagepassing)
+- [5. `NodeBlackboard`](#5-nodeblackboard)
+- [6. `GraphNode`](#6-graphnode)
+- [7. `NodeReact`](#7-nodereact)
+- [8. `GraphEdge`](#8-graphedge)
+- [9. `Graph`](#9-graph)
+- [10. `LLMTool`](#10-llmtool-from-kegalllmllm_model)
+- [11. `LLMStructuredSchema`](#11-llmstructuredschema-from-kegalllmllm_model)
+
 ---
 
 ## Architecture overview

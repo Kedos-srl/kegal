@@ -25,6 +25,7 @@ class GraphModel(BaseModel):
     model: str
     api_key: str | None = None
     host: str | None = None
+    context_window: int | None = None
     aws_region_name: str | None = None
     aws_access_key: str | None = None
     aws_secret_key: str | None = None
@@ -57,7 +58,6 @@ class GraphNode(BaseModel):
     max_tokens: int
     show: bool
     message_passing: NodeMessagePassing = NodeMessagePassing()
-    chat_history: str | None = None
     prompt: NodePrompt | None
     structured_output: dict[str, Any] | None = None
     react_output: dict[str, Any] | None = None

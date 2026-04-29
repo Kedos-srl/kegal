@@ -3,25 +3,24 @@
         {
             "node_id": "controller",
             "response": {
-                "messages": [
-                    "The question contains two distinct parts that require separate agents for resolution. The first part is a mathematical question, so I will dispatch it to the `math_agent`. The second part is a factual/geography question, so I will dispatch it to the `knowledge_agent`. I will address each part sequentially to ensure completeness before proceeding further. Let's begin with the mathematical question first."
-                ],
+                "messages": null,
                 "tools": null,
                 "tool_results": null,
                 "json_output": {
                     "done": false,
                     "iterations": 0,
-                    "final_answer": "The question contains two distinct parts that require separate agents for resolution. The first part is a mathematical question, so I will dispatch it to the `math_agent`. The second part is a factual/geography question, so I will dispatch it to the `knowledge_agent`. I will address each part sequentially to ensure completeness before proceeding further. Let's begin with the mathematical question first."
+                    "final_answer": null
                 },
                 "input_size": 162,
-                "output_size": 121
+                "output_size": 120
             },
-            "compiled_time": 1.2547614574432373,
+            "compiled_time": 1.1579241752624512,
             "show": true,
-            "history": false
+            "history": false,
+            "context_window": null
         }
     ],
     "input_size": 162,
-    "output_size": 121,
-    "compile_time": 1.254859447479248
+    "output_size": 120,
+    "compile_time": 1.1580328941345215
 }

@@ -29,6 +29,7 @@ def _make_compiler(nodes_cfg: list, edges_cfg: list, extra: dict | None = None) 
     c.nodes = {n.id: n for n in graph.nodes}
     c.edges = graph.edges
     c.clients = []
+    c.context_windows = [m.context_window for m in graph.models]
     c.prompts = []
     c.react_compact_prompts = []
     c._react_trace = {}
@@ -429,6 +430,7 @@ class TestRunReactLoop(unittest.TestCase):
         # Mock LLM client
         mock_client = MagicMock()
         c.clients = [mock_client]
+        c.context_windows = [None]
         return c, mock_client
 
     def _make_response(self, json_out: dict, messages: list[str] | None = None):
@@ -818,6 +820,7 @@ class TestResumeInLoop(unittest.TestCase):
         c.outputs = CompiledOutput()
         mock_client = MagicMock()
         c.clients = [mock_client]
+        c.context_windows = [None] * len(graph.models)
         return c, mock_client
 
     def test_compact_called_when_threshold_exceeded(self):
@@ -893,6 +896,7 @@ class TestResumeInLoop(unittest.TestCase):
         c.outputs = CompiledOutput()
         mock_client = MagicMock()
         c.clients = [mock_client]
+        c.context_windows = [None]
 
         mock_client.complete.side_effect = [
             LLmResponse(json_output={"next_agent": "agent_a"}, input_size=99, output_size=5),

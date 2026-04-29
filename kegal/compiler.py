@@ -34,6 +34,7 @@ class CompiledNodeOutput(BaseModel):
     compiled_time: float
     show: bool
     history: bool
+    context_window: int | None = None
 
 class CompiledOutput(BaseModel):
     nodes: list[CompiledNodeOutput] = []
@@ -71,6 +72,7 @@ class Compiler:
             graph = Graph.model_validate(source)
 
         self.clients: list[LlmHandler] = [LlmHandler(**model.model_dump(exclude_none=True)) for model in graph.models]
+        self.context_windows: list[int | None] = [m.context_window for m in graph.models]
         self.images = graph.images
         self.documents = graph.documents
         self.tools = graph.tools
@@ -295,8 +297,8 @@ class Compiler:
                     logger.warning(
                         f"Node '{nid}' is a ReAct controller with message_passing.output=true, "
                         f"but no downstream node has message_passing.input=true — the output "
-                        f"will not be consumed. Declare a post-processing node after the "
-                        f"controller (using fan_in) with message_passing.input=true."
+                        f"will not be consumed. Add a node after the controller in the edges list "
+                        f"with message_passing.input=true."
                     )
 
         return controllers
@@ -338,19 +340,14 @@ class Compiler:
         # are mutually exclusive: react is for agent dispatch, children/fan_in are
         # for the main DAG topology.
         def _check_react_edge_mixing(edge: GraphEdge) -> None:
-            if edge.react:
-                if edge.children:
-                    errors.append(
-                        f"Node '{edge.node}' has both 'react' and 'children' on the same edge. "
-                        f"These are mutually exclusive — use message_passing to order the "
-                        f"controller's output into the next node."
-                    )
-                if edge.fan_in:
-                    errors.append(
-                        f"Node '{edge.node}' has both 'react' and 'fan_in' on the same edge. "
-                        f"These are mutually exclusive — use message_passing to order "
-                        f"dependencies around the controller."
-                    )
+            # react+children is already caught by GraphEdge._check_mutual_exclusivity.
+            # fan_in is not covered by the model validator, so we check it here.
+            if edge.react and edge.fan_in:
+                errors.append(
+                    f"Node '{edge.node}' has both 'react' and 'fan_in' on the same edge. "
+                    f"These are mutually exclusive — use message_passing to order "
+                    f"dependencies around the controller."
+                )
             for child in (edge.children or []):
                 _check_react_edge_mixing(child)
             for fi in (edge.fan_in or []):
@@ -627,6 +624,7 @@ class Compiler:
     def compile(self):
         self.outputs = CompiledOutput()
         self.message_passing = []
+        self._react_trace = {}
         global_start = time.time()
         deps = self._build_dag()
         levels = self._topological_levels(deps)
@@ -851,7 +849,8 @@ class Compiler:
             done = bool(routing.get("done", False))
             reasoning = routing.get("reasoning")
             agent_input_str = routing.get("agent_input") or reasoning or ""
-            final_answer = routing.get("final_answer") or reasoning
+            if done:
+                final_answer = routing.get("final_answer") or reasoning
 
             if reasoning:
                 logger.info(f"[ReAct] │  reasoning  : {reasoning}")
@@ -1017,12 +1016,14 @@ class Compiler:
         last_response: LLmResponse,
     ) -> None:
         """Compact the conversation buffer when it approaches the token budget."""
-        if last_response.input_size < node.max_tokens * threshold:
+        context_window = self.context_windows[node.model]
+        limit = context_window if context_window is not None else node.max_tokens
+        if last_response.input_size < limit * threshold:
             return
 
         logger.info(
             f"[ReAct] │  compacting conversation "
-            f"({last_response.input_size}/{node.max_tokens} tokens, "
+            f"({last_response.input_size}/{limit} tokens, "
             f"threshold={threshold:.0%})"
         )
 
@@ -1197,6 +1198,7 @@ class Compiler:
                     compiled_time=compiled_time,
                     show=node.show,
                     history=enable_history,
+                    context_window=self.context_windows[node.model],
                 )
             )
             self.outputs.input_size += response.input_size
@@ -1225,13 +1227,12 @@ class Compiler:
         with self._message_passing_lock:
             if not node.message_passing.output:
                 return
-            if node.message_passing.output:
-                if (node.mcp_servers or node.tools) and response.tool_results:
-                    self.message_passing.extend(response.tool_results)
-                elif response.messages is not None and len(response.messages) > 0:
-                    self.message_passing.extend(response.messages)
-                elif response.json_output is not None:
-                    self.message_passing.append(response.json_output)
+            if (node.mcp_servers or node.tools) and response.tool_results:
+                self.message_passing.extend(response.tool_results)
+            elif response.messages is not None and len(response.messages) > 0:
+                self.message_passing.extend(response.messages)
+            elif response.json_output is not None:
+                self.message_passing.append(response.json_output)
 
     @staticmethod
     def _check_validation_gate(response: LLmResponse) -> bool:
@@ -1259,12 +1260,10 @@ class Compiler:
         if only_content:
             md = ""
             for i, output in enumerate(self.outputs.nodes):
-                if output.response.messages:
-                    for message in output.response.messages:
-                        md += message
                 if i > 0:
-                    md += "\n"
-                    md += "---"
+                    md += "\n\n---\n\n"
+                if output.response.messages:
+                    md += "\n".join(output.response.messages)
         else:
             md = "## Graph Response\n"
             md += f" * Token Input size: {self.outputs.input_size}\n"
@@ -1272,6 +1271,8 @@ class Compiler:
             md += f" * Compile time: {self.outputs.compile_time}\n"
             for output in self.outputs.nodes:
                 md += f"### Node:  {output.node_id}\n"
+                if output.response.messages:
+                    md += "\n".join(output.response.messages) + "\n"
                 if output.response.json_output is not None:
                     md += f"""```json\n {json.dumps(output.response.json_output, indent=4)} \n```\n"""
                 if output.response.tools is not None:
@@ -1280,6 +1281,9 @@ class Compiler:
                     md += f"""```\n{chr(10).join(output.response.tool_results)}\n```\n"""
                 md += f"\nToken Input size:  {output.response.input_size} \n "
                 md += f" Token Output size:  {output.response.output_size} \n "
+                if output.context_window:
+                    pct = output.response.input_size / output.context_window * 100
+                    md += f" Context utilization: {output.response.input_size}/{output.context_window} ({pct:.1f}%)\n"
 
         with open(path, "w") as f:
             f.write(md)

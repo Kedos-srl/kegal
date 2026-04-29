@@ -116,6 +116,7 @@ def _build_research_compiler():
     from kegal.compiler import CompiledOutput
     c.outputs = CompiledOutput()
     c.clients = [mock_client]
+    c.context_windows = [m.context_window for m in graph.models]
     return c, mock_client
 
 

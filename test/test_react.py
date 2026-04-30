@@ -31,6 +31,9 @@ def _make_compiler(nodes_cfg: list, edges_cfg: list, extra: dict | None = None) 
     c.clients = []
     c.context_windows = [m.context_window for m in graph.models]
     c.prompts = []
+    c.tools = graph.tools
+    c.graph_mcp_servers = graph.mcp_servers or []
+    c._board_entries = {}
     c.react_compact_prompts = []
     c._react_trace = {}
     c._react_controllers = c._build_react_controller_map()
@@ -199,6 +202,9 @@ class TestReactValidateIndices(unittest.TestCase):
         c.edges = graph.edges
         c.clients = [MagicMock()]  # 1 model
         c.prompts = [{}]           # 1 prompt
+        c.tools = None
+        c.graph_mcp_servers = []
+        c._board_entries = {}
         c.react_compact_prompts = []
         with self.assertRaises(ValueError) as ctx:
             c._validate_indices()
@@ -218,6 +224,9 @@ class TestReactValidateIndices(unittest.TestCase):
         c.edges = graph.edges
         c.clients = [MagicMock()]
         c.prompts = [{}]
+        c.tools = None
+        c.graph_mcp_servers = []
+        c._board_entries = {}
         c.react_compact_prompts = []
         with self.assertRaises(ValueError) as ctx:
             c._validate_indices()
@@ -413,8 +422,9 @@ class TestRunReactLoop(unittest.TestCase):
         c.images = None
         c.documents = None
         c.tools = None
-        c.blackboard = ""
-        c._blackboard_path = None
+        c._board_entries = {}
+        c._boards = {}
+        c._board_paths = {}
         c.mcp_handlers = {}
         c.tool_executors = {}
         c.message_passing = []
@@ -806,8 +816,9 @@ class TestResumeInLoop(unittest.TestCase):
         c.images = None
         c.documents = None
         c.tools = None
-        c.blackboard = ""
-        c._blackboard_path = None
+        c._board_entries = {}
+        c._boards = {}
+        c._board_paths = {}
         c.mcp_handlers = {}
         c.tool_executors = {}
         c.message_passing = []
@@ -882,8 +893,9 @@ class TestResumeInLoop(unittest.TestCase):
         c.images = None
         c.documents = None
         c.tools = None
-        c.blackboard = ""
-        c._blackboard_path = None
+        c._board_entries = {}
+        c._boards = {}
+        c._board_paths = {}
         c.mcp_handlers = {}
         c.tool_executors = {}
         c.message_passing = []

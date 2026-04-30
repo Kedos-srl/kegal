@@ -13,7 +13,7 @@ self-contained — you can read them in any order.
 - [6. Structured output](#6-structured-output)
 - [7. Multi-provider graphs](#7-multi-provider-graphs)
 - [8. RAG — injecting retrieved chunks](#8-rag--injecting-retrieved-chunks)
-- [9. Blackboard — shared markdown buffer across nodes](#9-blackboard--shared-markdown-buffer-across-nodes)
+- [9. Blackboard — multi-board shared markdown pipeline](#9-blackboard--multi-board-shared-markdown-pipeline)
 - [10. ReAct loop — iterative agent dispatch](#10-react-loop--iterative-agent-dispatch)
 
 ---
@@ -469,7 +469,7 @@ nodes:
 
 ---
 
-## 9. Blackboard — shared markdown buffer across nodes
+## 9. Blackboard — multi-board shared markdown pipeline
 
 The **blackboard** is a persistent markdown document that nodes can read from and
 write to during a single `compile()` run. It implements the classic
@@ -479,13 +479,17 @@ content. It is the idiomatic way to build multi-agent pipelines where a writer
 seeds context, enrichers extend it in parallel, and a final reader summarises
 the whole thread.
 
+KeGAL supports **multiple named boards** in the same graph. Each board has an `id`,
+a file on disk, optional `cleanup` behaviour, and an optional `import` chain
+that prepends other boards' content when the board is read.
+
 ### Node categories
 
 | Category | `read` | `write` | Role |
 |----------|--------|---------|------|
-| Cat-1 | `false` | `true`  | **Writer** — seeds the blackboard. |
+| Cat-1 | `false` | `true`  | **Writer** — seeds the board. |
 | Cat-2 | `true`  | `true`  | **Enricher** — reads then extends; multiple Cat-2 nodes run in parallel. |
-| Cat-3 | `true`  | `false` | **Reader** — consumes the final blackboard. |
+| Cat-3 | `true`  | `false` | **Reader** — consumes the final board. |
 
 ```mermaid
 flowchart TD
@@ -501,19 +505,44 @@ The execution order (Cat-1 → Cat-2 in parallel → Cat-3) is **inferred
 automatically** from the flags even when `edges` is a flat list — no
 `children`/`fan_in` declarations are needed.
 
-### Step 1 — Configure the global blackboard source
+### Step 1 — Configure the boards
 
-Add `blackboard` at the top level of the YAML. It accepts either a file path
-(content is loaded at init; writes are persisted back after each node) or an
-inline markdown string:
+Add a `blackboard:` block at the top level of the YAML. Declare the directory
+where board files live (`path:`) and a list of named boards:
 
 ```yaml
-blackboard: ./BLACKBOARD.md   # file — writes persist to disk
-# or
-blackboard: "# Topic\n\n"     # inline seed — in-memory only
+blackboard:
+  path: ./                  # directory relative to the YAML file
+  boards:
+    - id: main
+      file: BLACKBOARD.md
+      cleanup: true         # truncate file at Compiler init (default)
+```
+
+`cleanup: true` (the default) truncates the file to empty when the `Compiler`
+is constructed, so each `compile()` run starts from a clean slate. Set
+`cleanup: false` to keep any existing content — useful when accumulating across
+multiple runs.
+
+To use more than one board, add additional entries:
+
+```yaml
+blackboard:
+  path: ./
+  boards:
+    - id: draft
+      file: DRAFT.md
+      cleanup: true
+    - id: review
+      file: REVIEW.md
+      cleanup: true
+      import: [draft]       # reading review prepends draft's content first
 ```
 
 ### Step 2 — Mark nodes with blackboard flags
+
+Each node that participates in a board declares `blackboard:` with three fields:
+`id` (which board), `read`, and `write`.
 
 ```yaml
 nodes:
@@ -523,6 +552,7 @@ nodes:
     max_tokens: 200
     show: false
     blackboard:
+      id: main
       read: false
       write: true
     prompt:
@@ -535,6 +565,7 @@ nodes:
     max_tokens: 400
     show: false
     blackboard:
+      id: main
       read: true
       write: true
     prompt:
@@ -546,6 +577,7 @@ nodes:
     max_tokens: 400
     show: false
     blackboard:
+      id: main
       read: true
       write: true
     prompt:
@@ -557,6 +589,7 @@ nodes:
     max_tokens: 800
     show: true
     blackboard:
+      id: main
       read: true
       write: false
     prompt:
@@ -571,7 +604,7 @@ edges:
 
 ### Step 3 — Reference `{blackboard}` in prompt templates
 
-Any node with `blackboard.read: true` has the current buffer injected as
+Any node with `blackboard.read: true` has the current board content injected as
 `{blackboard}`. No extra `prompt_placeholders` entry is required:
 
 ```yaml
@@ -603,19 +636,9 @@ with Compiler(uri="path/to/graph.yml") as compiler:
                 print(msg)
 ```
 
-After `compile()` the `BLACKBOARD.md` file on disk will contain the full
-accumulated thread: seed from `assistant`, extensions from both analysts,
-ready for the summarizer to consume.
-
-### Overriding the blackboard at runtime
-
-You can reset or inject content before compiling:
-
-```python
-with Compiler(uri="path/to/graph.yml") as compiler:
-    compiler.blackboard = "# Custom seed\n\nOverride the YAML-loaded content."
-    compiler.compile()
-```
+After `compile()` the board file on disk will contain the full accumulated
+thread: seed from `assistant`, extensions from both analysts, ready for the
+summarizer to consume.
 
 ---
 

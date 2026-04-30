@@ -79,8 +79,15 @@ prompts:
               # Title of Contribution 2
               # Conclusions
           Max 800 words, translate the final text in italian
+
 user_message: "What are the long-term impacts of switching to renewable energy?"
-blackboard: ./test/graphs/BLACKBOARD.md
+
+blackboard:
+  path: ./
+  boards:
+    - id: main
+      file: BLACKBOARD.md
+      cleanup: true
 
 # =============================================================================
 # NODES
@@ -93,6 +100,7 @@ nodes:
     max_tokens: 200
     show: false
     blackboard:
+      id: main
       read: false
       write: true
     prompt:
@@ -106,6 +114,7 @@ nodes:
     max_tokens: 400
     show: false
     blackboard:
+      id: main
       read: true
       write: true
     prompt:
@@ -118,6 +127,7 @@ nodes:
     max_tokens: 400
     show: false
     blackboard:
+      id: main
       read: true
       write: true
     prompt:
@@ -130,6 +140,7 @@ nodes:
     max_tokens: 400
     show: true
     blackboard:
+      id: main
       read: true
       write: false
     prompt:

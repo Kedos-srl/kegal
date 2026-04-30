@@ -9,6 +9,7 @@ from typing import Any, Callable
 from pydantic import BaseModel
 from .compose import compose_template_prompt, compose_node_prompt, compose_images, compose_documents, compose_tools
 from .graph import Graph, GraphEdge, GraphNode, NodeReact
+from .graph_blackboard import BlackboardEntry, GraphBlackboard
 from .mcp_handler import McpHandler
 from .utils import load_contents
 from .llm.llm_handler import LlmHandler
@@ -68,8 +69,10 @@ class Compiler:
                        tool_executors: dict[str, Callable] | None = None) -> None:
         if uri is not None:
             graph = Graph.from_uri(uri)
+            self._graph_dir = Path(uri).resolve().parent
         else:
             graph = Graph.model_validate(source)
+            self._graph_dir = Path.cwd()
 
         self.clients: list[LlmHandler] = [LlmHandler(**model.model_dump(exclude_none=True)) for model in graph.models]
         self.context_windows: list[int | None] = [m.context_window for m in graph.models]
@@ -80,8 +83,13 @@ class Compiler:
         self.chat_history = graph.chat_history
         self.user_message = graph.user_message
         self.retrieved_chunks = graph.retrieved_chunks
-        self.blackboard, self._blackboard_path = self._load_blackboard(graph.blackboard)
+        # Multi-board blackboard state
+        self._board_entries: dict[str, BlackboardEntry] = {}
+        self._boards: dict[str, str] = {}        # board id → in-memory content
+        self._board_paths: dict[str, Path] = {}  # board id → file path
         self._blackboard_lock = threading.Lock()
+        if graph.blackboard is not None:
+            self._init_boards(graph.blackboard)
         self._message_passing_lock = threading.Lock()
         self._outputs_lock = threading.Lock()
         self.outputs: CompiledOutput = CompiledOutput()
@@ -161,19 +169,33 @@ class Compiler:
                 raise ValueError("Prompt input must have either 'template' or 'uri' defined")
         return prompts_templates
 
-    @staticmethod
-    def _load_blackboard(value: str | None) -> tuple[str, Path | None]:
-        """Load blackboard content from a file path or a plain markdown string.
+    def _init_boards(self, cfg: GraphBlackboard) -> None:
+        """Create or truncate board files at init time and load initial content."""
+        base_path = self._graph_dir / cfg.path
+        for entry in cfg.boards:
+            self._board_entries[entry.id] = entry
+            board_path = base_path / entry.file
+            if entry.cleanup:
+                board_path.parent.mkdir(parents=True, exist_ok=True)
+                board_path.write_text("", encoding="utf-8")
+                self._boards[entry.id] = ""
+            else:
+                content = board_path.read_text(encoding="utf-8") if board_path.exists() else ""
+                self._boards[entry.id] = content
+            self._board_paths[entry.id] = board_path
 
-        Returns a (content, path) tuple where path is set only when value
-        pointed to an existing file (used later to persist writes back).
+    def _assemble_board(self, board_id: str) -> str:
+        """Return the content visible to a node reading board_id.
+
+        Concatenates the content of imported boards (in declaration order)
+        followed by the board's own content.
         """
-        if value is None:
-            return "", None
-        path = Path(value)
-        if path.is_file():
-            return path.read_text(encoding="utf-8"), path
-        return value, None
+        entry = self._board_entries.get(board_id)
+        parts: list[str] = []
+        if entry is not None:
+            parts = [self._boards.get(imp_id, "") for imp_id in entry.imports]
+        parts.append(self._boards.get(board_id, ""))
+        return "".join(p for p in parts if p)
 
     # -------------------------------------------------------------------------
     # React topology helpers
@@ -356,6 +378,18 @@ class Compiler:
         for root_edge in self.edges:
             _check_react_edge_mixing(root_edge)
 
+        # Defined names for reference checks
+        tool_names: set[str] = {t.name for t in (self.tools or [])}
+        mcp_ids: set[str] = {s.id for s in self.graph_mcp_servers}
+        board_ids: set[str] = set(self._board_entries.keys())
+
+        # MCP server transport validation
+        for server in self.graph_mcp_servers:
+            if server.transport == "stdio" and server.command is None:
+                errors.append(
+                    f"MCP server '{server.id}': transport is 'stdio' but 'command' is not defined"
+                )
+
         for node_id, node in self.nodes.items():
             if node.model >= n_models:
                 errors.append(
@@ -371,6 +405,23 @@ class Compiler:
                 errors.append(
                     f"Node '{node_id}' is a guard node (structured output has a 'validation' field) "
                     f"but has no prompt — a guard node must have a prompt to evaluate the gate."
+                )
+            if node.tools:
+                for tool_name in node.tools:
+                    if tool_name not in tool_names:
+                        errors.append(
+                            f"Node '{node_id}': tool '{tool_name}' is not defined in graph.tools"
+                        )
+            if node.mcp_servers:
+                for srv_id in node.mcp_servers:
+                    if srv_id not in mcp_ids:
+                        errors.append(
+                            f"Node '{node_id}': mcp_server '{srv_id}' is not defined in graph.mcp_servers"
+                        )
+            if node.blackboard is not None and node.blackboard.id not in board_ids:
+                errors.append(
+                    f"Node '{node_id}': blackboard.id '{node.blackboard.id}' "
+                    f"is not defined in graph.blackboard.boards"
                 )
         if errors:
             raise ValueError("Graph configuration errors:\n" + "\n".join(f"  - {e}" for e in errors))
@@ -1150,7 +1201,7 @@ class Compiler:
             prompt_elements["retrieved_chunks"] = self.retrieved_chunks
 
         if node.blackboard is not None and node.blackboard.read:
-            prompt_elements["placeholders"]["blackboard"] = self.blackboard
+            prompt_elements["placeholders"]["blackboard"] = self._assemble_board(node.blackboard.id)
 
         return compose_node_prompt(**prompt_elements)
 
@@ -1205,23 +1256,24 @@ class Compiler:
             self.outputs.output_size += response.output_size
 
     def _update_blackboard(self, node: GraphNode, response: LLmResponse) -> None:
-        """Append node response to the shared blackboard buffer.
+        """Append node response to the board the node is assigned to write.
 
         Thread-safe: multiple parallel nodes may write concurrently.
-        If blackboard originated from a file the updated content is written back.
+        The updated content is always persisted to the board's file.
         """
         if node.blackboard is None or not node.blackboard.write:
             return
         if not response.messages:
             return
+        board_id = node.blackboard.id
         new_content = "\n\n".join(response.messages)
         with self._blackboard_lock:
-            if self.blackboard:
-                self.blackboard = self.blackboard.rstrip() + "\n\n" + new_content
-            else:
-                self.blackboard = new_content
-            if self._blackboard_path is not None:
-                self._blackboard_path.write_text(self.blackboard, encoding="utf-8")
+            current = self._boards.get(board_id, "")
+            updated = (current.rstrip() + "\n\n" + new_content) if current else new_content
+            self._boards[board_id] = updated
+            path = self._board_paths.get(board_id)
+            if path is not None:
+                path.write_text(updated, encoding="utf-8")
 
     def _check_message_passing(self, response, node):
         with self._message_passing_lock:

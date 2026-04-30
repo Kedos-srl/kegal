@@ -573,7 +573,7 @@ class TestValidatePrompts(unittest.TestCase):
         """{blackboard} with blackboard.read=True → no warning."""
         from unittest.mock import patch
         c = self._make(
-            self._node_cfg(blackboard={"read": True, "write": False}),
+            self._node_cfg(blackboard={"id": "main", "read": True, "write": False}),
             {"system": "", "user": "State: {blackboard}\nAnalyze."},
         )
         with patch.object(logging.getLogger("kegal.compiler"), "warning") as mock_warn:

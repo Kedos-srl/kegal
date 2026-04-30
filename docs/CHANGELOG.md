@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.3.0] - 2026-04-30](#0130---2026-04-30)
 - [[0.1.2.9] - 2026-04-29](#0129---2026-04-29)
 - [[0.1.2.8] - 2026-04-28](#0128---2026-04-28)
 - [[0.1.2.7] - 2026-04-27](#0127---2026-04-27)
@@ -13,6 +14,71 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.3.0] - 2026-04-30
+
+### Added
+
+- **Multi-board blackboard system** (`graph_blackboard.py`) — replaces the single-string `blackboard` field with a structured `GraphBlackboard` configuration supporting multiple named boards, each with its own file, cleanup behaviour, and import chain. **Breaking change** — see Migration below.
+  - **`GraphBlackboard`** model: `path` (directory relative to the YAML file) + `boards` (list of `BlackboardEntry`).
+  - **`BlackboardEntry`** model: `id`, `file`, `cleanup` (default `true` — truncate at init), `import` (list of board IDs to prepend when this board is read).
+  - **`NodeBlackboardRef`** model: replaces `NodeBlackboard`. Adds a required `id` field (which board to access) alongside the existing `read`/`write` flags.
+  - **`Compiler._init_boards()`** — initialises all boards at construction time; files with `cleanup: true` are truncated immediately.
+  - **`Compiler._assemble_board(board_id)`** — assembles the full read-time content by concatenating imported board contents (in declaration order) followed by the board's own content, skipping empty segments.
+  - **`Compiler._board_entries`**, **`_boards`**, **`_board_paths`** — per-board state dicts replacing the old scalar `blackboard` / `_blackboard_path` attributes.
+  - **`_validate_indices()`** extended: detects `node.blackboard.id` references to undeclared board IDs; also detects `node.tools` names not in `graph.tools`, `node.mcp_servers` IDs not in `graph.mcp_servers`, and MCP stdio servers missing `command`.
+
+### Changed
+
+- **`graph.py` modularised** — the monolithic `graph.py` is split into focused sub-modules: `graph_model.py`, `graph_mcp.py`, `graph_react.py`, `graph_edge.py`, `graph_blackboard.py`, `graph_node.py`. `graph.py` is now a thin re-export hub. All public symbols remain importable from `kegal.graph` unchanged.
+- **`Graph.blackboard`** — type changed from `str | None` to `GraphBlackboard | None`. The old string-or-path format is not supported.
+- **`GraphNode.blackboard`** — type changed from `NodeBlackboard | None` to `NodeBlackboardRef | None`. The new `id` field is required.
+- **`Graph._validate_node_ids`** — Pydantic `model_validator` that raises `ValueError` at parse time if any two nodes share the same `id`.
+- **`GraphBlackboard._validate_board_ids`** — Pydantic `model_validator` that raises `ValueError` at parse time if any two boards share the same `id`, or if an `import` list references an unknown board ID.
+
+### Migration (0.1.2.x → 0.1.3.0)
+
+**Graph-level `blackboard:`**
+
+```yaml
+# Before
+blackboard: ./BLACKBOARD.md
+
+# After
+blackboard:
+  path: ./
+  boards:
+    - id: main
+      file: BLACKBOARD.md
+      cleanup: true
+```
+
+**Node-level `blackboard:`**
+
+```yaml
+# Before
+blackboard:
+  read: true
+  write: false
+
+# After
+blackboard:
+  id: main          # required — which board to access
+  read: true
+  write: false
+```
+
+**Python imports — `NodeBlackboard` renamed to `NodeBlackboardRef`:**
+
+```python
+# Before
+from kegal import NodeBlackboard
+
+# After
+from kegal import NodeBlackboardRef
+```
 
 ---
 

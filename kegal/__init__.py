@@ -9,12 +9,15 @@ from .graph import (
     Graph,
     GraphModel,
     GraphInputData,
+    GraphBlackboard,
+    BlackboardEntry,
+    NodeBlackboardRef,
     NodePrompt,
     NodeMessagePassing,
-    NodeBlackboard,
     NodeReact,
     GraphNode,
     GraphEdge,
+    GraphMcpServer,
 )
 from .compiler import Compiler, CompiledOutput, CompiledNodeOutput, ReactTrace, ReactIteration
 from .compose import (
@@ -48,12 +51,15 @@ __all__ = [
     "Graph",
     "GraphModel",
     "GraphInputData",
+    "GraphBlackboard",
+    "BlackboardEntry",
+    "NodeBlackboardRef",
     "NodePrompt",
     "NodeMessagePassing",
-    "NodeBlackboard",
     "NodeReact",
     "GraphNode",
     "GraphEdge",
+    "GraphMcpServer",
     # Compiler
     "Compiler",
     "CompiledOutput",

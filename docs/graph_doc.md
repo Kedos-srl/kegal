@@ -3,7 +3,7 @@
 Below is a detailed description of every Pydantic model that constitutes the `Graph` class hierarchy.  
 For each model we list the fields, their types, optionality, and provide concrete YAML and JSON examples that represent a minimal valid instance of the model.
 
-> **Note**: All models are defined in `kegal/graph.py` (or the corresponding `graph.py` file). They are used to serialise, deserialise, and validate graph configurations.
+> **Note**: All models are importable from `kegal.graph`. Internally the graph module is split into focused sub-modules (`graph_model.py`, `graph_mcp.py`, `graph_react.py`, `graph_edge.py`, `graph_blackboard.py`, `graph_node.py`) — the public import path is unchanged.
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@ For each model we list the fields, their types, optionality, and provide concret
 - [3. `NodePrompt`](#3-nodeprompt)
   - [3.1 Prompt Placeholders](#31-prompt-placeholders)
 - [4. `NodeMessagePassing`](#4-nodemessagepassing)
-- [5. `NodeBlackboard`](#5-nodeblackboard)
+- [5. Blackboard models](#5-blackboard-models)
 - [6. `GraphNode`](#6-graphnode)
   - [Reserved `react_output` Fields](#reserved-react_output-fields)
 - [7. `NodeReact`](#7-nodereact)
@@ -202,6 +202,7 @@ prompts:
 nodes:
   - id: "analyst"
     blackboard:
+      id: main                                            # which board to access
       read: true
       write: true
     prompt:
@@ -247,16 +248,45 @@ message_passing:
 
 ---
 
-## 5. `NodeBlackboard`
+## 5. Blackboard models
 
-Controls whether a node participates in the shared **blackboard** document —
-a persistent markdown buffer written and read across nodes during a single
-`compile()` run (implements the [Blackboard architectural pattern](https://en.wikipedia.org/wiki/Blackboard_(design_pattern))).
+The **multi-board blackboard system** implements the [Blackboard architectural pattern](https://en.wikipedia.org/wiki/Blackboard_(design_pattern)): one or more named shared markdown buffers written and read across nodes during a single `compile()` run.
 
-| Field   | Type   | Optional | Description |
-|---------|--------|----------|-------------|
-| `read`  | `bool` | No (default `false`) | Inject the current blackboard content into the node's prompt via the `{blackboard}` placeholder. |
-| `write` | `bool` | No (default `false`) | Append the node's LLM response to the blackboard after execution. If the blackboard originated from a file it is written back to disk after each write. |
+Three models make up the system:
+
+| Model | Where used | Purpose |
+|---|---|---|
+| `GraphBlackboard` | Top-level `blackboard:` key | Declares the board set (directory path + list of boards). |
+| `BlackboardEntry` | Inside `blackboard.boards` | Describes a single board file, its cleanup behaviour, and its import chain. |
+| `NodeBlackboardRef` | `GraphNode.blackboard` | References a board by ID and declares whether the node reads and/or writes it. |
+
+---
+
+### `GraphBlackboard`
+
+| Field | Type | Optional | Description |
+|---|---|---|---|
+| `path` | `str` | No | Directory (relative to the YAML file) where board files are stored. |
+| `boards` | `list[BlackboardEntry]` | No | Ordered list of board definitions. Board IDs must be unique. |
+
+### `BlackboardEntry`
+
+| Field | Type | Optional | Description |
+|---|---|---|---|
+| `id` | `str` | No | Unique name for this board. Referenced in `NodeBlackboardRef.id` and `import` chains. |
+| `file` | `str` | No | Filename inside `path` (e.g. `BLACKBOARD.md`). |
+| `cleanup` | `bool` | Yes (default `true`) | When `true`, the file is truncated to empty at `Compiler` construction time. When `false`, existing content is preserved and new writes are appended. |
+| `import` | `list[str]` | Yes (default `[]`) | List of board IDs whose current content is **prepended** to this board's content when it is read by a node. Boards are prepended in declaration order. |
+
+> **`import`** is a Python reserved word. In YAML/JSON it is written as `import:`. Internally it is stored as `imports` on the `BlackboardEntry` object.
+
+### `NodeBlackboardRef`
+
+| Field | Type | Optional | Description |
+|---|---|---|---|
+| `id` | `str` | No | ID of the board this node reads from / writes to. Must match a `BlackboardEntry.id` declared in `Graph.blackboard.boards`. |
+| `read` | `bool` | Yes (default `false`) | Inject the current board content (including imported boards, in declaration order) into the node's prompt via the `{blackboard}` placeholder. |
+| `write` | `bool` | Yes (default `false`) | Append the node's LLM response to this board after execution. The updated content is written back to disk immediately after each write. |
 
 ### Node categories
 
@@ -264,67 +294,79 @@ Three behaviour patterns emerge from the `read`/`write` combination:
 
 | Category | `read` | `write` | Role |
 |----------|--------|---------|------|
-| Cat-1 | `false` | `true`  | **Writer** — seeds the blackboard (e.g. an assistant that drafts the initial content). |
-| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends the blackboard (e.g. domain analysts). Multiple Cat-2 nodes run in parallel. |
-| Cat-3 | `true`  | `false` | **Reader** — consumes the final blackboard (e.g. a summarizer). |
+| Cat-1 | `false` | `true`  | **Writer** — seeds the board (e.g. an assistant that drafts the initial content). |
+| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends the board (e.g. domain analysts). Multiple Cat-2 nodes run in parallel. |
+| Cat-3 | `true`  | `false` | **Reader** — consumes the final board (e.g. a summarizer). |
 
-The compiler infers the correct execution order automatically from these
-categories even when the `edges` list is flat (no `children`/`fan_in`
-declarations). Cat-1 nodes run first, Cat-2 nodes run in parallel after all
-Cat-1 nodes complete, and Cat-3 nodes run after all Cat-2 nodes complete.
+The compiler infers the correct execution order automatically from these categories even when the `edges` list is flat (no `children`/`fan_in` declarations). Cat-1 nodes run first, Cat-2 nodes in parallel after all Cat-1 nodes complete, and Cat-3 nodes after all Cat-2 nodes complete.
 
-### Global `blackboard` key
+### Import chains
 
-The top-level `blackboard` key in the graph YAML configures the shared buffer:
-
-```yaml
-blackboard: ./path/to/BLACKBOARD.md   # load initial content from a file (writes persist back)
-# or
-blackboard: "# My Topic\n\n"           # inline markdown seed string
-```
-
-If `blackboard` is omitted the buffer starts empty and writes are in-memory
-only (no file persistence).
+When a board declares `import: [other_id]`, the content of `other_id` is prepended to this board's content at read time. Multiple imports are concatenated in declaration order before the board's own content.
 
 ### YAML Example
 
 ```yaml
-blackboard: ./BLACKBOARD.md
+blackboard:
+  path: ./                      # directory relative to the YAML file
+  boards:
+    - id: main
+      file: BLACKBOARD.md
+      cleanup: true             # truncate at init (default)
+    - id: summary
+      file: SUMMARY.md
+      cleanup: false            # keep existing content
+      import: [main]            # prepend main board when summary is read
 
 nodes:
   - id: "assistant"
     blackboard:
+      id: main
       read: false
-      write: true   # Cat-1: seeds the blackboard
+      write: true               # Cat-1: seeds the main board
     prompt:
       template: 0
       user_message: true
 
   - id: "analyst"
     blackboard:
+      id: main
       read: true
-      write: true   # Cat-2: enriches the blackboard
+      write: true               # Cat-2: enriches the main board
     prompt:
-      template: 1   # template uses {blackboard}
+      template: 1               # template uses {blackboard}
 
   - id: "summarizer"
     blackboard:
-      read: true
-      write: false  # Cat-3: consumes the final blackboard
+      id: summary
+      read: true                # reads main (via import) + summary's own content
+      write: false              # Cat-3: consumes the final state
     prompt:
-      template: 2   # template uses {blackboard}
+      template: 2               # template uses {blackboard}
 ```
 
 The `{blackboard}` placeholder in a prompt template is automatically injected
 when `blackboard.read: true` is set on the node. No additional `prompt_placeholders`
 entry is needed.
 
-### JSON Example
+### JSON Example (`NodeBlackboardRef`)
 
 ```json
 {
+  "id": "main",
   "read": true,
   "write": false
+}
+```
+
+### JSON Example (`GraphBlackboard`)
+
+```json
+{
+  "path": "./",
+  "boards": [
+    { "id": "main", "file": "BLACKBOARD.md", "cleanup": true }
+  ]
 }
 ```
 
@@ -340,7 +382,7 @@ entry is needed.
 | `max_tokens`        | `int`                        | No       | Maximum token length for the LLM response. |
 | `show`              | `bool`                       | No       | Display hint for `save_outputs_as_markdown()`. When `false`, the node is still executed and included in `get_outputs()`, but omitted from the markdown report. |
 | `message_passing`   | `NodeMessagePassing`         | Yes (default `{input: false, output: false}`) | Configuration of input/output passing. |
-| `blackboard`        | `NodeBlackboard` \| `None`   | Yes      | Blackboard read/write participation. See §5 `NodeBlackboard`. |
+| `blackboard`        | `NodeBlackboardRef` \| `None` | Yes     | References a named board by `id` and declares read/write participation. See §5 Blackboard models. |
 | `prompt`            | `NodePrompt` \| `None`       | Yes      | Prompt configuration. |
 | `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output (guard nodes, data extraction). |
 | `react_output`      | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the routing output of a ReAct controller. The LLM must return a response conforming to this schema on every iteration. The compiler reads five reserved fields from it — see [Reserved `react_output` Fields](#reserved-react_output-fields) below. |
@@ -814,7 +856,7 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | `chat_history`          | `dict[str, list[dict[str, str]]]` \| `None` | Yes | Conversation history as a dict mapping scope names to lists of `{role, content}` message pairs. A node references its history by name via `NodePrompt.chat_history`. |
 | `user_message`          | `str` \| `None`                        | Yes      | Current user prompt. |
 | `retrieved_chunks`      | `str` \| `None`                        | Yes      | Additional retrieved content (e.g., document snippets). |
-| `blackboard`            | `str` \| `None`                        | Yes      | Path to a markdown file or an inline markdown string used as the shared blackboard buffer. See §5 `NodeBlackboard`. |
+| `blackboard`            | `GraphBlackboard` \| `None`            | Yes      | Multi-board blackboard configuration: directory path and list of named board files. See §5 Blackboard models. |
 | `nodes`                 | `list[GraphNode]`                      | No       | All nodes in the graph. |
 | `edges`                 | `list[GraphEdge]`                      | No       | Graph topology. |
 

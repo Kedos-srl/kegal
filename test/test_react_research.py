@@ -102,8 +102,9 @@ def _build_research_compiler():
     c.images = None
     c.documents = None
     c.tools = None
-    c.blackboard = ""
-    c._blackboard_path = None
+    c._board_entries = {}
+    c._boards = {}
+    c._board_paths = {}
     c.mcp_handlers = {}
     c.tool_executors = {}
     c.message_passing = []

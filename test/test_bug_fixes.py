@@ -77,9 +77,11 @@ def _bare_compiler(nodes_cfg=None, edges_cfg=None, extra_prompts=0) -> Compiler:
     c.chat_history = None
     c.user_message = "hello"
     c.retrieved_chunks = None
-    c.blackboard = ""
-    c._blackboard_path = None
+    c._board_entries = {}
+    c._boards = {}
+    c._board_paths = {}
     c._blackboard_lock = threading.Lock()
+    c._graph_dir = Path.cwd()
     c._message_passing_lock = threading.Lock()
     c._outputs_lock = threading.Lock()
     c.outputs = CompiledOutput()
@@ -87,6 +89,8 @@ def _bare_compiler(nodes_cfg=None, edges_cfg=None, extra_prompts=0) -> Compiler:
     c.mcp_handlers = {}
     c.tool_executors = {}
     c.graph_mcp_servers = []
+    c._react_trace = {}
+    c._react_controllers = c._build_react_controller_map()
     return c
 
 
@@ -199,13 +203,13 @@ class TestGuardNodeNullPrompt(unittest.TestCase):
 
     def test_guard_node_without_prompt_raises(self):
         """A guard node (structured_output with validation) that has no prompt
-        must raise ValueError rather than silently passing the gate."""
+        must be caught at init time by _validate_indices, not silently pass."""
         c = _bare_compiler([_node_cfg("guard", guard=True, prompt=False)])
         node = c.nodes["guard"]
         node.prompt = None  # force null prompt
 
         with self.assertRaises(ValueError, msg="Guard with no prompt must raise"):
-            c._run_node(node)
+            c._validate_indices()
 
     def test_regular_node_without_prompt_returns_true(self):
         """A non-guard node with no prompt silently succeeds (no LLM call needed)."""
@@ -332,7 +336,6 @@ class TestMcpHandlerTimeout(unittest.TestCase):
     def test_default_call_timeout_is_set(self):
         """McpHandler must have a non-None call_timeout attribute."""
         from kegal.mcp_handler import _DEFAULT_CALL_TIMEOUT
-        cfg = self._make_server_cfg()
         h = object.__new__(McpHandler)
         h._call_timeout = _DEFAULT_CALL_TIMEOUT
         self.assertIsNotNone(h._call_timeout)

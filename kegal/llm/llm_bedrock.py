@@ -25,7 +25,7 @@ class LlmBedrock(LlmModel):
         if "model" not in kwarg.keys():
             raise ValueError("Missing required 'model' parameter")
         if "aws_region_name" not in kwarg.keys():
-            raise ValueError("Missing required 'region_name' parameter")
+            raise ValueError("Missing required 'aws_region_name' parameter")
 
         super().__init__(kwarg.get("model"))
         self.client = boto3.client(service_name='bedrock-runtime',
@@ -231,6 +231,8 @@ class LlmBedrock(LlmModel):
             return  llm_response
         except ClientError as e:
             raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
-        finally:
-            self.client.close()
+
+    def close(self) -> None:
+        """Close the underlying boto3 client and release its connections."""
+        self.client.close()
 

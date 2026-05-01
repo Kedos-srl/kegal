@@ -1,0 +1,26 @@
+{
+    "nodes": [
+        {
+            "node_id": "controller",
+            "response": {
+                "messages": null,
+                "tools": null,
+                "tool_results": null,
+                "json_output": {
+                    "done": false,
+                    "iterations": 0,
+                    "final_answer": null
+                },
+                "input_size": 162,
+                "output_size": 121
+            },
+            "compiled_time": 1.2325513362884521,
+            "show": true,
+            "history": false,
+            "context_window": null
+        }
+    ],
+    "input_size": 162,
+    "output_size": 121,
+    "compile_time": 1.2326478958129883
+}

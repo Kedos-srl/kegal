@@ -151,7 +151,11 @@ class LlmAnthropic(LlmModel):
             schemas.append({
                 "name": tool_dict["name"],
                 "description": tool_dict["description"],
-                "input_schema": tool_dict
+                "input_schema": {
+                    "type": "object",
+                    "properties": tool_dict["parameters"],
+                    "required": tool_dict["required"],
+                },
             })
         return schemas
 

@@ -1,0 +1,25 @@
+{
+    "nodes": [
+        {
+            "node_id": "analyst_node",
+            "response": {
+                "messages": [
+                    "**Product with the highest total revenue:** **Widget A**\n**Total Revenue:** **$58,600.00**"
+                ],
+                "tools": null,
+                "tool_results": [
+                    "product, total_revenue\nWidget A, 58600.0"
+                ],
+                "json_output": null,
+                "input_size": 216,
+                "output_size": 29
+            },
+            "compiled_time": 0.437380313873291,
+            "show": true,
+            "history": false
+        }
+    ],
+    "input_size": 216,
+    "output_size": 29,
+    "compile_time": 0.4374699592590332
+}

@@ -1,8 +1,8 @@
 import unittest
 import os
 
-from kegal import LlmBedrock
-import tests.llm.test_llm as test_llm
+from kegal.llm import LlmBedrock
+from test import test_llm
 
 from pathlib import Path
 from dotenv import load_dotenv

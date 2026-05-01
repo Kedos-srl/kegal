@@ -2,7 +2,7 @@ import json
 
 from abc import abstractmethod, ABC
 
-from kegal.tests import prompts
+from test import prompts
 
 
 def llm_chat(utest):
@@ -93,6 +93,7 @@ def llm_tools(utest):
     prompt = prompts.get_tools_prompt()
 
     response = model.complete(
+        system_prompt=prompt.get("system_prompt"),
         user_message=prompt["user_message"],
         tools_data=prompt["tools"],
         temperature=0.0

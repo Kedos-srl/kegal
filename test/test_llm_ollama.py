@@ -3,7 +3,7 @@ import unittest
 from kegal.llm.llm_ollama import LlmOllama
 import test.test_llm as test_llm
 
-OLLAMA_MODEL = "qwen3-vl:8b"
+OLLAMA_MODEL = "ministral-3:3b"
 
 
 class TestOllama(test_llm.TestLLM, unittest.TestCase):

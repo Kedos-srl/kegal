@@ -103,3 +103,10 @@ Thumbs.db
 credentials.json
 .env.local
 .env.*.local
+
+
+# Claude
+.claude
+
+# Ruff
+.ruff_cache

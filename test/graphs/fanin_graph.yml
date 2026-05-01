@@ -1,0 +1,84 @@
+# Fan-in graph
+#
+# Topology:
+#   [economic_analyst]   [environmental_analyst]
+#           \                    /
+#            fan_in → [synthesizer]
+#
+# economic_analyst and environmental_analyst run independently (level 0).
+# synthesizer waits for both before it starts (level 1).
+
+models:
+  - llm: "ollama"
+    model: ministral-3:3b
+    host: "http://localhost:11434"
+
+user_message: "What are the benefits of renewable energy?"
+
+prompts:
+  - template:
+      system_template:
+        role: |
+          You are an economic analyst. Answer in one sentence only.
+      prompt_template:
+        instruction: |
+          Name one economic benefit of: "{user_message}"
+
+  - template:
+      system_template:
+        role: |
+          You are an environmental analyst. Answer in one sentence only.
+      prompt_template:
+        instruction: |
+          Name one environmental benefit of: "{user_message}"
+
+  - template:
+      system_template:
+        role: |
+          You are a synthesis expert. Combine the provided insights into one concise sentence.
+      prompt_template:
+        instruction: |
+          Synthesize the following perspectives on "{user_message}" into one sentence.
+
+nodes:
+  - id: "economic_analyst"
+    model: 0
+    temperature: 0.3
+    max_tokens: 80
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 0
+      user_message: true
+
+  - id: "environmental_analyst"
+    model: 0
+    temperature: 0.3
+    max_tokens: 80
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 1
+      user_message: true
+
+  - id: "synthesizer"
+    model: 0
+    temperature: 0.2
+    max_tokens: 100
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 2
+      user_message: true
+
+edges:
+  - node: "synthesizer"
+    fan_in:
+      - node: "economic_analyst"
+      - node: "environmental_analyst"

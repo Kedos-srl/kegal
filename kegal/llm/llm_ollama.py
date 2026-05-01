@@ -22,7 +22,10 @@ class LlmOllama(LlmModel):
         if "model" not in kwargs.keys():
             raise ValueError("Missing required 'model' parameter")
         super().__init__(kwargs.get("model"))
-        self.client = Client( host=kwargs.get("host", "http://localhost:11434"))
+        self.client = Client(host=kwargs.get("host", "http://localhost:11434"))
+
+    def close(self):
+        self.client._client.close()
 
     def complete(self,
                  system_prompt: str | None = None,

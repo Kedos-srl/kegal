@@ -1,0 +1,85 @@
+# Fan-out graph
+#
+# Topology:
+#   [dispatcher]
+#       |
+#   children (fan-out — parallel)
+#   /              \
+# [economic_analyst] [environmental_analyst]
+#
+# dispatcher completes first; the two analysts run in parallel after it.
+
+models:
+  - llm: "ollama"
+    model: ministral-3:3b
+    host: "http://localhost:11434"
+
+user_message: "What are the benefits of renewable energy?"
+
+prompts:
+  - template:
+      system_template:
+        role: |
+          You are a task dispatcher. Acknowledge the request briefly.
+      prompt_template:
+        instruction: |
+          Acknowledge receipt of this request in one sentence: "{user_message}"
+
+  - template:
+      system_template:
+        role: |
+          You are an economic analyst. Answer in one sentence only.
+      prompt_template:
+        instruction: |
+          Name one economic benefit of: "{user_message}"
+
+  - template:
+      system_template:
+        role: |
+          You are an environmental analyst. Answer in one sentence only.
+      prompt_template:
+        instruction: |
+          Name one environmental benefit of: "{user_message}"
+
+nodes:
+  - id: "dispatcher"
+    model: 0
+    temperature: 0.0
+    max_tokens: 60
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 0
+      user_message: true
+
+  - id: "economic_analyst"
+    model: 0
+    temperature: 0.3
+    max_tokens: 80
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 1
+      user_message: true
+
+  - id: "environmental_analyst"
+    model: 0
+    temperature: 0.3
+    max_tokens: 80
+    show: true
+    message_passing:
+      input: false
+      output: false
+    prompt:
+      template: 2
+      user_message: true
+
+edges:
+  - node: "dispatcher"
+    children:
+      - node: "economic_analyst"
+      - node: "environmental_analyst"

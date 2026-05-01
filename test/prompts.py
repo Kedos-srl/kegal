@@ -4,7 +4,7 @@ from pathlib import Path
 from kegal.llm.llm_model import LLMImageData, LLMStructuredOutput, LLMStructuredSchema, LLmMessage
 from kegal.utils import load_images_to_base64
 
-_ASSETS_DIR = Path(__file__).parent.parent.parent / "test" / "assets"
+_ASSETS_DIR = Path(__file__).parent / "assets"
 
 
 def get_chat_prompts() -> dict:
@@ -52,7 +52,8 @@ def get_tools_prompt() -> dict:
         required=["city"],
     )
     return {
-        "user_message": "What is the weather in Rome?",
+        "system_prompt": "You have access to tools. Always use the appropriate tool to answer the user's question. Do not answer from memory.",
+        "user_message": "What is the weather in Rome? Use the get_weather tool.",
         "tools": [tool],
     }
 

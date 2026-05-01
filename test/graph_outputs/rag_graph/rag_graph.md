@@ -1,36 +1,29 @@
 ## Graph Response
- * Token Input size: 1493
- * Token Output size: 159
- * Compile time: 15.605204820632935
+ * Token Input size: 607
+ * Token Output size: 239
+ * Compile time: 2.521012783050537
 ### Node:  language_check
 ```json
  {
     "validation": true,
-    "action": "approve"
+    "action": "APPROVED (with minor suggestion for clarity): This is appropriate for business communication. It demonstrates a thoughtful, professional inquiry about a relevant industry topic (sustainability/energy transition). The tone is neutral, informative, and aligns with corporate or professional dialogue about strategic decision-making or corporate responsibility discussions. For maximum impact, consider adding a brief context (e.g., *"
 } 
 ```
 
-Token Input size:  440 
-  Token Output size:  13 
+Token Input size:  141 
+  Token Output size:  90 
  ### Node:  test_rag_node
 ```json
  {
     "validation": true,
     "cost_metrics": {
-        "LCOE": {
-            "solar": "$0.048/kWh",
-            "wind": "not explicitly stated but implied as lowest cost"
-        },
-        "global_investment": "$1.8 trillion",
-        "job_creation": "13.7 million",
-        "energy_cost_reduction": "15% lower over 10 years",
-        "fuel_savings": "$42 billion annually"
+        "long_term_economic_impacts": "The transition to renewable energy, particularly solar and wind, delivers several **compelling long-term economic advantages** based on the latest data. Here\u2019s a comprehensive analysis incorporating new insights and filling gaps from prior discussions:"
     },
-    "growth_rate": 0.4,
-    "recommendation": "invest in renewable infrastructure"
+    "growth_rate": 1.8,
+    "recommendation": "The transition to renewables fosters a **multi-dimensional economic shift** beyond cost savings alone. Here\u2019s how the retrieved information refines our understanding of the benefits and fills prior gaps:"
 } 
 ```
 
-Token Input size:  1053 
-  Token Output size:  146 
+Token Input size:  466 
+  Token Output size:  149 
  

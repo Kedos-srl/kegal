@@ -154,6 +154,7 @@ class LLMFunctionCall(BaseModel):
 class LLmResponse(BaseModel):
     messages: list[str] | None = Field(default=None)
     tools: list[LLMFunctionCall] | None = Field(default=None)
+    tool_results: list[str] | None = Field(default=None)
     json_output: dict | None = Field(default=None)
     input_size: int = 0
     output_size: int = 0

@@ -36,19 +36,27 @@ def compose_node_prompt(prompt_template: dict[str, str],
                         message_passing: list | None = None,
                         retrieved_chunks: str | None = None):
 
+    placeholders = dict(placeholders)  # copy — never mutate the caller's dict
+
     if user_message is not None:
         placeholders["user_message"] = user_message.strip()
 
     if message_passing is not None:
-        placeholders["message_passing"] = str(message_passing).strip()
+        placeholders["message_passing"] = "\n\n".join(str(m) for m in message_passing).strip()
 
     if retrieved_chunks is not None:
         placeholders["retrieved_chunks"] = retrieved_chunks.strip()
 
     if len(placeholders) > 0:
         output = prompt_template.copy()
-        output["system"] = output["system"].format(**placeholders)
-        output["user"] = output["user"].format(**placeholders)
+        try:
+            output["system"] = output["system"].format(**placeholders)
+            output["user"]   = output["user"].format(**placeholders)
+        except KeyError as e:
+            raise KeyError(
+                f"Placeholder {e} used in prompt template but not activated in the node config. "
+                f"Available placeholders: {list(placeholders.keys())}"
+            ) from e
         return output
     return prompt_template
 
@@ -73,5 +81,5 @@ def compose_documents(data: list[GraphInputData], indices: list[int]):
         )
     return pdfs_b64
 
-def compose_tools(tools: list[LLMTool], indices: list[int]):
-    return [tools[i].template for i  in indices]
+def compose_tools(tools: list[LLMTool], names: list[str]) -> list[LLMTool]:
+    return [t for t in tools if t.name in names]

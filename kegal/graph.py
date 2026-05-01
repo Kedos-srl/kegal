@@ -14,6 +14,7 @@ from .graph_model import GraphModel
 from .graph_react import NodeReact
 from .graph_edge import GraphEdge
 from .graph_blackboard import GraphBlackboard, BlackboardEntry, NodeBlackboardRef
+from .graph_history import ChatHistoryFile
 from .graph_node import NodePrompt, NodeMessagePassing, GraphNode
 
 
@@ -31,7 +32,7 @@ class Graph(BaseModel):
     mcp_servers: list[GraphMcpServer] | None = None
     prompts: list[GraphInputData]
     react_compact_prompts: list[GraphInputData] | None = None
-    chat_history: dict[str, list[dict[str, str]]] | None = None
+    chat_history: dict[str, list[dict[str, str]] | ChatHistoryFile] | None = None
     user_message: str | None = None
     retrieved_chunks: str | None = None
     blackboard: GraphBlackboard | None = None
@@ -78,6 +79,7 @@ __all__ = [
     "GraphBlackboard",
     "BlackboardEntry",
     "NodeBlackboardRef",
+    "ChatHistoryFile",
     "NodePrompt",
     "NodeMessagePassing",
     "GraphNode",

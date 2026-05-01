@@ -5,13 +5,15 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from pydantic import BaseModel
 from .compose import compose_template_prompt, compose_node_prompt, compose_images, compose_documents, compose_tools
 from .graph import Graph, GraphEdge, GraphNode, NodeReact
 from .graph_blackboard import BlackboardEntry, GraphBlackboard
+from .graph_history import ChatHistoryFile
 from .mcp_handler import McpHandler
-from .utils import load_contents
+from .utils import load_contents, load_text_from_source
 from .llm.llm_handler import LlmHandler
 from .llm.llm_model import LLmResponse, LLMStructuredOutput, LLMStructuredSchema, LLmMessage
 
@@ -80,7 +82,10 @@ class Compiler:
         self.documents = graph.documents
         self.tools = graph.tools
         self.prompts = self._get_graph_prompts_templates(graph)
-        self.chat_history = graph.chat_history
+        self.chat_history: dict[str, list[dict[str, str]]] = {}
+        self._history_auto_paths: dict[str, Path] = {}
+        if graph.chat_history:
+            self._init_history(graph.chat_history)
         self.user_message = graph.user_message
         self.retrieved_chunks = graph.retrieved_chunks
         # Multi-board blackboard state
@@ -151,6 +156,60 @@ class Compiler:
                 except Exception as e:
                     logger.warning(f"Error closing LLM client: {e}")
 
+    # -------------------------------------------------------------------------
+    # Convenience setters — chat history and retrieved chunks
+    # -------------------------------------------------------------------------
+
+    def add_chat_history(self, id: str, *,
+                          file: Path | None = None,
+                          uri: str | None = None,
+                          history: list | None = None) -> None:
+        """Add or replace a chat history scope.
+
+        Exactly one source must be provided:
+          - file: local JSON file containing a list of {role, content} dicts.
+          - uri:  remote https:// URL pointing to a JSON file.
+          - history: inline list of {role, content} dicts.
+
+        The scope is immediately available for subsequent compile() calls.
+        """
+        sources = sum(x is not None for x in [file, uri, history])
+        if sources != 1:
+            raise ValueError(
+                f"add_chat_history: exactly one of 'file', 'uri', or 'history' must be provided "
+                f"(got {sources} non-None arguments)."
+            )
+        if file is not None:
+            self.chat_history[id] = json.loads(Path(file).read_text(encoding="utf-8"))
+        elif uri is not None:
+            self.chat_history[id] = json.loads(load_text_from_source(uri))
+        else:
+            self.chat_history[id] = list(history)
+
+    def add_retrieved_chunks(self, *,
+                              file: Path | None = None,
+                              uri: str | None = None,
+                              chunks: str | None = None) -> None:
+        """Set the retrieved chunks content for subsequent compile() calls.
+
+        Exactly one source must be provided:
+          - file:   local text file (content used as-is).
+          - uri:    remote https:// URL (content fetched and used as-is).
+          - chunks: inline text string.
+        """
+        sources = sum(x is not None for x in [file, uri, chunks])
+        if sources != 1:
+            raise ValueError(
+                f"add_retrieved_chunks: exactly one of 'file', 'uri', or 'chunks' must be provided "
+                f"(got {sources} non-None arguments)."
+            )
+        if file is not None:
+            self.retrieved_chunks = Path(file).read_text(encoding="utf-8")
+        elif uri is not None:
+            self.retrieved_chunks = load_text_from_source(uri)
+        else:
+            self.retrieved_chunks = chunks
+
     @staticmethod
     def _get_graph_prompts_templates(graph):
         return Compiler._load_prompt_inputs(graph.prompts)
@@ -168,6 +227,30 @@ class Compiler:
             else:
                 raise ValueError("Prompt input must have either 'template' or 'uri' defined")
         return prompts_templates
+
+    def _init_history(self, raw: dict[str, list[dict[str, str]] | ChatHistoryFile]) -> None:
+        """Resolve chat_history scopes: load file-based scopes, record auto paths."""
+        for key, scope in raw.items():
+            if isinstance(scope, ChatHistoryFile):
+                parsed = urlparse(scope.path)
+                is_url = bool(parsed.scheme) and parsed.scheme in ("http", "https")
+                if is_url:
+                    if scope.auto:
+                        raise ValueError(
+                            f"chat_history scope '{key}': auto=true is not supported for remote URLs — "
+                            f"write-back requires a local file path."
+                        )
+                    self.chat_history[key] = json.loads(load_text_from_source(scope.path))
+                else:
+                    file_path = self._graph_dir / scope.path
+                    self.chat_history[key] = (
+                        json.loads(file_path.read_text(encoding="utf-8"))
+                        if file_path.exists() else []
+                    )
+                    if scope.auto:
+                        self._history_auto_paths[key] = file_path
+            else:
+                self.chat_history[key] = scope
 
     def _init_boards(self, cfg: GraphBlackboard) -> None:
         """Create or truncate board files at init time and load initial content."""
@@ -377,6 +460,19 @@ class Compiler:
 
         for root_edge in self.edges:
             _check_react_edge_mixing(root_edge)
+
+        # chat_history: each scope may be referenced by at most one node
+        history_scope_users: dict[str, str] = {}
+        for node_id, node in self.nodes.items():
+            if node.prompt and node.prompt.chat_history:
+                key = node.prompt.chat_history
+                if key in history_scope_users:
+                    errors.append(
+                        f"Node '{node_id}': chat_history scope '{key}' is already used by "
+                        f"node '{history_scope_users[key]}' — each scope may only be assigned to one node."
+                    )
+                else:
+                    history_scope_users[key] = node_id
 
         # Defined names for reference checks
         tool_names: set[str] = {t.name for t in (self.tools or [])}
@@ -729,6 +825,7 @@ class Compiler:
             for nid in react_ids:
                 self._run_react_loop(self._react_controllers[nid], self.nodes[nid])
 
+        self._update_auto_history()
         self.outputs.compile_time = time.time() - global_start
 
     def _run_parallel(self, node_ids: list[str]):
@@ -1132,7 +1229,7 @@ class Compiler:
     # -------------------------------------------------------------------------
 
     def _chat_history_check(self, node) -> bool:
-        if node.prompt is None or node.prompt.chat_history is None or self.chat_history is None:
+        if node.prompt is None or node.prompt.chat_history is None:
             return False
         key = node.prompt.chat_history
         if key not in self.chat_history:
@@ -1274,6 +1371,36 @@ class Compiler:
             path = self._board_paths.get(board_id)
             if path is not None:
                 path.write_text(updated, encoding="utf-8")
+
+    def _update_auto_history(self) -> None:
+        """Append user+assistant turns to auto-managed history scopes and persist to file."""
+        if not self._history_auto_paths:
+            return
+        scope_to_node = {
+            node.prompt.chat_history: node_id
+            for node_id, node in self.nodes.items()
+            if node.prompt and node.prompt.chat_history
+        }
+        for key, file_path in self._history_auto_paths.items():
+            node_id = scope_to_node.get(key)
+            if node_id is None:
+                continue
+            node_output = next((o for o in self.outputs.nodes if o.node_id == node_id), None)
+            if node_output is None:
+                continue
+            if node_output.response.messages:
+                response_text = "\n".join(node_output.response.messages)
+            elif node_output.response.json_output:
+                response_text = json.dumps(node_output.response.json_output)
+            else:
+                continue
+            history = self.chat_history.get(key, [])
+            if self.user_message:
+                history.append({"role": "user", "content": self.user_message})
+            history.append({"role": "assistant", "content": response_text})
+            self.chat_history[key] = history
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _check_message_passing(self, response, node):
         with self._message_passing_lock:

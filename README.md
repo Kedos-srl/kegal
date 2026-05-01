@@ -39,7 +39,7 @@ pip install -e .
 
 - [Graph Framework](docs/graph_doc.md) - Full field reference for the `Graph` model hierarchy
 - [LLM Providers](docs/llm_doc.md) - Guide on LLM providers and integration
-- [Tutorials](docs/tutorials.md) - Worked examples: tools, MCP, fan-out/fan-in, guard nodes, RAG, and more
+- [Tutorials](docs/tutorials.md) - 13 topic tutorials from basics to advanced: structured output, RAG, chat history, blackboard, ReAct, and more
 - [Changelog](docs/CHANGELOG.md) - Version history and release notes
 
 ## Quick Start
@@ -158,7 +158,7 @@ pipelines, guard nodes, RAG, and multi-provider graphs — see [docs/tutorials.m
 - **Python tool executors** – attach plain Python callables as tools without running a separate process
 - **Multi-provider support** – use different LLMs in the same graph
 - **Context window tracking** – declare `context_window` on a model to get accurate `resume` compaction thresholds and per-node context-utilization percentages in markdown output
-- **Chat history** – maintain conversational context across nodes
+- **Chat history** – maintain conversational context across nodes; scopes can be inline arrays or external JSON files with optional `auto: true` to let KeGAL append user+assistant turns automatically after each `compile()` call
 - **RAG support** – inject retrieved document chunks into prompts
 - **Prompt validation** – at `Compiler()` construction, placeholder tokens in every prompt template are checked against the node config; misconfigurations are reported as warnings before the first `compile()` call
 - **Safe resource cleanup** – `compiler.close()` releases MCP server processes and LLM HTTP connection pools; idempotent and transport-aware

@@ -224,6 +224,18 @@ Key attributes set from `GraphModel`:
 
 `compiler.py` contains the `Compiler` class that loads a graph configuration, initialises the LLM clients, and executes each node in the order defined by the graph edges.
 
+### Constructor
+
+```python
+Compiler(uri=None, source=None, tool_executors=None)
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `uri` | `str \| None` | Path to a YAML or JSON graph file. Mutually exclusive with `source`. |
+| `source` | `dict \| None` | Graph configuration as a Python dict. Mutually exclusive with `uri`. |
+| `tool_executors` | `dict[str, Callable] \| None` | Maps tool names to Python callables. The LLM can invoke these functions during the tool loop. |
+
 ### Usage
 
 ```python
@@ -246,7 +258,7 @@ outputs = compiler.get_outputs()
 4. **Topological scheduling** – `_topological_levels()` groups nodes into levels via [Kahn's algorithm](https://en.wikipedia.org/wiki/Topological_sorting). Nodes in the same level have no dependency on each other.
 5. **Level execution** – for each level: guard nodes run sequentially first (graph aborts if any returns `validation: false`), then remaining nodes run in parallel via `ThreadPoolExecutor` if there is more than one. ReAct controllers run last within the level, after all regular nodes complete. Failures from parallel nodes are collected and re-raised as a `RuntimeError` after all futures complete.
 6. **Message passing** – after each node, its output is written to `self.message_passing` if `output=true`; downstream nodes with `input=true` read from it.
-7. **Blackboard update** – after each node with `blackboard.write=true`, its response is appended to the shared buffer (thread-safe). If the blackboard was loaded from a file, the file is written back immediately.
+7. **Blackboard update** – after each node with `blackboard.write=true`, its response is appended to the named board's buffer (thread-safe) and the board's file on disk is updated immediately.
 
 > **`compile()` is safe to call multiple times.** Each invocation resets `outputs` and `message_passing` before execution — results from previous runs are not carried over.
 
@@ -271,14 +283,17 @@ outputs = compiler.get_outputs()
 | `output_size` | `int` | Total output tokens produced across all nodes. |
 | `compile_time` | `float` | Total wall-clock seconds for the full `compile()` call. |
 
-### Serialisation
+### Public methods
 
 | Method | Description |
 |--------|-------------|
+| `compile()` | Execute the graph. Safe to call multiple times — resets outputs and state on each call. |
 | `get_outputs()` | Returns a `CompiledOutput` object. |
-| `get_outputs_json(indent)` | Returns a JSON string. |
+| `get_outputs_json(indent)` | Returns the output as a JSON string. |
 | `save_outputs_as_json(path)` | Writes the output to a JSON file. |
-| `save_outputs_as_markdown(path)` | Writes a Markdown report. |
+| `save_outputs_as_markdown(path)` | Writes a Markdown report (respects `show` flag per node). |
+| `get_react_trace(controller_id)` | Returns a `ReactTrace` with per-iteration detail for a controller node. |
+| `close()` | Releases MCP server processes and LLM HTTP connection pools. Idempotent. |
 
 ---
 
@@ -306,6 +321,7 @@ Utility functions used across the package:
 | `load_yml(source)` | Load a YAML file into a Python dict. |
 | `load_json(source)` | Load a JSON file into a Python dict. |
 | `load_contents(source)` | Load a YAML or JSON file based on extension. |
+| `load_text_from_source(source)` | Load plain text from a local file path or HTTPS URL. |
 | `load_images_to_base64(source)` | Load an image from a path or URL and return `(media_type, base64_str)`. |
 | `load_pdfs_to_base64(source)` | Load a PDF from a path or URL and return `(media_type, base64_str)`. |
 
@@ -632,4 +648,4 @@ edges:
 
 ---
 
-> For runtime usage and worked examples refer to [README.md](../README.md) and [tutorials.md](tutorials.md).
+> For runtime usage and worked examples refer to [README.md](../README.md) and the [tutorials index](tutorials.md).

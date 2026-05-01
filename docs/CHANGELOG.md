@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.3.1] - 2026-05-01](#0131---2026-05-01)
 - [[0.1.3.0] - 2026-04-30](#0130---2026-04-30)
 - [[0.1.2.9] - 2026-04-29](#0129---2026-04-29)
 - [[0.1.2.8] - 2026-04-28](#0128---2026-04-28)
@@ -14,6 +15,29 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.3.1] - 2026-05-01
+
+### Added
+
+- **File-based `chat_history` scopes** (`graph_history.py`) — a `chat_history` scope value can now be a `ChatHistoryFile` object instead of an inline array, enabling external JSON files to be used as persistent conversation history.
+  - **`ChatHistoryFile`** model (`graph_history.py`): `path` (path to a JSON file) + `auto` (bool, default `false`). Exported from `kegal`.
+  - **`Graph.chat_history`** — field type extended from `dict[str, list[dict[str, str]]]` to `dict[str, list[dict[str, str]] | ChatHistoryFile]`.
+  - **`Compiler._init_history()`** — new method called at construction time; resolves all scopes: inline arrays are stored as-is, local file-based scopes are loaded from disk (empty list if file does not exist), remote URL scopes are fetched via `load_text_from_source` (HTTPS only; `auto: true` with a URL raises `ValueError`), auto scopes register their path in `_history_auto_paths`.
+  - **`Compiler._update_auto_history()`** — new method called at the end of `compile()`; for every auto scope, appends a `user` turn (if `user_message` is set) and an `assistant` turn (from the node's response), updates `chat_history` in memory, and persists the full history to the JSON file. Parent directories are created automatically if they do not exist.
+  - **`Compiler.chat_history`** — changed from `dict | None` to always-a-dict (`{}`); the `is None` guard in `_chat_history_check` has been removed.
+  - **`Compiler._history_auto_paths`** — new dict (`str → Path`) tracking which scopes require automatic persistence.
+  - **Scope uniqueness validation** in `_validate_indices()` — each `chat_history` scope key may be referenced by at most one node. Assigning the same scope to two nodes raises `ValueError` listing both node IDs, collected alongside other configuration errors.
+  - **`test/test_chat_history.py`** — unit tests covering: `ChatHistoryFile` model parsing, `Graph` parsing (inline / file / mixed), `_init_history` (load / missing / auto registration), `_update_auto_history` (user+assistant turns, existing history, orphan scope, parent dir creation), `_chat_history_check`, scope uniqueness validation, and both convenience methods.
+- **`Compiler.add_chat_history(id, *, file, uri, history)`** — convenience method that sets `compiler.chat_history[id]` from a local JSON file (`file`), an `https://` URL (`uri`), or an inline list (`history`). Exactly one source must be provided; passing zero or more than one raises `ValueError`. Inline lists are copied.
+- **`Compiler.add_retrieved_chunks(*, file, uri, chunks)`** — convenience method that sets `compiler.retrieved_chunks` from a local file (`file`), an `https://` URL (`uri`), or a plain string (`chunks`). Exactly one source must be provided; passing zero or more than one raises `ValueError`.
+
+### Changed
+
+- **`docs/tutorials.md`** — restructured as a lightweight index table linking to 13 individual tutorial files in `docs/tutorials/`. Each file covers one topic from basics to advanced examples and includes cross-references to related tutorials. Topics: structured output, message passing, guard nodes, RAG, chat history, multimodal, fan-out/fan-in, Python tool executors, MCP servers, multi-provider graphs, blackboard, ReAct loop, context window and output saving.
+- **`docs/graph_doc.md`** — §9 `Graph.chat_history` type updated; new §4.1 `ChatHistoryFile` field-reference table and §12 *Compiler convenience methods* added.
 
 ---
 

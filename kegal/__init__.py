@@ -12,6 +12,7 @@ from .graph import (
     GraphBlackboard,
     BlackboardEntry,
     NodeBlackboardRef,
+    ChatHistoryFile,
     NodePrompt,
     NodeMessagePassing,
     NodeReact,
@@ -44,7 +45,7 @@ from .validators import (
 # Import LLM subpackage
 from . import llm
 
-__version__ = "0.1.2.8"
+__version__ = "0.1.2.4"
 
 __all__ = [
     # Graph models
@@ -54,6 +55,7 @@ __all__ = [
     "GraphBlackboard",
     "BlackboardEntry",
     "NodeBlackboardRef",
+    "ChatHistoryFile",
     "NodePrompt",
     "NodeMessagePassing",
     "NodeReact",

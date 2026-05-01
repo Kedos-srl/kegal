@@ -13,6 +13,7 @@ For each model we list the fields, their types, optionality, and provide concret
 - [3. `NodePrompt`](#3-nodeprompt)
   - [3.1 Prompt Placeholders](#31-prompt-placeholders)
 - [4. `NodeMessagePassing`](#4-nodemessagepassing)
+- [4.1 `ChatHistoryFile`](#41-chathistoryfile)
 - [5. Blackboard models](#5-blackboard-models)
 - [6. `GraphNode`](#6-graphnode)
   - [Reserved `react_output` Fields](#reserved-react_output-fields)
@@ -21,6 +22,7 @@ For each model we list the fields, their types, optionality, and provide concret
 - [9. `Graph`](#9-graph)
 - [10. `LLMTool`](#10-llmtool-from-kegalllmllm_model)
 - [11. `LLMStructuredSchema`](#11-llmstructuredschema-from-kegalllmllm_model)
+- [12. Compiler convenience methods](#12-compiler-convenience-methods)
 
 ---
 
@@ -248,6 +250,59 @@ message_passing:
 
 ---
 
+## 4.1 `ChatHistoryFile`
+
+`ChatHistoryFile` is used as a value in the top-level `chat_history` dict to declare a **file-based** history scope instead of an inline array. It is importable from `kegal`.
+
+| Field  | Type   | Optional | Description |
+|--------|--------|----------|-------------|
+| `path` | `str`  | No       | Local file path or `https://` URL pointing to a JSON file containing a list of `{role, content}` message pairs. Local paths are resolved relative to the YAML file's directory when loading via `uri`, or relative to `cwd` when loading via `source` dict. If a local file does not exist at `Compiler` construction time, the scope starts empty. Remote URLs are fetched at construction time; only `https://` is permitted. |
+| `auto` | `bool` | Yes (default `false`) | When `true`, KeGAL automatically appends a `user` turn and an `assistant` turn to the file at the end of each `compile()` call. Only valid for **local** file paths — `auto: true` with a remote URL raises `ValueError`. Inline arrays are always managed by the caller. |
+
+### Constraints
+
+- Each scope may be assigned to **at most one node**. Sharing a scope between two nodes raises `ValueError` at `Compiler` construction time.
+- `auto: true` is only meaningful with file-based scopes. Inline array scopes are never auto-updated.
+
+### YAML Example
+
+```yaml
+chat_history:
+  # Inline scope — managed by the caller
+  few_shot:
+    - role: "user"
+      content: "Translate 'cat' to French."
+    - role: "assistant"
+      content: "chat"
+
+  # Local file scope — loaded from disk; auto-updated after each compile()
+  session_a:
+    path: ./history/session_a.json
+    auto: true
+
+  # Local file scope — loaded from disk; caller manages persistence
+  session_b:
+    path: ./history/session_b.json
+    auto: false
+
+  # Remote URL scope — fetched at Compiler init; auto: true not allowed
+  shared_examples:
+    path: https://example.com/history/examples.json
+```
+
+### JSON Example
+
+```json
+{
+  "session_a": {
+    "path": "./history/session_a.json",
+    "auto": true
+  }
+}
+```
+
+---
+
 ## 5. Blackboard models
 
 The **multi-board blackboard system** implements the [Blackboard architectural pattern](https://en.wikipedia.org/wiki/Blackboard_(design_pattern)): one or more named shared markdown buffers written and read across nodes during a single `compile()` run.
@@ -266,7 +321,7 @@ Three models make up the system:
 
 | Field | Type | Optional | Description |
 |---|---|---|---|
-| `path` | `str` | No | Directory (relative to the YAML file) where board files are stored. |
+| `path` | `str` | No | Directory where board files are stored. Resolved relative to the YAML file's directory when loading via `uri`; relative to the current working directory when loading via `source` dict. |
 | `boards` | `list[BlackboardEntry]` | No | Ordered list of board definitions. Board IDs must be unique. |
 
 ### `BlackboardEntry`
@@ -308,7 +363,7 @@ When a board declares `import: [other_id]`, the content of `other_id` is prepend
 
 ```yaml
 blackboard:
-  path: ./                      # directory relative to the YAML file
+  path: ./                      # resolved relative to the YAML file's dir (or cwd when using source dict)
   boards:
     - id: main
       file: BLACKBOARD.md
@@ -647,7 +702,7 @@ The controller and agent nodes have different execution paths and therefore supp
 | `blackboard.read` / `.write` | ✗ ignored — warning at init | ✓ writes persist globally across iterations |
 | `message_passing.input` | ✓ seeds the initial conversation message | ✓ receives `agent_input` from controller |
 | `message_passing.output` | ✓ pushes `final_answer` to the shared buffer | ✓ result observed by controller |
-| `images` / `pdfs` | ✓ included in every controller LLM call | ✓ standard behaviour |
+| `images` / `documents` | ✓ included in every controller LLM call | ✓ standard behaviour |
 | `structured_output` | — overridden by `react_output` | ✓ standard behaviour |
 | `chat_history` | ✓ seeds the conversation buffer | ✓ standard behaviour |
 | `user_message` | ✓ first user turn in the conversation | ✓ standard behaviour |
@@ -853,7 +908,7 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | `mcp_servers`           | `list[GraphMcpServer]` \| `None`       | Yes      | MCP server configurations. Each server is referenced by its `id` in `GraphNode.mcp_servers`. |
 | `prompts`               | `list[GraphInputData]`                 | No       | Prompt templates (indexed by `NodePrompt.template`). |
 | `react_compact_prompts` | `list[GraphInputData]` \| `None`       | Yes      | Custom prompts used to summarize the ReAct conversation buffer when `resume: true` triggers compaction. Accepts `uri` or inline `template` exactly like regular `prompts`. Index 0 overrides the built-in default compaction prompt. |
-| `chat_history`          | `dict[str, list[dict[str, str]]]` \| `None` | Yes | Conversation history as a dict mapping scope names to lists of `{role, content}` message pairs. A node references its history by name via `NodePrompt.chat_history`. |
+| `chat_history`          | `dict[str, list[dict[str, str]] \| ChatHistoryFile]` \| `None` | Yes | Conversation history as a dict mapping scope names to either an inline list of `{role, content}` message pairs or a `ChatHistoryFile` (external JSON file). A node references its history by name via `NodePrompt.chat_history`. Each scope may be assigned to at most one node — sharing a scope between two nodes raises `ValueError` at `Compiler` construction time. |
 | `user_message`          | `str` \| `None`                        | Yes      | Current user prompt. |
 | `retrieved_chunks`      | `str` \| `None`                        | Yes      | Additional retrieved content (e.g., document snippets). |
 | `blackboard`            | `GraphBlackboard` \| `None`            | Yes      | Multi-board blackboard configuration: directory path and list of named board files. See §5 Blackboard models. |
@@ -1149,6 +1204,60 @@ required:
     "enum": ["technology", "business", "education"]
   }
 }
+```
+
+---
+
+## 12. Compiler convenience methods
+
+Two helper methods on `Compiler` load external content into the mutable
+`retrieved_chunks` and `chat_history` attributes before calling `compile()`.
+Each method accepts exactly one source argument; passing zero or more than one
+raises `ValueError`.
+
+---
+
+### `add_retrieved_chunks(*, file, uri, chunks)`
+
+Sets `compiler.retrieved_chunks` to the text content of the given source.
+
+| Argument | Type            | Description |
+|----------|-----------------|-------------|
+| `file`   | `Path \| None`  | Local file read as UTF-8 text. |
+| `uri`    | `str \| None`   | `https://` URL to fetch; only HTTPS is permitted. |
+| `chunks` | `str \| None`   | Plain text string used as-is. |
+
+```python
+from pathlib import Path
+from kegal import Compiler
+
+with Compiler(uri="path/to/graph.yml") as compiler:
+    compiler.add_retrieved_chunks(file=Path("context.txt"))
+    compiler.user_message = "What does the document say?"
+    compiler.compile()
+```
+
+---
+
+### `add_chat_history(id, *, file, uri, history)`
+
+Sets `compiler.chat_history[id]` to the history loaded from the given source.
+
+| Argument  | Type           | Description |
+|-----------|----------------|-------------|
+| `id`      | `str`          | Scope key (positional). Must match a scope declared in the graph's `chat_history` dict or referenced by `NodePrompt.chat_history` on a node. |
+| `file`    | `Path \| None` | Local JSON file containing a list of `{role, content}` dicts. |
+| `uri`     | `str \| None`  | `https://` URL returning the same JSON; only HTTPS is permitted. |
+| `history` | `list \| None` | Inline list of `{role, content}` dicts; a copy is stored. |
+
+```python
+from pathlib import Path
+from kegal import Compiler
+
+with Compiler(uri="path/to/graph.yml") as compiler:
+    compiler.add_chat_history("session_a", file=Path("history/session_a.json"))
+    compiler.user_message = "Follow-up question"
+    compiler.compile()
 ```
 
 

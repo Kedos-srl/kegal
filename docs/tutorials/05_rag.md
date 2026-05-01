@@ -1,4 +1,4 @@
-# Tutorial 4: RAG — Retrieval-Augmented Generation
+# Tutorial 5: RAG — Retrieval-Augmented Generation
 
 Retrieval-Augmented Generation (RAG) lets a node answer questions from
 external context rather than relying solely on the LLM's training data. In

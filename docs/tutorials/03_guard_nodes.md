@@ -322,4 +322,4 @@ with Compiler(uri="rag_guarded.yml") as compiler:
 
 > **Related tutorials:**
 > [02 Structured output](02_structured_output.md) — using structured_output for data extraction  
-> [04 RAG](04_rag.md) — combining a guard with retrieval-augmented generation
+> [05 RAG](05_rag.md) — combining a guard with retrieval-augmented generation

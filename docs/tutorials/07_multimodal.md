@@ -1,4 +1,4 @@
-# Tutorial 6: Multimodal — Images and PDFs
+# Tutorial 7: Multimodal — Images and PDFs
 
 KeGAL nodes can receive images and PDF documents alongside the text prompt.
 The media is attached to the LLM call directly — no special placeholder is
@@ -294,5 +294,5 @@ with Compiler(uri="multimodal_pipeline.yml") as compiler:
 ---
 
 > **Related tutorials:**
-> [10 Multi-provider graphs](10_multi_provider.md) — choosing a vision-capable provider  
-> [07 Fan-out and fan-in](07_fan_out_fan_in.md) — parallel specialist nodes
+> [11 Multi-provider graphs](11_multi_provider.md) — choosing a vision-capable provider  
+> [04 Fan-out and fan-in](04_fan_out_fan_in.md) — parallel specialist nodes

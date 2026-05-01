@@ -1,4 +1,4 @@
-# Tutorial 10: Multi-Provider Graphs
+# Tutorial 11: Multi-Provider Graphs
 
 Different nodes in the same graph can use different LLM providers and models.
 Declare every model you need in the top-level `models:` list and reference

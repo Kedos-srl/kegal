@@ -347,7 +347,7 @@ nodes:
       chat_history: "research_session"
 ```
 
-See [Tutorial 5: Chat history](05_chat_history.md) for full details.
+See [Tutorial 6: Chat history](06_chat_history.md) for full details.
 
 ---
 
@@ -381,5 +381,5 @@ See [Tutorial 5: Chat history](05_chat_history.md) for full details.
 > **Related tutorials:**
 > [08 Tool executors](08_tool_executors.md) — Python tools inside agent nodes  
 > [09 MCP servers](09_mcp_servers.md) — out-of-process tools inside agent nodes  
-> [05 Chat history](05_chat_history.md) — seeding the controller's conversation buffer  
+> [06 Chat history](06_chat_history.md) — seeding the controller's conversation buffer  
 > [13 Context window](13_context_window.md) — accurate compaction with context_window

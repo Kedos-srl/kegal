@@ -1,4 +1,4 @@
-# Tutorial 5: Chat History
+# Tutorial 6: Chat History
 
 Chat history lets a node begin its LLM call with prior conversation turns,
 making the model aware of context from earlier in the session. Each history
@@ -305,4 +305,4 @@ so the next run knows what was decided in previous sessions.
 
 > **Related tutorials:**
 > [12 ReAct loop](12_react_loop.md) — using chat_history to seed a controller's conversation  
-> [04 RAG](04_rag.md) — combining retrieved context with conversation history
+> [05 RAG](05_rag.md) — combining retrieved context with conversation history

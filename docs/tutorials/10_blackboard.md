@@ -1,4 +1,4 @@
-# Tutorial 11: Blackboard — Shared Markdown Pipeline
+# Tutorial 10: Blackboard — Shared Markdown Pipeline
 
 The **blackboard** is a persistent markdown buffer that nodes can read from
 and write to during a single `compile()` run. It implements the classic
@@ -369,5 +369,5 @@ print(board_content)
 ---
 
 > **Related tutorials:**
-> [07 Fan-out and fan-in](07_fan_out_fan_in.md) — explicit edge-based parallelism  
+> [04 Fan-out and fan-in](04_fan_out_fan_in.md) — explicit edge-based parallelism  
 > [01 Message passing](01_message_passing.md) — alternative data-flow mechanism

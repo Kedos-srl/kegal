@@ -294,4 +294,4 @@ structured_output:
 > **Related tutorials:**
 > [03 Guard nodes](03_guard_nodes.md) — using `validation` to abort the graph  
 > [01 Message passing](01_message_passing.md) — forwarding structured data to the next node  
-> [04 RAG](04_rag.md) — combining retrieved context with structured extraction
+> [05 RAG](05_rag.md) — combining retrieved context with structured extraction

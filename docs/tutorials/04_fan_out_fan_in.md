@@ -1,4 +1,4 @@
-# Tutorial 7: Fan-out and Fan-in Edges
+# Tutorial 4: Fan-out and Fan-in Edges
 
 `children` (fan-out) and `fan_in` are the two edge primitives for
 controlling parallel execution. They are recursive and composable, allowing
@@ -374,5 +374,5 @@ edges:
 > **Related tutorials:**
 > [01 Message passing](01_message_passing.md) — passing data between nodes  
 > [03 Guard nodes](03_guard_nodes.md) — automatic pre-flight barriers  
-> [11 Blackboard](11_blackboard.md) — shared state across fan-out branches  
+> [10 Blackboard](10_blackboard.md) — shared state across fan-out branches  
 > [12 ReAct loop](12_react_loop.md) — an alternative to fan-out for iterative dispatch

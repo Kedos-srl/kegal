@@ -279,4 +279,4 @@ with Compiler(uri="chat.yml") as compiler:
 
 > **Related tutorials:**
 > [12 ReAct loop](12_react_loop.md) — resume and compaction in practice  
-> [10 Multi-provider graphs](10_multi_provider.md) — `context_window` per provider
+> [11 Multi-provider graphs](11_multi_provider.md) — `context_window` per provider

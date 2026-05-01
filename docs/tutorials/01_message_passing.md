@@ -313,5 +313,5 @@ nodes:
 
 > **Related tutorials:**
 > [02 Structured output](02_structured_output.md) — forwarding structured data downstream  
-> [07 Fan-out and fan-in](07_fan_out_fan_in.md) — scheduling parallel branches  
+> [04 Fan-out and fan-in](04_fan_out_fan_in.md) — scheduling parallel branches  
 > [12 ReAct loop](12_react_loop.md) — piping a controller's final answer to a post-processor

@@ -24,3 +24,6 @@ botocore>=1.34.0
 
 # MCP (Model Context Protocol) — orchestrator-managed client
 mcp>=1.0.0
+
+# Documentation
+mkdocs-material>=9.0.0

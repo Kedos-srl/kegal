@@ -291,16 +291,6 @@ def validate_openai_schema(schema: dict[str, Any]) -> List[SchemaIssue]:
 
 
 
-
-"""
-anthropic_aws
-anthropic
-bedrock
-ollama
-openai
-"""
-
-
 def validate_llm_input_schema(input_schema: type[BaseModel] | dict[str, Any], model: str) -> List[SchemaIssue]:
     """Validate LLM schema against provider-specific requirements
 

@@ -69,8 +69,8 @@ class LlmOllama(LlmModel):
             )
 
             llm_response = LLmResponse()
-            llm_response.input_size =  model_response['prompt_eval_count']
-            llm_response.output_size =  model_response['eval_count']
+            llm_response.input_size = model_response.get('prompt_eval_count', 0)
+            llm_response.output_size = model_response.get('eval_count', 0)
 
             contents = [model_response['message']["content"]]
             for item in contents:

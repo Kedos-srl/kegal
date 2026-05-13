@@ -926,7 +926,7 @@ class Compiler:
         original_user_message = body.get("user_message", "")
         accumulated_tool_results: list[str] = []
 
-        MAX_ITERATIONS = 10
+        MAX_ITERATIONS = node.max_tool_calls if node.max_tool_calls is not None else 10
         for iteration in range(MAX_ITERATIONS):
             if tool_history:
                 body["chat_history"] = tool_history

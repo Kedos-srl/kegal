@@ -29,6 +29,7 @@ class GraphNode(BaseModel):
     structured_output: dict[str, Any] | None = None
     react_output: dict[str, Any] | None = None
     react: NodeReact | None = None
+    max_tool_calls: int | None = None
     images: list[int] | None = None
     documents: list[int] | None = None
     tools: list[str] | None = None

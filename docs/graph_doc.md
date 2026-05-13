@@ -16,6 +16,7 @@ For each model we list the fields, their types, optionality, and provide concret
 - [4.1 `ChatHistoryFile`](#41-chathistoryfile)
 - [5. Blackboard models](#5-blackboard-models)
 - [6. `GraphNode`](#6-graphnode)
+  - [6.1 `NodeMcpServerRef`](#61-nodemcpserverref)
   - [Reserved `react_output` Fields](#reserved-react_output-fields)
 - [7. `NodeReact`](#7-nodereact)
 - [8. `GraphEdge`](#8-graphedge)
@@ -444,10 +445,44 @@ entry is needed.
 | `react`             | `NodeReact` \| `None`        | Yes      | ReAct loop config. When set, the node acts as a controller that iteratively dispatches to agents. See §7 `NodeReact`. |
 | `images`            | `list[int]` \| `None`        | Yes      | Indices of images to be provided to the node. |
 | `documents`         | `list[int]` \| `None`        | Yes      | Indices of documents to be provided to the node. |
+| `max_tool_calls`    | `int` \| `None`              | Yes      | Maximum number of tool-call iterations the node's internal tool loop is allowed to make before stopping. Default `10` when `None`. Increase this on nodes that must read many files or call many tools in a single execution. |
 | `tools`             | `list[str]` \| `None`        | Yes      | Names of tools (matching the `name` field in the top-level `tools` list) available to this node. |
-| `mcp_servers`       | `list[str]` \| `None`        | Yes      | IDs of MCP servers (matching the `id` field in the top-level `mcp_servers` list) available to this node. |
+| `mcp_servers`       | `list[NodeMcpServerRef]` \| `None` | Yes | MCP servers available to this node. Accepts both a plain list of server ID strings (`[file_tools]`) for backward compatibility, and a list of `NodeMcpServerRef` objects (`{id, tools}`) for per-server tool filtering. See §6.1. |
 
 > **Index validation**: `model` and `prompt.template` are validated at `Compiler` construction time. If either index is out of range, a `ValueError` listing all offending nodes is raised before the first `compile()` call.
+
+---
+
+## 6.1 `NodeMcpServerRef`
+
+Reference to an MCP server assigned to a node. Allows per-server tool filtering so the LLM only sees the tools it actually needs.
+
+| Field   | Type                    | Optional | Description |
+|---------|-------------------------|----------|-------------|
+| `id`    | `str`                   | No       | ID of the MCP server. Must match a `GraphMcpServer.id` declared in the top-level `mcp_servers` list. |
+| `tools` | `list[str]` \| `None`  | Yes      | Whitelist of tool names exposed to this node from this server. When `None` (default), all tools from the server are available. When set, only the listed tools are passed to the LLM; all others are hidden. |
+
+The `mcp_servers` field on `GraphNode` accepts both forms — a plain string list (backward-compatible shorthand) and a list of `NodeMcpServerRef` objects. Both can be mixed in the same list.
+
+### YAML Examples
+
+```yaml
+# Shorthand — all tools from file_tools are available
+mcp_servers: [file_tools]
+
+# Object form — only read_text_file and write_text_file are exposed
+mcp_servers:
+  - id: file_tools
+    tools: [read_text_file, write_text_file]
+
+# Mixed — two servers; one filtered, one unfiltered
+mcp_servers:
+  - id: file_tools
+    tools: [read_text_file, write_text_file]
+  - id: db_tools
+```
+
+---
 
 ### Reserved `react_output` Fields
 

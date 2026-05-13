@@ -326,6 +326,92 @@ with Compiler(
 
 ---
 
+## 7. Intermediate: filtering tools per node
+
+By default, a node sees **all** tools from every MCP server assigned to it.
+When a server exposes many tools but a node only needs a few, you can whitelist
+the tools it is allowed to call. The LLM never sees the hidden tools.
+
+Use the object form of `mcp_servers` with an optional `tools` list:
+
+```yaml
+mcp_servers:
+  - id: "file_tools"
+    transport: "stdio"
+    command: "python"
+    args: ["file_server.py"]   # exposes: list_directory, read_text_file,
+                               #          read_pdf_file, write_text_file
+
+nodes:
+  # reader — can only read text files
+  - id: "reader"
+    model: 0
+    temperature: 0.0
+    max_tokens: 2000
+    show: true
+    mcp_servers:
+      - id: file_tools
+        tools: [read_text_file]
+    prompt: { template: 0 }
+
+  # writer — can read and write, but not list or read PDFs
+  - id: "writer"
+    model: 0
+    temperature: 0.0
+    max_tokens: 4000
+    show: true
+    mcp_servers:
+      - id: file_tools
+        tools: [read_text_file, write_text_file]
+    prompt: { template: 1 }
+```
+
+The shorthand string form (`mcp_servers: [file_tools]`) remains valid and exposes
+all tools — it is automatically converted to `{id: file_tools, tools: null}` internally.
+Both forms can be mixed in the same list if a node uses multiple servers:
+
+```yaml
+mcp_servers:
+  - id: file_tools
+    tools: [read_text_file, write_text_file]   # filtered
+  - id: db_tools                               # all tools exposed (shorthand equivalent)
+```
+
+**Why filter?** Local LLMs can get confused when presented with many tools.
+Hiding irrelevant tools reduces hallucinations and keeps the model focused on
+the task at hand.
+
+---
+
+## 8. Intermediate: controlling the tool call loop limit
+
+The tool loop inside each node calls the LLM repeatedly until it stops
+generating tool calls or a limit is reached. The default limit is **10
+iterations** (one iteration = one LLM call, which may produce several tool
+calls).
+
+For nodes that need to read many files or perform many sequential operations,
+raise the limit with `max_tool_calls`:
+
+```yaml
+nodes:
+  - id: "analyst"
+    model: 0
+    temperature: 0.1
+    max_tokens: 8000
+    show: true
+    mcp_servers:
+      - id: file_tools
+        tools: [read_text_file, write_text_file]
+    max_tool_calls: 25          # allow up to 25 LLM-call iterations
+    prompt: { template: 0 }
+```
+
+`max_tool_calls` is a per-node setting — different nodes in the same graph can
+have different limits. Nodes without `mcp_servers` or `tools` ignore it.
+
+---
+
 ## Key points
 
 - MCP servers are started at `Compiler` construction and stopped at `close()`.
@@ -334,6 +420,10 @@ with Compiler(
 - `sse` servers: `url` is required; `command` and `args` must be absent.
 - A node references servers by ID — the ID must appear in the top-level
   `mcp_servers:` list or `_validate_indices()` raises `ValueError`.
+- Use the object form (`{id, tools}`) to whitelist which tools a node can call.
+  The shorthand string form remains valid and exposes all tools.
+- `max_tool_calls` controls how many LLM-call iterations the tool loop runs.
+  Default is 10. Increase for nodes that read many files or call many tools.
 - MCP servers must not be attached to ReAct controller nodes — only to agent nodes.
 - Tool calls have a default timeout of 60 s per call; stalled tool calls
   raise `TimeoutError` rather than blocking indefinitely.

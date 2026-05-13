@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.3.3] - 2026-05-13](#0133---2026-05-13)
 - [[0.1.3.2] - 2026-05-13](#0132---2026-05-13)
 - [[0.1.3.1] - 2026-05-01](#0131---2026-05-01)
 - [[0.1.3.0] - 2026-04-30](#0130---2026-04-30)
@@ -16,6 +17,44 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.3.3] - 2026-05-13
+
+### Added
+
+- **`NodeMcpServerRef`** (`graph_node.py`) — new model for referencing an MCP server on a node. Replaces the plain string ID with a structured object that carries an optional `tools` whitelist.
+  - `id: str` — MCP server ID (must match a `GraphMcpServer.id` in the top-level `mcp_servers` list).
+  - `tools: list[str] | None` — when set, only the listed tool names are exposed to the LLM for this node; all other tools from the server are hidden.
+  - **Backward compatible** — `GraphNode.mcp_servers` still accepts plain strings (`[file_tools]`); the field validator normalises them to `NodeMcpServerRef(id="file_tools")` automatically. String and object forms can be mixed in the same list.
+  - Exported from `kegal` and `kegal.graph`.
+
+  ```yaml
+  # Shorthand (unchanged, still valid)
+  mcp_servers: [file_tools]
+
+  # New object form with tool filtering
+  mcp_servers:
+    - id: file_tools
+      tools: [read_text_file, write_text_file]
+  ```
+
+- **`GraphNode.max_tool_calls`** (`graph_node.py`) — optional `int` field. Sets the maximum number of tool-call iterations for this node's internal tool loop. When `None` (default), the loop uses the built-in limit of 10. Increase for nodes that must read many files or call many tools in a single execution.
+
+  ```yaml
+  - id: analyst
+    max_tool_calls: 25
+    mcp_servers:
+      - id: file_tools
+        tools: [read_text_file, write_text_file]
+  ```
+
+- **`llm_ollama.py` — resilient token count parsing** — `prompt_eval_count` and `eval_count` are now read with `.get(..., 0)` instead of `[...]`. Ollama omits these fields on KV-cache hits; the previous bracket access raised `KeyError` and crashed the compiler.
+
+### Changed
+
+- **`docs/graph_doc.md`** — `GraphNode` field table updated: `mcp_servers` type changed to `list[NodeMcpServerRef]`; `max_tool_calls` row added. New §6.1 `NodeMcpServerRef` subsection with field table and YAML examples.
 
 ---
 

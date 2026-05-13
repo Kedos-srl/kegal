@@ -519,11 +519,21 @@ class Compiler:
                             f"Node '{node_id}': tool '{tool_name}' is not defined in graph.tools"
                         )
             if node.mcp_servers:
-                for srv_id in node.mcp_servers:
-                    if srv_id not in mcp_ids:
+                for ref in node.mcp_servers:
+                    if ref.id not in mcp_ids:
                         errors.append(
-                            f"Node '{node_id}': mcp_server '{srv_id}' is not defined in graph.mcp_servers"
+                            f"Node '{node_id}': mcp_server '{ref.id}' is not defined in graph.mcp_servers"
                         )
+                    elif ref.tools is not None:
+                        handler = self.mcp_handlers.get(ref.id)
+                        if handler:
+                            available = set(handler.tool_names())
+                            for tool_name in ref.tools:
+                                if tool_name not in available:
+                                    errors.append(
+                                        f"Node '{node_id}': mcp_server '{ref.id}' does not expose "
+                                        f"tool '{tool_name}' (available: {sorted(available)})"
+                                    )
             if node.blackboard is not None and node.blackboard.id not in board_ids:
                 errors.append(
                     f"Node '{node_id}': blackboard.id '{node.blackboard.id}' "
@@ -963,6 +973,13 @@ class Compiler:
                 ))
 
         logger.warning(f"Node '{node.id}' hit tool loop limit ({MAX_ITERATIONS} iterations)")
+        # Make one final call without tools so the model synthesises a text response
+        # from the accumulated tool history rather than returning pending tool calls.
+        final_body = {k: v for k, v in body.items() if k != "tools_data"}
+        final_body["chat_history"] = tool_history
+        response = client.complete(**final_body)
+        if accumulated_tool_results:
+            response.tool_results = accumulated_tool_results
         return response
 
     # -------------------------------------------------------------------------
@@ -1291,20 +1308,25 @@ class Compiler:
         if not node.mcp_servers:
             return []
         tools = []
-        for server_id in node.mcp_servers:
-            handler = self.mcp_handlers.get(server_id)
+        for ref in node.mcp_servers:
+            handler = self.mcp_handlers.get(ref.id)
             if handler:
-                tools.extend(handler.list_tools())
+                server_tools = handler.list_tools()
+                if ref.tools is not None:
+                    server_tools = [t for t in server_tools if t.name in ref.tools]
+                tools.extend(server_tools)
             else:
-                logger.warning(f"MCP server '{server_id}' not connected — skipping for node '{node.id}'")
+                logger.warning(f"MCP server '{ref.id}' not connected — skipping for node '{node.id}'")
         return tools
 
     def _mcp_server_for_tool(self, tool_name: str, node: GraphNode) -> McpHandler | None:
         """Return the McpHandler that owns the given tool name, for this node."""
         if not node.mcp_servers:
             return None
-        for server_id in node.mcp_servers:
-            handler = self.mcp_handlers.get(server_id)
+        for ref in node.mcp_servers:
+            if ref.tools is not None and tool_name not in ref.tools:
+                continue
+            handler = self.mcp_handlers.get(ref.id)
             if handler and tool_name in handler.tool_names():
                 return handler
         return None

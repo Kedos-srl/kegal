@@ -15,7 +15,7 @@ from .graph_react import NodeReact
 from .graph_edge import GraphEdge
 from .graph_blackboard import GraphBlackboard, BlackboardEntry, NodeBlackboardRef
 from .graph_history import ChatHistoryFile
-from .graph_node import NodePrompt, NodeMessagePassing, GraphNode
+from .graph_node import NodePrompt, NodeMessagePassing, NodeMcpServerRef, GraphNode
 
 
 class GraphInputData(BaseModel):
@@ -83,6 +83,7 @@ __all__ = [
     "ChatHistoryFile",
     "NodePrompt",
     "NodeMessagePassing",
+    "NodeMcpServerRef",
     "GraphNode",
     "GraphInputData",
     "Graph",

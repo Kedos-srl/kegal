@@ -15,6 +15,7 @@ from .graph import (
     ChatHistoryFile,
     NodePrompt,
     NodeMessagePassing,
+    NodeMcpServerRef,
     NodeReact,
     GraphNode,
     GraphEdge,
@@ -45,7 +46,7 @@ from .validators import (
 # Import LLM subpackage
 from . import llm
 
-__version__ = "0.1.2.6"
+__version__ = "0.1.2.7"
 
 __all__ = [
     # Graph models
@@ -58,6 +59,7 @@ __all__ = [
     "ChatHistoryFile",
     "NodePrompt",
     "NodeMessagePassing",
+    "NodeMcpServerRef",
     "NodeReact",
     "GraphNode",
     "GraphEdge",

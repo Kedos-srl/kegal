@@ -78,8 +78,13 @@ class Compiler:
 
         if graph.verbose:
             import sys as _sys
-            logging.basicConfig(level=logging.WARNING, format="%(message)s", stream=_sys.stderr)
-            logging.getLogger("kegal").setLevel(logging.INFO)
+            _kegal_log = logging.getLogger("kegal")
+            if not _kegal_log.handlers:
+                _handler = logging.StreamHandler(_sys.stderr)
+                _handler.setFormatter(logging.Formatter("%(message)s"))
+                _kegal_log.addHandler(_handler)
+                _kegal_log.propagate = False
+            _kegal_log.setLevel(logging.INFO)
 
         self.clients: list[LlmHandler] = [LlmHandler(**model.model_dump(exclude_none=True)) for model in graph.models]
         self.context_windows: list[int | None] = [m.context_window for m in graph.models]

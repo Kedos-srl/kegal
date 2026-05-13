@@ -772,6 +772,12 @@ class Compiler:
         self.outputs = CompiledOutput()
         self.message_passing = []
         self._react_trace = {}
+        for entry in self._board_entries.values():
+            if entry.cleanup:
+                self._boards[entry.id] = ""
+                path = self._board_paths.get(entry.id)
+                if path is not None:
+                    path.write_text("", encoding="utf-8")
         global_start = time.time()
         deps = self._build_dag()
         levels = self._topological_levels(deps)

@@ -902,6 +902,7 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | Field                   | Type                                   | Optional | Description |
 |-------------------------|----------------------------------------|----------|-------------|
 | `models`                | `list[GraphModel]`                     | No       | List of LLM configurations. |
+| `verbose`               | `bool`                                 | Yes      | When `true`, enables INFO-level progress logging to stderr for the duration of the graph execution: node start/end with elapsed time, each tool call name and parameters, and the full ReAct loop trace. Default `false`. |
 | `images`                | `list[GraphInputData]` \| `None`       | Yes      | Image sources used in the graph. |
 | `documents`             | `list[GraphInputData]` \| `None`       | Yes      | Document sources used in the graph. |
 | `tools`                 | `list[LLMTool]` \| `None`              | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |

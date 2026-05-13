@@ -26,6 +26,7 @@ class GraphInputData(BaseModel):
 
 class Graph(BaseModel):
     models: list[GraphModel]
+    verbose: bool = False
     images: list[GraphInputData] | None = None
     documents: list[GraphInputData] | None = None
     tools: list[LLMTool] | None = None

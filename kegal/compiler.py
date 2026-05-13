@@ -76,6 +76,11 @@ class Compiler:
             graph = Graph.model_validate(source)
             self._graph_dir = Path.cwd()
 
+        if graph.verbose:
+            import sys as _sys
+            logging.basicConfig(level=logging.WARNING, format="%(message)s", stream=_sys.stderr)
+            logging.getLogger("kegal").setLevel(logging.INFO)
+
         self.clients: list[LlmHandler] = [LlmHandler(**model.model_dump(exclude_none=True)) for model in graph.models]
         self.context_windows: list[int | None] = [m.context_window for m in graph.models]
         self.images = graph.images
@@ -866,12 +871,25 @@ class Compiler:
     # Single-node execution
     # -------------------------------------------------------------------------
 
+    @staticmethod
+    def _brief_tool_params(params: dict) -> str:
+        """Return a short human-readable summary of tool call parameters."""
+        skip = {"content"}
+        parts = []
+        for k, v in params.items():
+            if k in skip:
+                continue
+            s = str(v)
+            parts.append(f"{k}={s[:80]!r}" if len(s) > 80 else f"{k}={s!r}")
+        return ", ".join(parts) if parts else ""
+
     def _run_node(self, node: GraphNode) -> bool:
         """Execute a single node including the tool loop. Returns False if a validation gate fails."""
         if node.prompt is None:
             return True
         is_guard = self._is_guard_node(node)
         try:
+            logger.info(f"▶  {node.id}")
             start = time.time()
             model_body = self._build_model_body(node)
             enable_history = "chat_history" in model_body
@@ -879,7 +897,7 @@ class Compiler:
             response = self._run_tool_loop(node, model_body)
 
             elapsed = time.time() - start
-            logger.debug(f"Node '{node.id}' completed in {elapsed:.3f}s")
+            logger.info(f"   ✓ {node.id}  ({elapsed:.1f}s)")
             self._record_output(node, response, elapsed, enable_history)
             self._update_blackboard(node, response)
             self._check_message_passing(response, node)
@@ -924,6 +942,8 @@ class Compiler:
 
             # Execute each tool call and collect results
             for tool_call in response.tools:
+                brief = self._brief_tool_params(tool_call.parameters)
+                logger.info(f"   ⟶  {tool_call.name}({brief})")
                 result = self._execute_tool_call(tool_call.name, tool_call.parameters, node)
                 logger.debug(f"Tool '{tool_call.name}' returned: {result[:120]}")
                 accumulated_tool_results.append(result)

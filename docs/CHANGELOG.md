@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.3.2] - 2026-05-13](#0132---2026-05-13)
 - [[0.1.3.1] - 2026-05-01](#0131---2026-05-01)
 - [[0.1.3.0] - 2026-04-30](#0130---2026-04-30)
 - [[0.1.2.9] - 2026-04-29](#0129---2026-04-29)
@@ -15,6 +16,20 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.3.2] - 2026-05-13
+
+### Added
+
+- **`Graph.verbose`** (`bool`, default `false`) — when set to `true` in the graph YAML/JSON, enables INFO-level progress logging to stderr for the entire compilation run. Output includes node start and completion with elapsed time, each MCP/Python tool call with its key parameters, and the full ReAct loop trace (iteration, agent dispatched, input/output preview, token counts). All other loggers remain at WARNING level; only the `kegal.*` namespace is promoted to INFO. Logging is configured in `Compiler.__init__` as soon as the graph is loaded, so it covers the validation and MCP connection phases as well.
+
+  ```yaml
+  verbose: true
+  models:
+    ...
+  ```
 
 ---
 

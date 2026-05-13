@@ -111,7 +111,6 @@ def main() -> None:
         default=".",
         help="Path to the project folder containing kegal.yml (default: current directory)",
     )
-
     args = parser.parse_args()
 
     if args.command == "run":

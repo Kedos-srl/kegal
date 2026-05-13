@@ -145,6 +145,57 @@ with Compiler(source=graph_dict) as compiler:
 For more advanced usage — attaching Python tool executors, MCP servers, fan-out/fan-in
 pipelines, guard nodes, RAG, and multi-provider graphs — see [docs/tutorials.md](docs/tutorials.md).
 
+## CLI
+
+After installation, the `kegal` command is available in your shell.
+
+### Project layout
+
+A KeGAL project is a folder containing a mandatory `kegal.yml` config file and your graph definition:
+
+```
+my_project/
+├── kegal.yml
+└── my_graph.yml
+```
+
+`kegal.yml` fields:
+
+| Field | Required | Values | Description |
+|-------|----------|--------|-------------|
+| `graph` | yes | path | Path to the graph YAML/JSON, relative to `kegal.yml` |
+| `mode` | no | `once` (default), `chat` | Execution mode |
+| `message` | no | `true`/`false` | Prompt the user for a message on each turn (chat mode) |
+| `chunks` | no | `true`/`false` | Prompt the user for RAG chunks on each turn (chat mode) |
+
+**`once` mode** — runs the graph once using values from the YAML and exits:
+
+```yaml
+# kegal.yml
+graph: my_graph.yml
+mode: once
+```
+
+**`chat` mode** — keeps a loop alive; prompts for user input on every turn until `Ctrl+D`:
+
+```yaml
+# kegal.yml
+graph: my_graph.yml
+mode: chat
+message: true
+chunks: false
+```
+
+### Running a project
+
+```bash
+# from inside the project folder
+kegal run
+
+# or specify the path
+kegal run path/to/my_project
+```
+
 ## Features
 
 - **Graph-based workflows** – define multi-node agent pipelines in YAML or JSON

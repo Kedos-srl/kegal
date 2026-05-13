@@ -43,6 +43,7 @@ nav:
     - 11 - Multi-provider graphs: tutorials/11_multi_provider.md
     - 12 - ReAct loop: tutorials/12_react_loop.md
     - 13 - Context window and outputs: tutorials/13_context_window.md
+  - CLI: cli.md
   - Changelog: CHANGELOG.md
 
 markdown_extensions:

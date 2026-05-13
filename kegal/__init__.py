@@ -45,7 +45,7 @@ from .validators import (
 # Import LLM subpackage
 from . import llm
 
-__version__ = "0.1.2.4"
+__version__ = "0.1.2.6"
 
 __all__ = [
     # Graph models

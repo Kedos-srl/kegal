@@ -29,6 +29,11 @@ setup(
     ],
     python_requires=">=3.10",
     install_requires=requirements,
+    entry_points={
+        "console_scripts": [
+            "kegal=kegal.cli:main",
+        ],
+    },
     include_package_data=True,
     package_data={
         "kegal": ["docs/*.md"],

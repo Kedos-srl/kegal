@@ -147,12 +147,20 @@ class LlmOpenai(LlmModel):
 
     @staticmethod
     def _structured_output_data(structured_output: LLMStructuredOutput):
-        return structured_output.json_output.model_dump(exclude_none=True)
+        schema = structured_output.json_output.model_dump(exclude_none=True)
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "output",
+                "schema": schema,
+                "strict": True,
+            },
+        }
 
 
     def _compose_messages(self,
                           system_message: str | None,
-                          user_message: str,
+                          user_message: str | None,
                           chat_history: list[LLmMessage] | None,
                           imgs_b64: list[LLMImageData] | None):
 
@@ -166,18 +174,16 @@ class LlmOpenai(LlmModel):
         if chat_history is not None:
             messages.extend(self._chat_history(chat_history))
 
-        # Insert input message
-        user_content = [self._chat_message(user_message)]
-
-        # Extend current user message with input images and pdfs
+        user_content: list[dict] = []
+        if user_message:
+            user_content.append(self._chat_message(user_message))
         if imgs_b64 is not None:
             user_content.extend(self._images_data(imgs_b64))
 
-
-        # Compose user content
-        messages.append({
-            "role": "user",
-            "content": user_content
-        })
+        if user_content:
+            messages.append({
+                "role": "user",
+                "content": user_content
+            })
 
         return messages

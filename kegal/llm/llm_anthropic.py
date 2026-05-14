@@ -18,8 +18,19 @@ from .llm_model import (LlmModel,
                        DEFAULT_JSON_OUTPUT_NAME)
 
 class LlmAnthropic(LlmModel):
-    """
-        Documentation:https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html
+    """Anthropic models via the native Anthropic SDK (api_key) or AWS Bedrock invoke_model (aws=True).
+
+    IMPORTANT — two Bedrock code paths exist in this codebase:
+      - LlmAnthropic(aws=True) uses boto3 invoke_model + raw Messages API JSON body.
+        Retry config (botocore Config) is applied here.
+      - LlmBedrock uses boto3 converse API (model-agnostic; also covers Anthropic on Bedrock).
+
+    Changes to error handling, retry logic, or tool formats must be applied to BOTH paths
+    or the behaviour will silently diverge. The long-term fix is to consolidate Anthropic-on-
+    Bedrock under LlmBedrock and remove the aws=True branch here.
+
+    Native SDK docs  : https://docs.anthropic.com/en/api/getting-started
+    Bedrock path docs: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html
     """
     def __init__(self, **kwargs):
         if "model" not in kwargs.keys():
@@ -171,7 +182,7 @@ class LlmAnthropic(LlmModel):
             }
 
     def _compose_messages(self,
-                          user_message: str = "",
+                          user_message: str | None = None,
                           chat_history: list[LLmMessage] | None = None,
                           imgs_b64: list[LLMImageData] | None = None,
                           pdfs_b64: list[LLMPdfData] | None = None, ):
@@ -180,21 +191,19 @@ class LlmAnthropic(LlmModel):
         if chat_history is not None:
             messages.extend(self._chat_history(chat_history))
 
-        # Insert input message
-        user_content = [self._chat_message(user_message)]
-
-        # Extend current user message with input images and pdfs
+        user_content: list[dict] = []
+        if user_message:
+            user_content.append(self._chat_message(user_message))
         if imgs_b64 is not None:
             user_content.extend(self._images_data(imgs_b64))
-
-        if  pdfs_b64 is not None:
+        if pdfs_b64 is not None:
             user_content.extend(self._pdfs_data(pdfs_b64))
 
-        # Compose user content
-        messages.append({
-            "role": "user",
-            "content": user_content
-        })
+        if user_content:
+            messages.append({
+                "role": "user",
+                "content": user_content
+            })
 
         return messages
 

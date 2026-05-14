@@ -156,7 +156,7 @@ class LlmOllama(LlmModel):
 
     def _compose_messages(self,
                           system_message: str | None,
-                          user_message: str,
+                          user_message: str | None,
                           chat_history: list[LLmMessage] | None,
                           imgs_b64: list[LLMImageData] | None):
         messages = []
@@ -169,16 +169,14 @@ class LlmOllama(LlmModel):
         if chat_history is not None:
             messages.extend(self._chat_history(chat_history))
 
-        user_data: dict[str, Any] = {
-            "role": "user",
-            "content": user_message
-        }
-
-
-        if imgs_b64 is not None:
-            user_data["images"] = self._images_data(imgs_b64)
-
-        messages.append(user_data)
+        if user_message is not None or imgs_b64 is not None:
+            user_data: dict[str, Any] = {
+                "role": "user",
+                "content": user_message or "",
+            }
+            if imgs_b64 is not None:
+                user_data["images"] = self._images_data(imgs_b64)
+            messages.append(user_data)
 
         return messages
 

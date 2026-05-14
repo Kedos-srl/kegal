@@ -3,24 +3,26 @@
         {
             "node_id": "controller",
             "response": {
-                "messages": null,
+                "messages": [
+                    "3 multiplied by 7 is 21. Brazil is on the continent of South America."
+                ],
                 "tools": null,
                 "tool_results": null,
                 "json_output": {
-                    "done": false,
-                    "iterations": 0,
-                    "final_answer": null
+                    "done": true,
+                    "iterations": 2,
+                    "final_answer": "3 multiplied by 7 is 21. Brazil is on the continent of South America."
                 },
-                "input_size": 162,
-                "output_size": 121
+                "input_size": 685,
+                "output_size": 164
             },
-            "compiled_time": 1.2188096046447754,
+            "compiled_time": 4.8805320262908936,
             "show": true,
             "history": false,
             "context_window": null
         }
     ],
-    "input_size": 162,
-    "output_size": 121,
-    "compile_time": 1.2189903259277344
+    "input_size": 685,
+    "output_size": 164,
+    "compile_time": 4.880836248397827
 }

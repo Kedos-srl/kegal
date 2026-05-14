@@ -132,6 +132,13 @@ class Compiler:
                 self.mcp_handlers[server_cfg.id] = handler
             except Exception as e:
                 logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
+                # Disconnect any handlers already connected before re-raising,
+                # otherwise their background threads and event loops are leaked.
+                for connected_id, connected_handler in self.mcp_handlers.items():
+                    try:
+                        connected_handler.disconnect()
+                    except Exception as de:
+                        logger.warning(f"Error disconnecting MCP server '{connected_id}' during cleanup: {de}")
                 raise
 
         self.react_compact_prompts: list[dict[str, str]] = (
@@ -290,13 +297,40 @@ class Compiler:
 
         Concatenates the content of imported boards (in declaration order)
         followed by the board's own content.
+
+        Always reads from disk when a board file path is available so that
+        content written via external tools (e.g. MCP append_text_file) is
+        visible to downstream report nodes.  Falls back to the in-memory
+        cache when no path is set (e.g. in unit-test helpers).
+
+        Holds _blackboard_lock during the read to avoid racing with concurrent
+        _update_blackboard writes on the same file.
         """
-        entry = self._board_entries.get(board_id)
-        parts: list[str] = []
-        if entry is not None:
-            parts = [self._boards.get(imp_id, "") for imp_id in entry.imports]
-        parts.append(self._boards.get(board_id, ""))
-        return "".join(p for p in parts if p)
+        lock = getattr(self, "_blackboard_lock", None)
+        board_paths: dict = getattr(self, "_board_paths", {})
+
+        def _read() -> str:
+            entry = self._board_entries.get(board_id)
+            parts: list[str] = []
+            if entry is not None:
+                for imp_id in entry.imports:
+                    imp_path = board_paths.get(imp_id)
+                    parts.append(
+                        imp_path.read_text(encoding="utf-8")
+                        if imp_path is not None and imp_path.exists()
+                        else self._boards.get(imp_id, "")
+                    )
+            board_path = board_paths.get(board_id)
+            if board_path is not None and board_path.exists():
+                parts.append(board_path.read_text(encoding="utf-8"))
+            else:
+                parts.append(self._boards.get(board_id, ""))
+            return "".join(p for p in parts if p)
+
+        if lock is not None:
+            with lock:
+                return _read()
+        return _read()
 
     # -------------------------------------------------------------------------
     # React topology helpers
@@ -385,12 +419,23 @@ class Compiler:
             if node is None:
                 continue
 
+            if node.prompt is None:
+                raise ValueError(
+                    f"Node '{nid}' is a ReAct controller but has no prompt. "
+                    f"A controller must have a prompt to drive its reasoning loop."
+                )
+
             bb = node.blackboard
-            if bb is not None and (bb.read or bb.write):
+            if bb is not None and bb.write:
+                raise ValueError(
+                    f"Node '{nid}' is a ReAct controller and has blackboard.write=True. "
+                    f"Controllers cannot write to blackboards — use message_passing on agent "
+                    f"nodes to share data with the controller, or move the write to an agent node."
+                )
+            if bb is not None and bb.read:
                 logger.warning(
-                    f"Node '{nid}' is a ReAct controller — blackboard flags "
-                    f"(read={bb.read}, write={bb.write}) are ignored for controllers. "
-                    f"Use message_passing on agent nodes to share data with the controller."
+                    f"Node '{nid}' is a ReAct controller — blackboard.read=True is ignored "
+                    f"for controllers. Use message_passing on agent nodes instead."
                 )
 
             if node.tools is not None:
@@ -475,6 +520,8 @@ class Compiler:
                 _check_react_edge_mixing(child)
             for fi in (edge.fan_in or []):
                 _check_react_edge_mixing(fi)
+            for agent_edge in (edge.react or []):
+                _check_react_edge_mixing(agent_edge)
 
         for root_edge in self.edges:
             _check_react_edge_mixing(root_edge)
@@ -496,6 +543,8 @@ class Compiler:
         tool_names: set[str] = {t.name for t in (self.tools or [])}
         mcp_ids: set[str] = {s.id for s in self.graph_mcp_servers}
         board_ids: set[str] = set(self._board_entries.keys())
+        n_images = len(getattr(self, "images", None) or [])
+        n_documents = len(getattr(self, "documents", None) or [])
 
         # MCP server transport validation
         for server in self.graph_mcp_servers:
@@ -542,6 +591,20 @@ class Compiler:
                                         f"Node '{node_id}': mcp_server '{ref.id}' does not expose "
                                         f"tool '{tool_name}' (available: {sorted(available)})"
                                     )
+            if node.images:
+                for img_idx in node.images:
+                    if img_idx >= n_images:
+                        errors.append(
+                            f"Node '{node_id}': image index {img_idx} is out of range "
+                            f"(graph defines {n_images} image(s), valid indices: 0–{n_images - 1})"
+                        )
+            if node.documents:
+                for doc_idx in node.documents:
+                    if doc_idx >= n_documents:
+                        errors.append(
+                            f"Node '{node_id}': document index {doc_idx} is out of range "
+                            f"(graph defines {n_documents} document(s), valid indices: 0–{n_documents - 1})"
+                        )
             if node.blackboard is not None and node.blackboard.id not in board_ids:
                 errors.append(
                     f"Node '{node_id}': blackboard.id '{node.blackboard.id}' "
@@ -581,7 +644,7 @@ class Compiler:
                             if root:
                                 referenced.add(root)
                 except (ValueError, KeyError) as _e:
-                    logger.debug(f"Malformed prompt template in prompt {idx}: {_e}")
+                    logger.debug(f"Malformed prompt template in prompt {template_idx}: {_e}")
 
             if not referenced:
                 continue
@@ -687,6 +750,28 @@ class Compiler:
         for root_edge in self.edges:
             detect_cycles(root_edge, set())
             traverse(root_edge)
+
+        # Full-graph cycle check: catches cross-root-edge cycles that the
+        # per-edge detect_cycles misses (each call uses a fresh path set).
+        _WHITE, _GRAY, _BLACK = 0, 1, 2
+        _colors: dict[str, int] = {n: _WHITE for n in deps}
+
+        def _dfs_cycle(node: str) -> None:
+            _colors[node] = _GRAY
+            for dep in deps.get(node, set()):
+                state = _colors.get(dep, _BLACK)
+                if state == _GRAY:
+                    raise ValueError(
+                        f"Cycle detected in the dependency graph involving node '{dep}'. "
+                        f"Check edges across multiple root-level edge declarations."
+                    )
+                if state == _WHITE:
+                    _dfs_cycle(dep)
+            _colors[node] = _BLACK
+
+        for _n in list(deps):
+            if _colors[_n] == _WHITE:
+                _dfs_cycle(_n)
 
         # — Stage 2: message_passing inference (unchanged) ————————————————
         # Collect node order via DFS pre-order traversal of the edge tree.
@@ -893,10 +978,10 @@ class Compiler:
 
         if failures:
             failed_ids = [nid for nid, _ in failures]
-            first_exc = failures[0][1]
+            details = "; ".join(f"'{nid}': {type(e).__name__}({e})" for nid, e in failures)
             raise RuntimeError(
-                f"Parallel execution failed for node(s) {failed_ids}."
-            ) from first_exc
+                f"Parallel execution failed for node(s) {failed_ids}. Details: {details}"
+            ) from failures[0][1]
 
     # -------------------------------------------------------------------------
     # Single-node execution
@@ -984,6 +1069,12 @@ class Compiler:
                 logger.info(_c(f"   ↩  {result_preview}", "90"))
                 accumulated_tool_results.append(result)
 
+                # NOTE: tool calls are recorded as plain text messages, not as the
+                # provider-native tool_use/tool_result content blocks (Anthropic, OpenAI)
+                # or toolResult messages (Bedrock). This means the model receives its own
+                # tool calls described in text rather than via the structured API format,
+                # which can degrade quality in long multi-turn tool conversations.
+                # Migration to native per-provider formats is tracked as a future improvement.
                 tool_history.append(LLmMessage(
                     role="assistant",
                     content=f"[tool_call] {tool_call.name}({json.dumps(tool_call.parameters)})"
@@ -1062,7 +1153,7 @@ class Compiler:
             total_out += response.output_size
 
             routing = response.json_output or {}
-            next_agent = routing.get("next_agent")
+            next_agent = (routing.get("next_agent") or "").strip() or None
             done = bool(routing.get("done", False))
             reasoning = routing.get("reasoning")
             agent_input_str = routing.get("agent_input") or reasoning or ""
@@ -1171,6 +1262,15 @@ class Compiler:
 
     def _run_react_agent(self, agent_edge: GraphEdge, agent_input: str) -> str:
         """Run an agent subgraph in isolation and return its text output."""
+        # Guard: agent subgraphs must not themselves contain react controllers.
+        # Nested controllers would invalidate the state-swap isolation model.
+        for nid in (agent_edge.react or []):
+            if self.nodes.get(nid.node) and self.nodes[nid.node].react:
+                raise RuntimeError(
+                    f"Agent '{agent_edge.node}' contains a nested ReAct controller "
+                    f"('{nid.node}'). Nested controllers are not supported."
+                )
+
         # Build local dependency map for this subgraph
         local_deps: dict[str, set[str]] = {}
 
@@ -1191,6 +1291,7 @@ class Compiler:
         # Swap global state for isolated execution
         saved_mp = self.message_passing
         saved_out = self.outputs
+        saved_boards = dict(getattr(self, "_boards", {}))  # shallow copy — values are immutable strings
         self.message_passing = [agent_input] if agent_input else []
         initial_mp_len = len(self.message_passing)
         self.outputs = CompiledOutput()
@@ -1207,6 +1308,8 @@ class Compiler:
                 last = self.outputs.nodes[-1]
                 if last.response.messages:
                     result = "\n\n".join(last.response.messages)
+                elif last.response.tool_results:
+                    result = last.response.tool_results[-1]
                 elif last.response.json_output is not None:
                     result = json.dumps(last.response.json_output, ensure_ascii=False)
                 else:
@@ -1224,6 +1327,8 @@ class Compiler:
         finally:
             self.message_passing = saved_mp
             self.outputs = saved_out
+            if hasattr(self, "_boards"):
+                self._boards = saved_boards
 
         return result
 
@@ -1236,7 +1341,13 @@ class Compiler:
     ) -> None:
         """Compact the conversation buffer when it approaches the token budget."""
         context_window = self.context_windows[node.model]
-        limit = context_window if context_window is not None else node.max_tokens
+        if context_window is None:
+            logger.warning(
+                f"[ReAct] Node '{node.id}': context_window not set — "
+                f"conversation compaction skipped (set 'context_window' on the model to enable)"
+            )
+            return
+        limit = context_window
         if last_response.input_size < limit * threshold:
             return
 
@@ -1449,7 +1560,14 @@ class Compiler:
                 path.write_text(updated, encoding="utf-8")
 
     def _update_auto_history(self) -> None:
-        """Append user+assistant turns to auto-managed history scopes and persist to file."""
+        """Append user+assistant turns to auto-managed history scopes and persist to file.
+
+        NOTE: self.user_message (the global graph-level user message) is appended as the
+        user turn for every auto-history scope. In a multi-scope graph where different nodes
+        serve different purposes, all scopes will receive the same user message. This is
+        intentional for single-scope designs; multi-purpose graphs should use explicit
+        chat_history files instead of auto-managed scopes.
+        """
         if not self._history_auto_paths:
             return
         scope_to_node = {

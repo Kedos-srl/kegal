@@ -571,6 +571,10 @@ class TestMaybeCompact(unittest.TestCase):
         c._outputs_lock = __import__("threading").Lock()
         c._blackboard_lock = __import__("threading").Lock()
         c._message_passing_lock = __import__("threading").Lock()
+        # Provide a real context_window so _maybe_compact doesn't skip compaction.
+        # Tests use max_tokens=100 for threshold math, so context_window=100 keeps
+        # the arithmetic consistent (80-token threshold at 0.8).
+        c.context_windows = [100]
 
         mock_client = MagicMock()
         c.clients = [mock_client]

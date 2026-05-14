@@ -117,7 +117,7 @@ class LLMStructuredSchema(BaseModel):
     # ============================================================================
 
     model_config = {
-        "extra": "allow",
+        "extra": "ignore",
         "populate_by_name": True,
     }
 

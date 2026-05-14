@@ -10,7 +10,7 @@
 
 models:
   - llm: "ollama"
-    model: ministral-3:3b
+    model: mistral-small3.2:latest
     host: "http://localhost:11434"
 
 user_message: "What is 3 multiplied by 7? Also, what continent is Brazil on?"
@@ -79,6 +79,9 @@ nodes:
           type: string
       required:
         - done
+        - next_agent
+        - agent_input
+        - reasoning
 
   - id: "math_agent"
     model: 0

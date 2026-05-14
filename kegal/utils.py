@@ -49,7 +49,15 @@ def load_text_from_source(source: str | Path) -> str:
     parsed = urlparse(str(source))
     if parsed.scheme in ('http', 'https'):
         _check_uri_scheme(str(source))
-        with urllib.request.urlopen(str(source)) as response:
+        # Explicit timeout; no-redirect handler prevents a redirect to http://
+        # from bypassing the scheme check performed above.
+        no_redirect = urllib.request.build_opener(urllib.request.HTTPErrorProcessor())
+        no_redirect.handlers = [
+            h for h in no_redirect.handlers
+            if not isinstance(h, (urllib.request.HTTPRedirectHandler,))
+        ]
+        req = urllib.request.Request(str(source))
+        with no_redirect.open(req, timeout=30) as response:
             content = response.read().decode('utf-8')
     else:
         file_path = Path(source)
@@ -78,28 +86,36 @@ def load_contents(source: str | Path):
         return json.loads(load_text_from_source(source))
     raise ValueError(f"Unsupported file format: {extension}. Supported formats: .yml, .yaml, .json")
 
+_BASE64_PREFIX = "base64:"
+
 def _is_base64_string(s: str) -> bool:
-    """Check if a string is a valid base64 encoded string."""
+    """Return True if s is base64-encoded binary data.
+
+    Accepts an explicit ``base64:`` prefix as an unambiguous signal.
+    Without the prefix, falls back to decode/re-encode heuristic with a
+    minimum decoded-size guard (100 bytes) to avoid false positives on short
+    strings like file paths, UUIDs, or checksums.
+    """
     if not isinstance(s, str):
         return False
 
-    # Base64 strings should not contain path separators or URL schemes
-    if '/' in s or '\\' in s or ':' in s:
-        # But could be a base64 string with padding (/)
-        # Check if it looks like a path or URL
-        parsed = urlparse(s)
-        if parsed.scheme in ('http', 'https', 'file') or Path(s).exists():
-            return False
+    # Explicit opt-in: caller tagged the string as base64
+    if s.startswith(_BASE64_PREFIX):
+        return True
 
-    # Try to decode as base64
+    # Reject anything that looks like a path or URL before trying to decode
+    parsed = urlparse(s)
+    if parsed.scheme in ('http', 'https', 'file') or Path(s).exists():
+        return False
+
     try:
-        # Remove whitespace
         s_clean = s.strip()
-        # Check if it's valid base64
         decoded = base64.b64decode(s_clean, validate=True)
-        # Check if it re-encodes to the same value (or close, accounting for padding)
+        # Require a minimum decoded size to avoid matching short strings
+        if len(decoded) < 100:
+            return False
         re_encoded = base64.b64encode(decoded).decode('utf-8')
-        return len(decoded) > 0 and (re_encoded == s_clean or re_encoded.rstrip('=') == s_clean.rstrip('='))
+        return re_encoded == s_clean or re_encoded.rstrip('=') == s_clean.rstrip('=')
     except (ValueError, base64.binascii.Error):
         return False
 
@@ -130,16 +146,19 @@ def _load_binary_from_source(
 
     # Check if source is already base64-encoded
     if isinstance(source, str) and _is_base64_string(source):
+        raw = source.strip()
+        if raw.startswith(_BASE64_PREFIX):
+            raw = raw[len(_BASE64_PREFIX):]
         # Validate the decoded data if validator provided
         if validator:
             try:
-                decoded_data = base64.b64decode(source)
+                decoded_data = base64.b64decode(raw)
                 validator(decoded_data, "base64_string")
             except Exception as e:
                 raise ValueError(f"Invalid base64 data: {e}")
 
         # Return with fallback content type since we can't determine it from base64 alone
-        return fallback_type, source.strip()
+        return fallback_type, raw
 
     path = Path(source)
 

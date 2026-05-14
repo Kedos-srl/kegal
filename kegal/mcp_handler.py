@@ -106,7 +106,11 @@ class McpHandler:
 
     def connect(self) -> None:
         """Block until the session is ready (or raise on failure)."""
-        self._ready.wait(timeout=30)
+        if not self._ready.wait(timeout=30):
+            raise TimeoutError(
+                f"MCP server '{self._server.id}' did not become ready within 30 seconds. "
+                f"Check that the command/URL is correct and the server process starts successfully."
+            )
         if self._connect_error is not None:
             raise self._connect_error
         logger.info(f"MCP server '{self._server.id}' ready")

@@ -17,8 +17,17 @@ from botocore.exceptions import ClientError
 
 
 class LlmBedrock(LlmModel):
-    """
-        Documentation: https://docs.aws.amazon.com/nova/latest/userguide/complete-request-schema.html
+    """Non-Anthropic (and optionally Anthropic) models via the AWS Bedrock Converse API.
+
+    IMPORTANT — two Bedrock code paths exist in this codebase:
+      - LlmBedrock uses boto3 converse (this class, no retry config).
+      - LlmAnthropic(aws=True) uses boto3 invoke_model with botocore retry Config.
+
+    Changes to error handling, retry logic, or tool formats must be applied to BOTH paths
+    or the behaviour will silently diverge. The long-term fix is to route all Anthropic-on-
+    Bedrock traffic through this class and remove the aws=True branch in LlmAnthropic.
+
+    Converse API docs: https://docs.aws.amazon.com/nova/latest/userguide/complete-request-schema.html
     """
     def __init__(self, **kwarg):
 
@@ -169,7 +178,7 @@ class LlmBedrock(LlmModel):
 
 
     def _compose_messages(self,
-                          user_message: str = "",
+                          user_message: str | None = None,
                           chat_history: list[LLmMessage] | None = None,
                           imgs_b64: list[LLMImageData] | None = None,
                           pdfs_b64: list[LLMPdfData] | None = None, ):
@@ -178,24 +187,19 @@ class LlmBedrock(LlmModel):
         if chat_history is not None:
             messages.extend(self._chat_history(chat_history))
 
-
-
-
-        # Insert input message
-        user_content = [self._chat_message(user_message)]
-
-        # Extend current user message with input images and pdfs
+        user_content: list[dict] = []
+        if user_message:
+            user_content.append(self._chat_message(user_message))
         if imgs_b64 is not None:
             user_content.extend(self._images_data(imgs_b64))
-
         if pdfs_b64 is not None:
             user_content.extend(self._pdfs_data(pdfs_b64))
 
-        # Compose user content
-        messages.append({
-            "role": "user",
-            "content": user_content
-        })
+        if user_content:
+            messages.append({
+                "role": "user",
+                "content": user_content
+            })
 
         return messages
 

@@ -1,7 +1,22 @@
+import re
 from typing import Any
 from .graph import GraphInputData
 from .llm.llm_model import LLMImageData, LLMPdfData, LLMTool
 from .utils import load_images_to_base64, load_pdfs_to_base64
+
+# Only allow XML-safe tag names: start with letter/underscore, then word chars or hyphens.
+_SAFE_TAG = re.compile(r'^[A-Za-z_][A-Za-z0-9_\-]*$')
+
+
+def _safe_tag(key: str) -> str:
+    """Sanitise a YAML key for use as an XML tag name."""
+    if not _SAFE_TAG.match(key):
+        # Replace any unsafe characters with underscores
+        sanitised = re.sub(r'[^A-Za-z0-9_\-]', '_', key)
+        if not sanitised or not sanitised[0].isalpha() and sanitised[0] != '_':
+            sanitised = '_' + sanitised
+        return sanitised
+    return key
 
 
 def compose_template_prompt(prompt_template: dict[str, Any]) -> dict[str, str]:
@@ -11,18 +26,20 @@ def compose_template_prompt(prompt_template: dict[str, Any]) -> dict[str, str]:
         system_template = prompt_template["system_template"]
 
         for key, value in system_template.items():
-            system_output += "<{}>\n".format(key)
+            tag = _safe_tag(key)
+            system_output += "<{}>\n".format(tag)
             system_output +=  value
-            system_output += "</{}>\n\n".format(key)
+            system_output += "</{}>\n\n".format(tag)
 
     user_output = ""
     if "prompt_template" in prompt_template:
         user_template = prompt_template["prompt_template"]
 
         for key, value in user_template.items():
-            user_output += "<{}>\n".format(key)
+            tag = _safe_tag(key)
+            user_output += "<{}>\n".format(tag)
             user_output += value
-            user_output += "</{}>\n\n".format(key)
+            user_output += "</{}>\n\n".format(tag)
     return {
         "system": system_output,
         "user": user_output
@@ -49,9 +66,15 @@ def compose_node_prompt(prompt_template: dict[str, str],
 
     if len(placeholders) > 0:
         output = prompt_template.copy()
+        # Escape curly braces in VALUES so that user-controlled content (e.g.
+        # user_message containing "{x}") is not interpreted as a nested format spec.
+        safe_placeholders = {
+            k: v.replace("{", "{{").replace("}", "}}") if isinstance(v, str) else v
+            for k, v in placeholders.items()
+        }
         try:
-            output["system"] = output["system"].format(**placeholders)
-            output["user"]   = output["user"].format(**placeholders)
+            output["system"] = output["system"].format(**safe_placeholders)
+            output["user"]   = output["user"].format(**safe_placeholders)
         except KeyError as e:
             raise KeyError(
                 f"Placeholder {e} used in prompt template but not activated in the node config. "

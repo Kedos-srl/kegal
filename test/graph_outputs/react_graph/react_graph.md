@@ -1,16 +1,17 @@
 ## Graph Response
- * Token Input size: 162
- * Token Output size: 121
- * Compile time: 1.2189903259277344
+ * Token Input size: 685
+ * Token Output size: 164
+ * Compile time: 4.880836248397827
 ### Node:  controller
+3 multiplied by 7 is 21. Brazil is on the continent of South America.
 ```json
  {
-    "done": false,
-    "iterations": 0,
-    "final_answer": null
+    "done": true,
+    "iterations": 2,
+    "final_answer": "3 multiplied by 7 is 21. Brazil is on the continent of South America."
 } 
 ```
 
-Token Input size:  162 
-  Token Output size:  121 
+Token Input size:  685 
+  Token Output size:  164 
  

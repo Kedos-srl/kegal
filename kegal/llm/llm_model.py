@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 import fitz
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 
 class LLMProcessingError(Exception):
@@ -256,14 +258,14 @@ class LlmModel(ABC):
     @staticmethod
     def _is_json(myjson_string):
         if not isinstance(myjson_string, str):
-            logging.debug(f"Not a string: {type(myjson_string)}")
+            logger.debug(f"Not a string: {type(myjson_string)}")
             return False
 
         try:
             json.loads(myjson_string)
             return True
         except json.JSONDecodeError as e:
-            logging.debug(f"Invalid JSON: {e}")
+            logger.debug(f"Invalid JSON: {e}")
             return False
 
 

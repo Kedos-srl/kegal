@@ -97,6 +97,7 @@ class LlmOllama(LlmModel):
                         llm_response.tools.append(function_call)
             return llm_response
         except Exception as e:
+            logger.error(f"Can't invoke '{self.model}' endpoint: {e}")
             raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
 
 

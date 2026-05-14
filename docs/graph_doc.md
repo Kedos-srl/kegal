@@ -937,7 +937,7 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | Field                   | Type                                   | Optional | Description |
 |-------------------------|----------------------------------------|----------|-------------|
 | `models`                | `list[GraphModel]`                     | No       | List of LLM configurations. |
-| `verbose`               | `bool`                                 | Yes      | When `true`, enables INFO-level progress logging to stderr for the duration of the graph execution: node start/end with elapsed time, each tool call name and parameters, and the full ReAct loop trace. Default `false`. |
+| `verbose`               | `bool`                                 | Yes      | When `true`, enables INFO-level progress logging to `stderr` for the entire compilation run. Output includes: a compile-start line with node count; per-node `▶ start` and `✓ done` lines with elapsed time and token counts; each tool call with a `[mcp]`/`[py]` tag and key parameters; each tool result (truncated to 120 chars); and the full ReAct loop trace (iteration, reasoning, routing, dispatch, agent input/output, token counts, compaction events). On TTY terminals the output is ANSI-colored (bold cyan for nodes, blue for tool calls, bold orange for ReAct banners, dark gray for secondary lines); on non-TTY output (pipes, redirects, CI) colors are suppressed automatically. Default `false`. |
 | `images`                | `list[GraphInputData]` \| `None`       | Yes      | Image sources used in the graph. |
 | `documents`             | `list[GraphInputData]` \| `None`       | Yes      | Document sources used in the graph. |
 | `tools`                 | `list[LLMTool]` \| `None`              | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |
@@ -1095,7 +1095,7 @@ edges:
 
 ---
 
-## 10. `LLMTool` (from `kegal.llm.llm_model`)
+## 10. `LLMTool` (from `kegal` or `kegal.llm.llm_model`)
 
 | Field        | Type                                   | Optional | Description |
 |--------------|-----------------------------------------|----------|-------------|
@@ -1104,6 +1104,8 @@ edges:
 | `parameters` | `dict[str, LLMStructuredSchema]`       | No       | JSON-schema-style parameter definitions. |
 | `required`   | `list[str]`                            | No       | List of required parameter names. |
 
+
+> **Import**: `from kegal import LLMTool` (top-level shortcut) or `from kegal.llm.llm_model import LLMTool`.
 
 > **Tip**: Use this model when you need to pass structured function‑call capabilities to the LLM.
 
@@ -1137,7 +1139,7 @@ tools:
 }
 ```
 
-## 11. `LLMStructuredSchema` (from `kegal.llm.llm_model`)
+## 11. `LLMStructuredSchema` (from `kegal.llm` or `kegal.llm.llm_model`)
 
 | Field         | Type                       | Optional | Description |
 |---------------|----------------------------|----------|-------------|
@@ -1185,6 +1187,8 @@ tools:
 | `else_`       | `dict[str, Any]` or `None` | Yes | Schema to validate if `if_` does not hold. |
 | `dependentSchemas` | `dict[str, dict[str, Any]]` or `None` | Yes | Schema depending on property presence. |
 | `model_config` | `dict` or `None`        | Yes      | Pydantic model configuration (e.g., `{"extra": "allow"}`). |
+
+**Import**: `from kegal.llm import LLMStructuredSchema` (package shortcut) or `from kegal.llm.llm_model import LLMStructuredSchema`.
 
 This model is used inside `LLMTool.parameters` and `structured_output.parameters` / `react_output.parameters` on `GraphNode` to describe each field of a schema the LLM should return.
 
@@ -1296,6 +1300,47 @@ with Compiler(uri="path/to/graph.yml") as compiler:
     compiler.compile()
 ```
 
+---
 
+### Output methods
 
+Methods available on `Compiler` after `compile()` completes.
+
+#### `get_outputs() → CompiledOutput`
+
+Returns the `CompiledOutput` object for the last `compile()` run.
+
+#### `get_outputs_json(indent: int) → str`
+
+| Argument | Type  | Description |
+|----------|-------|-------------|
+| `indent` | `int` | JSON indentation level passed to `json.dumps`. |
+
+Returns the full `CompiledOutput` serialised as a JSON string.
+
+#### `save_outputs_as_json(path: Path)`
+
+| Argument | Type   | Description |
+|----------|--------|-------------|
+| `path`   | `Path` | Destination file. Parent directories are created automatically. |
+
+Writes the `CompiledOutput` as a JSON file with 4-space indentation.
+
+#### `save_outputs_as_markdown(path: Path, only_content: bool = False)`
+
+| Argument       | Type   | Default | Description |
+|----------------|--------|---------|-------------|
+| `path`         | `Path` | —       | Destination file. Parent directories are created automatically. |
+| `only_content` | `bool` | `False` | When `True`, writes only node response text separated by `---` dividers, omitting token counts and metadata. |
+
+```python
+from pathlib import Path
+from kegal import Compiler
+
+with Compiler(uri="path/to/graph.yml") as compiler:
+    compiler.compile()
+    compiler.save_outputs_as_markdown(Path("outputs/report.md"))
+    compiler.save_outputs_as_json(Path("outputs/report.json"))
+    print(compiler.get_outputs_json(indent=2))
+```
 

@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.2.8] - 2026-05-14](#0128---2026-05-14)
 - [[0.1.2.7] - 2026-05-13](#0127---2026-05-13)
 - [[0.1.2.6] - 2026-05-13](#0126---2026-05-13)
 - [[0.1.2.5] - 2026-05-12](#0125---2026-05-12)
@@ -11,6 +12,46 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.2.8] - 2026-05-14
+
+### Added
+
+- **`LLMTool` top-level export** — `from kegal import LLMTool` now works without going through `kegal.llm.llm_model`.
+- **`LLMStructuredSchema` package export** — `from kegal.llm import LLMStructuredSchema` now works without going through `kegal.llm.llm_model`.
+- **Verbose output improvements** (`compiler.py`):
+  - Compile start/done summary lines: `compile started — N node(s)` and `compile done — N node(s) in=X out=Y tokens Z.Zs`.
+  - Per-node completion line now includes token counts: `✓ node_id (1.2s in=312 out=88)`.
+  - Tool results shown at INFO level (truncated to 120 chars), replacing the previous DEBUG-only entry.
+  - Tool call lines now carry a `[mcp]` or `[py]` tag to distinguish MCP server tools from Python executor tools.
+  - **ANSI color** applied to all verbose output on TTY terminals (auto-detected via `sys.stderr.isatty()`); suppressed automatically on pipes, redirects, and CI. Palette: bold for compile lines, bold cyan for node start/done, blue for tool calls and ReAct dispatch, dark gray for secondary lines (results, reasoning, routing), bold orange for ReAct banners and iteration headers, bold cyan for ReAct done/final-answer. All colors chosen for readability on both dark and light terminal backgrounds.
+
+### Fixed
+
+- **MCP connection failure** (`compiler.py`) — `Compiler.__init__` now re-raises after logging instead of silently continuing. A misconfigured or unavailable MCP server is a hard failure at construction time, not a silent degradation.
+- **`llm_model.py` root logger** — two `logging.debug()` calls used the root logger directly, bypassing the `kegal.*` logger namespace and `verbose` mode. Replaced with a module-level `logger = logging.getLogger(__name__)`.
+- **Contradictory edge structure** (`compiler.py`) — when the same node ID appeared in two edges with different `children`/`fan_in` definitions, a warning was logged and the first declaration used silently. This is a configuration error; it now raises `ValueError`.
+- **LLM provider logging** (`llm_anthropic.py`, `llm_ollama.py`, `llm_openai.py`) — all three providers now call `logger.error(...)` before re-raising `RuntimeError` on endpoint failure, making failures visible in verbose mode. `llm_anthropic.py` had no module-level logger; one was added. `llm_openai.py` also gained exception chaining (`from e`) and had the redundant `"ERROR:"` prefix removed from the message.
+- **Malformed prompt template** (`compiler.py`) — the silent `except (ValueError, KeyError): pass` in `_validate_prompts` now logs at `logger.debug` so malformed templates are visible in verbose mode.
+- **`_mcp_server_for_tool` miss level** (`compiler.py`) — upgraded from `logger.warning` to `logger.error` since reaching that path after a successful init indicates an unexpected state.
+- **CLI unhandled exceptions** (`cli.py`) — `ValueError` and `RuntimeError` raised by `Compiler.__init__` or `compile()` were previously shown as raw Python tracebacks. They are now caught and printed as `Error: …` with exit code 1. In chat mode, per-turn compile errors print the message and continue the loop.
+- **CLI silent empty output** (`cli.py`) — when no nodes have `show: true`, the CLI now prints `(no output — set show: true on nodes you want to display)` to stderr instead of producing no output at all.
+- **CLI node separator** (`cli.py`) — a blank line is now inserted between consecutive visible-node outputs for readability.
+- **CLI `message`/`chunks` in once mode** (`cli.py`) — setting either flag with `mode: once` now prints a warning to stderr; the flags are only meaningful in chat mode.
+- **CLI unknown `kegal.yml` keys** (`cli.py`) — unknown keys are now reported as a warning to stderr and ignored, catching typos like `moode: chat`.
+
+### Added (CLI)
+
+- **`kegal --version`** — prints the installed version and exits.
+
+### Changed (docs)
+
+- **`docs/graph_doc.md`** — `verbose` field description expanded to cover all output lines, token counts, tool tags, ANSI color scheme, and TTY guard. `LLMTool` and `LLMStructuredSchema` sections updated with new import shortcuts.
+- **`docs/cli.md`** — fully updated: `--version`, error handling section, warnings section, `message`/`chunks` chat-only note, no-output hint.
+- **`README.md`** — verbose logging feature bullet added; CLI section updated with `--version`, warning behaviors, error handling; new "Defining tools in Python" subsection with import shortcuts.
+- **`docs/graph_doc.md` §12** — output methods (`get_outputs`, `get_outputs_json`, `save_outputs_as_json`, `save_outputs_as_markdown`) documented with parameter tables and examples.
 
 ---
 

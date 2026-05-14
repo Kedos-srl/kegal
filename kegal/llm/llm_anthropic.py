@@ -1,8 +1,11 @@
 import json
+import logging
 from typing import Any
 from botocore.config import Config
 
 AWS_READ_TIMEOUT_SECONDS = 300  # Increased from default 60s to handle large model responses
+
+logger = logging.getLogger(__name__)
 
 from .llm_model import (LlmModel,
                        LLMImageData,
@@ -228,6 +231,7 @@ class LlmAnthropic(LlmModel):
             return llm_response
 
         except Exception as e:
+            logger.error(f"Can't invoke '{self.model}' endpoint: {e}")
             raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
 
 
@@ -262,6 +266,7 @@ class LlmAnthropic(LlmModel):
 
             return llm_response
         except Exception as e:
+            logger.error(f"Can't invoke '{self.model}' endpoint: {e}")
             raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
     # Manager response
     def _get_response(self, body) ->LLmResponse:

@@ -45,8 +45,9 @@ from .validators import (
 
 # Import LLM subpackage
 from . import llm
+from .llm.llm_model import LLMTool
 
-__version__ = "0.1.2.7"
+__version__ = "0.1.2.8"
 
 __all__ = [
     # Graph models
@@ -89,4 +90,5 @@ __all__ = [
     "SchemaIssue",
     # LLM subpackage
     "llm",
+    "LLMTool",
 ]

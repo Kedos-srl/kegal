@@ -18,8 +18,15 @@ from .llm.llm_handler import LlmHandler
 from .llm.llm_model import LLmResponse, LLMStructuredOutput, LLMStructuredSchema, LLmMessage
 
 import logging
+import sys as _sys
 
 logger = logging.getLogger(__name__)
+
+_USE_COLOR = _sys.stderr.isatty()
+
+def _c(text: str, code: str) -> str:
+    return f"\x1b[{code}m{text}\x1b[0m" if _USE_COLOR else text
+
 
 _DEFAULT_REACT_COMPACT_PROMPT = {
     "system": (
@@ -125,6 +132,7 @@ class Compiler:
                 self.mcp_handlers[server_cfg.id] = handler
             except Exception as e:
                 logger.error(f"Failed to connect MCP server '{server_cfg.id}': {e}")
+                raise
 
         self.react_compact_prompts: list[dict[str, str]] = (
             self._load_prompt_inputs(graph.react_compact_prompts)
@@ -572,8 +580,8 @@ class Compiler:
                             root = field_name.split(".")[0].split("[")[0]
                             if root:
                                 referenced.add(root)
-                except (ValueError, KeyError):
-                    pass  # Malformed template — will raise at runtime anyway
+                except (ValueError, KeyError) as _e:
+                    logger.debug(f"Malformed prompt template in prompt {idx}: {_e}")
 
             if not referenced:
                 continue
@@ -653,9 +661,10 @@ class Compiler:
                 if node_id in declared_structure:
                     prev = declared_structure[node_id]
                     if prev.children != edge.children or prev.fan_in != edge.fan_in:
-                        logger.warning(
-                            f"Node '{node_id}' has contradictory structure declarations. "
-                            f"First declaration is canonical; subsequent ones are ignored."
+                        raise ValueError(
+                            f"Node '{node_id}' has contradictory structure declarations: "
+                            f"the same node appears in multiple edges with different "
+                            f"'children' or 'fan_in' definitions."
                         )
                 else:
                     declared_structure[node_id] = edge
@@ -799,6 +808,7 @@ class Compiler:
                 if path is not None:
                     path.write_text("", encoding="utf-8")
         global_start = time.time()
+        logger.info(_c(f"compile started — {len(self.nodes)} node(s)", "1"))
         deps = self._build_dag()
         levels = self._topological_levels(deps)
 
@@ -837,7 +847,7 @@ class Compiler:
             for nid in guard_ids:
                 passed = self._run_node(self.nodes[nid])
                 if passed is False:
-                    logger.info(f"Guard node '{nid}' blocked execution — aborting.")
+                    logger.info(_c(f"Guard node '{nid}' blocked execution — aborting.", "1"))
                     self.outputs.compile_time = time.time() - global_start
                     return
 
@@ -852,7 +862,13 @@ class Compiler:
                 self._run_react_loop(self._react_controllers[nid], self.nodes[nid])
 
         self._update_auto_history()
-        self.outputs.compile_time = time.time() - global_start
+        elapsed = time.time() - global_start
+        self.outputs.compile_time = elapsed
+        logger.info(_c(
+            f"compile done — {len(self.outputs.nodes)} node(s)  "
+            f"in={self.outputs.input_size} out={self.outputs.output_size} tokens  "
+            f"{elapsed:.1f}s", "1"
+        ))
 
     def _run_parallel(self, node_ids: list[str]):
         """Execute independent nodes concurrently using a thread pool.
@@ -904,7 +920,7 @@ class Compiler:
             return True
         is_guard = self._is_guard_node(node)
         try:
-            logger.info(f"▶  {node.id}")
+            logger.info(_c(f"▶  {node.id}", "1;36"))
             start = time.time()
             model_body = self._build_model_body(node)
             enable_history = "chat_history" in model_body
@@ -912,7 +928,10 @@ class Compiler:
             response = self._run_tool_loop(node, model_body)
 
             elapsed = time.time() - start
-            logger.info(f"   ✓ {node.id}  ({elapsed:.1f}s)")
+            logger.info(_c(
+                f"   ✓ {node.id}  ({elapsed:.1f}s  "
+                f"in={response.input_size} out={response.output_size})", "1;36"
+            ))
             self._record_output(node, response, elapsed, enable_history)
             self._update_blackboard(node, response)
             self._check_message_passing(response, node)
@@ -958,9 +977,11 @@ class Compiler:
             # Execute each tool call and collect results
             for tool_call in response.tools:
                 brief = self._brief_tool_params(tool_call.parameters)
-                logger.info(f"   ⟶  {tool_call.name}({brief})")
+                tag = "[mcp]" if self._mcp_server_for_tool(tool_call.name, node) else "[py]"
+                logger.info(_c(f"   ⟶  {tag} {tool_call.name}({brief})", "34"))
                 result = self._execute_tool_call(tool_call.name, tool_call.parameters, node)
-                logger.debug(f"Tool '{tool_call.name}' returned: {result[:120]}")
+                result_preview = result[:120] + ("…" if len(result) > 120 else "")
+                logger.info(_c(f"   ↩  {result_preview}", "90"))
                 accumulated_tool_results.append(result)
 
                 tool_history.append(LLmMessage(
@@ -1020,13 +1041,13 @@ class Compiler:
         final_answer: str | None = None
         start = time.time()
 
-        logger.info(
+        logger.info(_c(
             f"[ReAct] ── controller '{node.id}' starting "
-            f"(max_iterations={react_cfg.max_iterations}) ──────────────────────"
-        )
+            f"(max_iterations={react_cfg.max_iterations}) ──────────────────────", "1;38;5;208"
+        ))
 
         for iteration in range(react_cfg.max_iterations):
-            logger.info(f"[ReAct] ┌─ iteration {iteration + 1}/{react_cfg.max_iterations}")
+            logger.info(_c(f"[ReAct] ┌─ iteration {iteration + 1}/{react_cfg.max_iterations}", "1;38;5;208"))
 
             response = client.complete(
                 system_prompt=system_prompt,
@@ -1049,11 +1070,11 @@ class Compiler:
                 final_answer = routing.get("final_answer") or reasoning
 
             if reasoning:
-                logger.info(f"[ReAct] │  reasoning  : {reasoning}")
-            logger.info(
+                logger.info(_c(f"[ReAct] │  reasoning  : {reasoning}", "90"))
+            logger.info(_c(
                 f"[ReAct] │  next_agent : {next_agent or '—'}   done={done}   "
-                f"tokens in={response.input_size} out={response.output_size}"
-            )
+                f"tokens in={response.input_size} out={response.output_size}", "90"
+            ))
 
             # Append controller decision to conversation
             conversation.append(LLmMessage(
@@ -1063,8 +1084,8 @@ class Compiler:
 
             if done:
                 if final_answer:
-                    logger.info(f"[ReAct] │  final answer: {final_answer}")
-                logger.info(f"[ReAct] └─ done ✓")
+                    logger.info(_c(f"[ReAct] │  final answer: {final_answer}", "1;36"))
+                logger.info(_c(f"[ReAct] └─ done ✓", "1;36"))
                 break
 
             if not next_agent:
@@ -1082,12 +1103,14 @@ class Compiler:
                 )
                 break
 
-            logger.info(f"[ReAct] │  → dispatching '{next_agent}'")
-            logger.info(f"[ReAct] │    input : {agent_input_str[:120]}"
-                        + ("…" if len(agent_input_str) > 120 else ""))
+            logger.info(_c(f"[ReAct] │  → dispatching '{next_agent}'", "34"))
+            logger.info(_c(
+                f"[ReAct] │    input : {agent_input_str[:120]}"
+                + ("…" if len(agent_input_str) > 120 else ""), "90"))
             agent_output = self._run_react_agent(agent_edge, agent_input_str)
-            logger.info(f"[ReAct] │    output: {agent_output[:120]}"
-                        + ("…" if len(agent_output) > 120 else ""))
+            logger.info(_c(
+                f"[ReAct] │    output: {agent_output[:120]}"
+                + ("…" if len(agent_output) > 120 else ""), "90"))
 
             trace_iters.append(ReactIteration(
                 iteration=iteration,
@@ -1114,12 +1137,12 @@ class Compiler:
             )
 
         elapsed = time.time() - start
-        logger.info(
+        logger.info(_c(
             f"[ReAct] ── controller '{node.id}' finished — "
             f"iterations={len(trace_iters)}  done={done}  "
             f"total tokens in={total_in} out={total_out}  "
-            f"elapsed={elapsed:.1f}s ────────────────────────"
-        )
+            f"elapsed={elapsed:.1f}s ────────────────────────", "1;38;5;208"
+        ))
 
         final_response = LLmResponse(
             messages=[final_answer] if final_answer else None,
@@ -1217,11 +1240,11 @@ class Compiler:
         if last_response.input_size < limit * threshold:
             return
 
-        logger.info(
+        logger.info(_c(
             f"[ReAct] │  compacting conversation "
             f"({last_response.input_size}/{limit} tokens, "
-            f"threshold={threshold:.0%})"
-        )
+            f"threshold={threshold:.0%})", "90"
+        ))
 
         compact_prompt = (
             self.react_compact_prompts[0]
@@ -1244,7 +1267,7 @@ class Compiler:
             conversation.append(
                 LLmMessage(role="user", content=f"[compacted state]\n{compacted}")
             )
-            logger.info(f"[ReAct] │  conversation compacted")
+            logger.info(_c(f"[ReAct] │  conversation compacted", "90"))
 
     # -------------------------------------------------------------------------
     # Output helpers — react trace
@@ -1316,7 +1339,7 @@ class Compiler:
                     server_tools = [t for t in server_tools if t.name in ref.tools]
                 tools.extend(server_tools)
             else:
-                logger.warning(f"MCP server '{ref.id}' not connected — skipping for node '{node.id}'")
+                logger.error(f"MCP server '{ref.id}' not connected — skipping for node '{node.id}'")
         return tools
 
     def _mcp_server_for_tool(self, tool_name: str, node: GraphNode) -> McpHandler | None:

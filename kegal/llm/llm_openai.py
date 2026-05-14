@@ -82,8 +82,8 @@ class LlmOpenai(LlmModel):
 
             return llm_response
         except Exception as e:
-            error_msg = f"ERROR: Can't invoke '{self.model}' endpoint: {e}"
-            raise RuntimeError(error_msg)
+            logger.error(f"Can't invoke '{self.model}' endpoint: {e}")
+            raise RuntimeError(f"Can't invoke '{self.model}' endpoint: {e}") from e
 
 
     # text -> text

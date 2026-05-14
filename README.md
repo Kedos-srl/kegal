@@ -125,6 +125,15 @@ with Compiler(uri="path/to/your_graph.yml") as compiler:
     compiler.compile()
 ```
 
+### Defining tools in Python
+
+`LLMTool` and `LLMStructuredSchema` are available at the top of the import tree:
+
+```python
+from kegal import LLMTool
+from kegal.llm import LLMStructuredSchema
+```
+
 ### Loading from a dict
 
 If the graph is built programmatically rather than read from a file, pass a
@@ -149,6 +158,11 @@ pipelines, guard nodes, RAG, and multi-provider graphs — see [docs/tutorials.m
 
 After installation, the `kegal` command is available in your shell.
 
+```bash
+kegal --version          # print installed version
+kegal run [path]         # run a project
+```
+
 ### Project layout
 
 A KeGAL project is a folder containing a mandatory `kegal.yml` config file and your graph definition:
@@ -165,8 +179,10 @@ my_project/
 |-------|----------|--------|-------------|
 | `graph` | yes | path | Path to the graph YAML/JSON, relative to `kegal.yml` |
 | `mode` | no | `once` (default), `chat` | Execution mode |
-| `message` | no | `true`/`false` | Prompt the user for a message on each turn (chat mode) |
-| `chunks` | no | `true`/`false` | Prompt the user for RAG chunks on each turn (chat mode) |
+| `message` | no | `true`/`false` | Prompt for `user_message` each turn — chat mode only |
+| `chunks` | no | `true`/`false` | Prompt for RAG chunks each turn — chat mode only |
+
+Unknown keys in `kegal.yml` are warned and ignored. Setting `message`/`chunks` with `mode: once` also warns.
 
 **`once` mode** — runs the graph once using values from the YAML and exits:
 
@@ -185,6 +201,8 @@ mode: chat
 message: true
 chunks: false
 ```
+
+Configuration and runtime errors print a clean `Error: …` message and exit with code 1. In chat mode, per-turn errors print the message and continue the loop.
 
 ### Running a project
 
@@ -205,6 +223,7 @@ kegal run path/to/my_project
 - **Structured output** – enforce JSON schemas on LLM responses
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
 - **Message passing** – forward node outputs to downstream nodes; ordering inferred automatically from flags and declaration order — no explicit edge required for linear pipelines
+- **Verbose logging** – set `verbose: true` on the graph to get a colored INFO-level trace on stderr: compile start/done with token totals, per-node start/end with elapsed time and token counts, each tool call (`[mcp]`/`[py]` tagged) with parameters and result preview, and the full ReAct loop trace. ANSI colors are applied automatically on TTY terminals and suppressed on pipes/redirects
 - **MCP support** – connect nodes to external tool servers via the Model Context Protocol (stdio and SSE transports)
 - **Python tool executors** – attach plain Python callables as tools without running a separate process
 - **Multi-provider support** – use different LLMs in the same graph

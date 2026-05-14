@@ -90,6 +90,7 @@ def _bare_compiler(nodes_cfg=None, edges_cfg=None, extra_prompts=0) -> Compiler:
     c.tool_executors = {}
     c.graph_mcp_servers = []
     c._react_trace = {}
+    c._history_auto_paths = {}
     c._react_controllers = c._build_react_controller_map()
     return c
 

@@ -1600,10 +1600,10 @@ class Compiler:
         with self._message_passing_lock:
             if not node.message_passing.output:
                 return
-            if (node.mcp_servers or node.tools) and response.tool_results:
-                self.message_passing.extend(response.tool_results)
-            elif response.messages is not None and len(response.messages) > 0:
+            if response.messages is not None and len(response.messages) > 0:
                 self.message_passing.extend(response.messages)
+            elif response.tool_results:
+                self.message_passing.extend(response.tool_results)
             elif response.json_output is not None:
                 self.message_passing.append(response.json_output)
 

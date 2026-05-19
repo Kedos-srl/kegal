@@ -44,8 +44,7 @@ nav:
     - 12 - ReAct loop: tutorials/12_react_loop.md
     - 13 - Context window and outputs: tutorials/13_context_window.md
   - CLI: cli.md
-  - Changelog: CHANGELOG.md
-
+  - Quick Reference: quick_reference.md
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true

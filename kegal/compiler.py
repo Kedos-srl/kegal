@@ -433,21 +433,22 @@ class Compiler:
                     f"nodes to share data with the controller, or move the write to an agent node."
                 )
             if bb is not None and bb.read:
-                logger.warning(
-                    f"Node '{nid}' is a ReAct controller — blackboard.read=True is ignored "
-                    f"for controllers. Use message_passing on agent nodes instead."
+                raise ValueError(
+                    f"Node '{nid}' is a ReAct controller and has blackboard.read=True. "
+                    f"Controllers cannot read from blackboards — use message_passing on agent "
+                    f"nodes to share data with the controller."
                 )
 
             if node.tools is not None:
-                logger.warning(
-                    f"Node '{nid}' is a ReAct controller — 'tools' is ignored for controllers. "
-                    f"Assign tools to the agent nodes instead."
+                raise ValueError(
+                    f"Node '{nid}' is a ReAct controller and has 'tools' defined. "
+                    f"Controllers cannot call tools — assign tools to the agent nodes instead."
                 )
 
             if node.mcp_servers:
-                logger.warning(
-                    f"Node '{nid}' is a ReAct controller — 'mcp_servers' is ignored for controllers. "
-                    f"Assign MCP servers to the agent nodes instead."
+                raise ValueError(
+                    f"Node '{nid}' is a ReAct controller and has 'mcp_servers' defined. "
+                    f"Controllers cannot call MCP tools — assign MCP servers to the agent nodes instead."
                 )
 
             if node.message_passing.output:

@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.2.9] - 2026-05-19](#0129---2026-05-19)
 - [[0.1.2.8] - 2026-05-14](#0128---2026-05-14)
 - [[0.1.2.7] - 2026-05-13](#0127---2026-05-13)
 - [[0.1.2.6] - 2026-05-13](#0126---2026-05-13)
@@ -12,6 +13,27 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.2.9] - 2026-05-19
+
+### Fixed
+
+- **`_check_message_passing` wrong priority** (`compiler.py`) — when a node called tools, raw tool results were forwarded downstream via `message_passing` instead of the LLM's final text response. Priority is now: `response.messages` first (LLM final text, always preferred), `response.tool_results` fallback (when no text was produced), `response.json_output` last fallback. This corrects the documented contract: "only the final text response is forwarded" (Tutorial 08 §5).
+
+- **Controller restrictions hardened** (`compiler.py`) — setting `tools`, `mcp_servers`, or `blackboard.read=True` on a ReAct controller previously logged a `logger.warning` and silently ignored the setting, allowing misconfigured graphs to run without error. All three now raise `ValueError` at `Compiler()` construction, consistent with the existing `blackboard.write=True` error. The graph never starts with an invalid controller configuration.
+
+### Tests
+
+- **Three new test cases** (`test/test_react.py`, `TestReactValidateIndices`) — one per new hard error: `test_controller_with_tools_raises`, `test_controller_with_mcp_servers_raises`, `test_controller_with_blackboard_read_raises`.
+
+### Docs
+
+- **`docs/quick_reference.md`** (was `KEGAL_GRAPH.md`) — new single-page agent guide for building KeGAL graphs, moved to `docs/` and renamed. Covers all YAML fields, execution rules, edge topology, and common pitfalls with source-verified accuracy.
+- **`docs/tutorials/12_react_loop.md`** — controller feature table updated: `tools`, `mcp_servers`, `blackboard.read`, `blackboard.write` rows changed from "ignored — warning at init" to "raises `ValueError` at init"; `blackboard.read` and `.write` split into separate rows.
+- **`docs/graph_doc.md`** — same table corrections; explanatory note updated to cover blackboard access and the `ValueError`.
+- **`docs/index.md`** — added Documentation section with links to quick reference, graph reference, CLI, and tutorials.
 
 ---
 

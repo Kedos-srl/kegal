@@ -732,9 +732,10 @@ The controller and agent nodes have different execution paths and therefore supp
 
 | Feature | Controller | Agent nodes |
 |---|---|---|
-| `tools` | ✗ ignored — warning at init | ✓ full tool loop |
-| `mcp_servers` | ✗ ignored — warning at init | ✓ full tool loop |
-| `blackboard.read` / `.write` | ✗ ignored — warning at init | ✓ writes persist globally across iterations |
+| `tools` | ✗ raises `ValueError` at init | ✓ full tool loop |
+| `mcp_servers` | ✗ raises `ValueError` at init | ✓ full tool loop |
+| `blackboard.read` | ✗ raises `ValueError` at init | ✓ |
+| `blackboard.write` | ✗ raises `ValueError` at init | ✓ writes persist globally across iterations |
 | `message_passing.input` | ✓ seeds the initial conversation message | ✓ receives `agent_input` from controller |
 | `message_passing.output` | ✓ pushes `final_answer` to the shared buffer | ✓ result observed by controller |
 | `images` / `documents` | ✓ included in every controller LLM call | ✓ standard behaviour |
@@ -742,7 +743,7 @@ The controller and agent nodes have different execution paths and therefore supp
 | `chat_history` | ✓ seeds the conversation buffer | ✓ standard behaviour |
 | `user_message` | ✓ first user turn in the conversation | ✓ standard behaviour |
 
-**Why tools and MCP are excluded from the controller:** the controller LLM call must return a routing JSON (`react_output`). Mixing a tool loop inside that conversation would create ambiguity — the model cannot simultaneously return routing JSON and invoke tools. If the controller needs to look something up, dispatch a dedicated agent node that has the tool assigned.
+**Why tools, MCP, and blackboard are forbidden on the controller:** the controller LLM call must return a routing JSON (`react_output`). Mixing a tool loop or blackboard access inside that conversation would create ambiguity — the model cannot simultaneously return routing JSON and invoke tools. Setting any of these on a controller raises `ValueError` at `Compiler()` construction. If the controller needs to look something up, dispatch a dedicated agent node that has the tool or blackboard access assigned.
 
 ---
 

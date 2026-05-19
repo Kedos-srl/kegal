@@ -43,6 +43,13 @@ with Compiler(uri="path/to/your_graph.yml") as compiler:
 - **RAG support** — inject retrieved chunks into prompts
 - **Context window tracking** — accurate compaction thresholds and utilization percentages
 
+## Documentation
+
+- [Quick Reference](quick_reference.md) — single-page agent guide for building graphs; start here when using an AI assistant to generate YAML
+- [Graph reference](graph_doc.md) — full field-by-field schema documentation
+- [CLI reference](cli.md) — `kegal run`, `kegal.yml`, and command-line options
+- [Tutorials](tutorials.md) — step-by-step examples
+
 ## Supported Providers
 
 | Provider | Identifier |

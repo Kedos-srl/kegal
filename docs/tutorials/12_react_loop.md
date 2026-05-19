@@ -355,9 +355,10 @@ See [Tutorial 6: Chat history](06_chat_history.md) for full details.
 
 | Feature | Controller | Agent nodes |
 |---|---|---|
-| `tools` | ✗ ignored — warning at init | ✓ full tool loop |
-| `mcp_servers` | ✗ ignored — warning at init | ✓ full tool loop |
-| `blackboard.read / .write` | ✗ ignored — warning at init | ✓ writes persist across iterations |
+| `tools` | ✗ raises `ValueError` at init | ✓ full tool loop |
+| `mcp_servers` | ✗ raises `ValueError` at init | ✓ full tool loop |
+| `blackboard.read` | ✗ raises `ValueError` at init | ✓ |
+| `blackboard.write` | ✗ raises `ValueError` at init | ✓ writes persist across iterations |
 | `message_passing.input` | ✓ seeds initial conversation | ✓ receives `agent_input` |
 | `message_passing.output` | ✓ pushes `final_answer` downstream | ✓ result observed by controller |
 | `images / documents` | ✓ included in every controller call | ✓ standard |

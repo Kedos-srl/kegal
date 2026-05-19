@@ -249,6 +249,42 @@ class TestReactValidateIndices(unittest.TestCase):
         self.assertIn("ctrl", main)
         self.assertNotIn("a1", main)
 
+    def test_controller_with_tools_raises(self):
+        """A controller with tools defined must raise ValueError."""
+        from kegal.graph_node import GraphNode
+        c = _make_compiler(
+            [_node("ctrl", react=True), _node("agent")],
+            [{"node": "ctrl", "react": [{"node": "agent"}]}],
+        )
+        c.nodes["ctrl"].tools = ["some_tool"]
+        with self.assertRaises(ValueError) as ctx:
+            c._build_react_controller_map()
+        self.assertIn("tools", str(ctx.exception))
+
+    def test_controller_with_mcp_servers_raises(self):
+        """A controller with mcp_servers defined must raise ValueError."""
+        from kegal.graph_node import NodeMcpServerRef
+        c = _make_compiler(
+            [_node("ctrl", react=True), _node("agent")],
+            [{"node": "ctrl", "react": [{"node": "agent"}]}],
+        )
+        c.nodes["ctrl"].mcp_servers = [NodeMcpServerRef(id="srv")]
+        with self.assertRaises(ValueError) as ctx:
+            c._build_react_controller_map()
+        self.assertIn("mcp_servers", str(ctx.exception))
+
+    def test_controller_with_blackboard_read_raises(self):
+        """A controller with blackboard.read=True must raise ValueError."""
+        from kegal.graph_blackboard import NodeBlackboardRef
+        c = _make_compiler(
+            [_node("ctrl", react=True), _node("agent")],
+            [{"node": "ctrl", "react": [{"node": "agent"}]}],
+        )
+        c.nodes["ctrl"].blackboard = NodeBlackboardRef(id="board", read=True, write=False)
+        with self.assertRaises(ValueError) as ctx:
+            c._build_react_controller_map()
+        self.assertIn("blackboard.read", str(ctx.exception))
+
 
 # ---------------------------------------------------------------------------
 # Concurrent controller detection

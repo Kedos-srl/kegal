@@ -293,6 +293,91 @@ top-level `tools:` list, `_validate_indices()` raises `ValueError` at
 
 ---
 
+## 7. CLI: loading executors from a file with `tools_module`
+
+When running `kegal run` from the command line there is no Python entry point
+to pass `tool_executors`. Add a `tools_module` key to `kegal.yml` pointing to
+a Python file. The CLI loads it automatically using `importlib` and passes the
+executors to `Compiler` before the graph starts.
+
+### tools.py
+
+The file must define a `tool_executors` dict at module level. No imports from
+kegal are needed — it is plain Python.
+
+```python
+# tools.py  (lives next to kegal.yml)
+
+def get_weather(city: str) -> str:
+    # Replace with a real API call
+    return f"Sunny, 22°C in {city}"
+
+def convert_currency(amount: float, from_currency: str, to_currency: str) -> str:
+    # Replace with a real FX lookup
+    rate = 1.08  # example EUR → USD
+    return f"{amount * rate:.2f} {to_currency}"
+
+tool_executors = {
+    "get_weather": get_weather,
+    "convert_currency": convert_currency,
+}
+```
+
+### kegal.yml
+
+```yaml
+graph: my_graph.yml
+mode: once
+tools_module: ./tools.py   # path relative to this file
+```
+
+### my_graph.yml (excerpt)
+
+Declare each tool schema in YAML as normal — `tools_module` only wires up the
+implementations, the schemas still live in the graph file.
+
+```yaml
+tools:
+  - name: "get_weather"
+    description: "Return the current weather for a city."
+    parameters:
+      city: { type: string }
+    required: ["city"]
+
+  - name: "convert_currency"
+    description: "Convert an amount between two currencies."
+    parameters:
+      amount:        { type: number }
+      from_currency: { type: string }
+      to_currency:   { type: string }
+    required: ["amount", "from_currency", "to_currency"]
+
+nodes:
+  - id: "assistant"
+    model: 0
+    temperature: 0.0
+    max_tokens: 512
+    show: true
+    tools: ["get_weather", "convert_currency"]
+    prompt:
+      template: 0
+      user_message: true
+```
+
+### Run
+
+```bash
+kegal run            # loads tools.py, wires executors, runs the graph
+```
+
+**Rules:**
+- `tools_module` is a path **relative to the project directory** (where `kegal.yml` lives).
+- The file must exist — a missing file is a hard error printed to stderr (exit code 1).
+- The file must define a **non-empty** `tool_executors` dict — anything else is a hard error.
+- Tool names in `tool_executors` must exactly match names in the YAML `tools:` list.
+
+---
+
 ## Key points
 
 - Tool names in `tool_executors` must exactly match names in the YAML `tools:` list.

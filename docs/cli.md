@@ -33,8 +33,36 @@ If `kegal.yml` is absent, the CLI prints an error to stderr and exits with code 
 | `mode` | no | `once` (default), `chat` | Execution mode |
 | `message` | no | `true` / `false` | Prompt for `user_message` each turn — **chat mode only** |
 | `chunks` | no | `true` / `false` | Prompt for RAG chunks each turn — **chat mode only** |
+| `tools_module` | no | file path | Python file that defines `tool_executors` — loaded via `importlib` at startup |
 
 Unknown keys in `kegal.yml` are reported as a warning to stderr and ignored.
+
+### `tools_module`
+
+The `tools_module` field lets you wire Python tool executors from the command
+line without writing any loader code. The referenced file must define a
+non-empty `tool_executors` dict at module level:
+
+```python
+# tools.py
+def get_weather(city: str) -> str:
+    return f"Sunny, 22°C in {city}"
+
+tool_executors = {
+    "get_weather": get_weather,
+}
+```
+
+```yaml
+# kegal.yml
+graph: my_graph.yml
+mode: once
+tools_module: ./tools.py
+```
+
+The path is **relative to the project directory** (where `kegal.yml` lives).
+A missing file or a module without a valid `tool_executors` dict is a hard
+error printed to stderr (exit code 1).
 
 Setting `message` or `chunks` with `mode: once` prints a warning — those flags are silently ignored in once mode.
 

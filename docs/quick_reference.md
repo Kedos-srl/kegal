@@ -706,11 +706,18 @@ kegal run
 # mode: chat   (interactive loop)
 ```
 
-`kegal.yml` minimal structure:
+`kegal.yml` fields:
 ```yaml
-graph: my_graph.yml
-mode: once
+graph: my_graph.yml          # required — path to graph YAML, relative to kegal.yml
+mode: once                   # once (default) | chat
+tools_module: ./tools.py     # optional — Python file with tool_executors dict
+message: true                # chat mode only — prompt for user_message each turn
+chunks: false                # chat mode only — prompt for RAG chunks each turn
 ```
+
+`tools_module` loads Python tool executors at startup via `importlib`. The
+file must define a non-empty `tool_executors = {"name": fn}` dict at module
+level. Missing file or missing dict → hard error, exit 1.
 
 ---
 

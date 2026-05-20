@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -7,7 +8,7 @@ import yaml
 from .compiler import Compiler
 from . import __version__
 
-_KNOWN_CONFIG_KEYS = {"graph", "mode", "message", "chunks"}
+_KNOWN_CONFIG_KEYS = {"graph", "mode", "message", "chunks", "tools_module"}
 
 
 def _load_config(project_path: str) -> tuple[dict, Path]:
@@ -27,6 +28,22 @@ def _load_config(project_path: str) -> tuple[dict, Path]:
     return config, path
 
 
+def _load_tool_executors(project_path: Path, rel_path: str) -> dict:
+    """Load tool_executors from a Python module file relative to project_path."""
+    tools_path = (project_path / rel_path).resolve()
+    if not tools_path.exists():
+        raise ValueError(f"tools_module '{tools_path}' not found")
+    spec = importlib.util.spec_from_file_location("kegal_tools", tools_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    executors = getattr(module, "tool_executors", None)
+    if not isinstance(executors, dict) or not executors:
+        raise ValueError(
+            f"tools_module '{tools_path}' must define a non-empty 'tool_executors' dict"
+        )
+    return executors
+
+
 def _print_outputs(compiler: Compiler) -> None:
     visible = [n for n in compiler.get_outputs().nodes if n.show]
     if not visible:
@@ -43,9 +60,9 @@ def _print_outputs(compiler: Compiler) -> None:
             print(json.dumps(node.response.json_output, indent=2, ensure_ascii=False))
 
 
-def _run_once(graph_path: Path) -> None:
+def _run_once(graph_path: Path, tool_executors: dict | None = None) -> None:
     try:
-        with Compiler(uri=str(graph_path)) as compiler:
+        with Compiler(uri=str(graph_path), tool_executors=tool_executors) as compiler:
             compiler.compile()
             _print_outputs(compiler)
     except (ValueError, RuntimeError) as e:
@@ -53,7 +70,8 @@ def _run_once(graph_path: Path) -> None:
         sys.exit(1)
 
 
-def _run_chat(graph_path: Path, message_enabled: bool, chunks_enabled: bool) -> None:
+def _run_chat(graph_path: Path, message_enabled: bool, chunks_enabled: bool,
+              tool_executors: dict | None = None) -> None:
     if not message_enabled:
         print(
             "Warning: message is false in chat mode — the graph will run "
@@ -62,7 +80,7 @@ def _run_chat(graph_path: Path, message_enabled: bool, chunks_enabled: bool) -> 
         )
 
     try:
-        with Compiler(uri=str(graph_path)) as compiler:
+        with Compiler(uri=str(graph_path), tool_executors=tool_executors) as compiler:
             while True:
                 try:
                     if message_enabled:
@@ -107,6 +125,15 @@ def _cmd_run(args) -> None:
     message_enabled = bool(config.get("message", False))
     chunks_enabled = bool(config.get("chunks", False))
 
+    tool_executors = None
+    tools_module = config.get("tools_module")
+    if tools_module:
+        try:
+            tool_executors = _load_tool_executors(project_dir, tools_module)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
     if mode == "once" and (message_enabled or chunks_enabled):
         flags = [k for k, v in [("message", message_enabled), ("chunks", chunks_enabled)] if v]
         print(
@@ -116,9 +143,9 @@ def _cmd_run(args) -> None:
         )
 
     if mode == "chat":
-        _run_chat(graph_path, message_enabled, chunks_enabled)
+        _run_chat(graph_path, message_enabled, chunks_enabled, tool_executors)
     elif mode == "once":
-        _run_once(graph_path)
+        _run_once(graph_path, tool_executors)
     else:
         print(
             f"Error: unknown mode '{mode}' in kegal.yml (expected: chat, once)",

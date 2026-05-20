@@ -321,5 +321,119 @@ class TestNodeMcpServerRefTools(unittest.TestCase):
         self.assertIsNotNone(c._mcp_server_for_tool("delete", c.nodes["n"]))
 
 
+# ===========================================================================
+# TestPythonToolExecutor
+# ===========================================================================
+
+class TestPythonToolExecutor(unittest.TestCase):
+    """Tests for _execute_tool_call and tool loop behaviour with Python executors."""
+
+    def _compiler_with_executor(self, executors: dict) -> tuple:
+        """Bare compiler with the given Python tool executors and a mocked LLM."""
+        c, mock_client = _bare_compiler()
+        c.tool_executors = executors
+        return c, mock_client
+
+    # --- _execute_tool_call ---
+
+    def test_executor_called_with_correct_kwargs(self):
+        """_execute_tool_call passes parameters as keyword arguments to the function."""
+        received = {}
+
+        def my_tool(city: str, units: str) -> str:
+            received.update({"city": city, "units": units})
+            return "ok"
+
+        c, _ = self._compiler_with_executor({"my_tool": my_tool})
+        c._execute_tool_call("my_tool", {"city": "Rome", "units": "C"}, c.nodes["n"])
+        self.assertEqual(received, {"city": "Rome", "units": "C"})
+
+    def test_executor_return_value_stringified(self):
+        """_execute_tool_call converts any return type to str."""
+        c, _ = self._compiler_with_executor({"num": lambda: 42})
+        result = c._execute_tool_call("num", {}, c.nodes["n"])
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, "42")
+
+    def test_unregistered_tool_raises_runtime_error(self):
+        """Calling a tool with no registered executor raises RuntimeError."""
+        c, _ = self._compiler_with_executor({})
+        with self.assertRaises(RuntimeError) as ctx:
+            c._execute_tool_call("ghost_tool", {}, c.nodes["n"])
+        self.assertIn("ghost_tool", str(ctx.exception))
+
+    def test_mcp_takes_priority_over_python_executor(self):
+        """When both MCP and Python executor exist for the same name, MCP wins."""
+        python_called = []
+        c, _ = self._compiler_with_executor({"shared": lambda: python_called.append(True) or "py"})
+
+        mock_handler = MagicMock()
+        mock_handler.call_tool.return_value = "mcp"
+        mock_handler.tool_names.return_value = ["shared"]
+        c.mcp_handlers = {"srv": mock_handler}
+
+        from kegal.graph_node import NodeMcpServerRef
+        c.nodes["n"].mcp_servers = [NodeMcpServerRef(id="srv")]
+
+        result = c._execute_tool_call("shared", {}, c.nodes["n"])
+        self.assertEqual(result, "mcp")
+        self.assertEqual(python_called, [])
+
+    # --- tool loop integration ---
+
+    def test_tool_results_accumulated_in_response(self):
+        """After one tool call, response.tool_results contains the tool output."""
+        c, mock_client = self._compiler_with_executor(
+            {"say_hi": lambda name: f"Hi {name}"}
+        )
+        mock_client.complete.side_effect = [
+            LLmResponse(tools=[LLMFunctionCall(name="say_hi", parameters={"name": "Alice"})],
+                        input_size=10),
+            LLmResponse(messages=["done"], input_size=20),
+        ]
+        resp = c._run_tool_loop(c.nodes["n"], {"temperature": 0.0, "max_tokens": 100})
+        self.assertIsNotNone(resp.tool_results)
+        self.assertIn("Hi Alice", resp.tool_results[0])
+
+    def test_tool_call_injected_into_next_llm_call_history(self):
+        """After a tool call, the second LLM call receives the call+result in history."""
+        c, mock_client = self._compiler_with_executor({"echo": lambda x: x})
+        mock_client.complete.side_effect = [
+            LLmResponse(tools=[LLMFunctionCall(name="echo", parameters={"x": "hello"})],
+                        input_size=10),
+            LLmResponse(messages=["done"], input_size=20),
+        ]
+        c._run_tool_loop(c.nodes["n"], {"temperature": 0.0, "max_tokens": 100})
+
+        second_call_kwargs = mock_client.complete.call_args_list[1][1]
+        history = second_call_kwargs.get("chat_history", [])
+        history_text = " ".join(m.content for m in history)
+        self.assertIn("echo", history_text)
+        self.assertIn("hello", history_text)
+
+    def test_multiple_tool_calls_in_one_response_all_executed(self):
+        """Multiple tool calls returned by a single LLM response are all executed."""
+        call_log = []
+
+        def tracker(label: str) -> str:
+            call_log.append(label)
+            return label
+
+        c, mock_client = self._compiler_with_executor({"track": tracker})
+        mock_client.complete.side_effect = [
+            LLmResponse(
+                tools=[
+                    LLMFunctionCall(name="track", parameters={"label": "a"}),
+                    LLMFunctionCall(name="track", parameters={"label": "b"}),
+                    LLMFunctionCall(name="track", parameters={"label": "c"}),
+                ],
+                input_size=10,
+            ),
+            LLmResponse(messages=["done"], input_size=20),
+        ]
+        c._run_tool_loop(c.nodes["n"], {"temperature": 0.0, "max_tokens": 100})
+        self.assertEqual(sorted(call_log), ["a", "b", "c"])
+
+
 if __name__ == "__main__":
     unittest.main()

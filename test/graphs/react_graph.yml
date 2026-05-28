@@ -63,7 +63,7 @@ nodes:
       user_message: true
     react:
       max_iterations: 6
-      resume: false
+      compact: false
     react_output:
       type: object
       properties:

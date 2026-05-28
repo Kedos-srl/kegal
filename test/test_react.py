@@ -68,13 +68,13 @@ class TestReactSchema(unittest.TestCase):
     def test_node_react_defaults(self):
         r = NodeReact()
         self.assertEqual(r.max_iterations, 10)
-        self.assertFalse(r.resume)
-        self.assertAlmostEqual(r.resume_threshold, 0.8)
+        self.assertFalse(r.compact)
+        self.assertAlmostEqual(r.compact_threshold, 0.8)
 
     def test_node_react_custom(self):
-        r = NodeReact(max_iterations=3, resume=True, resume_threshold=0.6)
+        r = NodeReact(max_iterations=3, compact=True, compact_threshold=0.6)
         self.assertEqual(r.max_iterations, 3)
-        self.assertTrue(r.resume)
+        self.assertTrue(r.compact)
 
     def test_react_and_children_mutually_exclusive(self):
         with self.assertRaises(ValidationError):
@@ -814,12 +814,12 @@ class TestRunReactAgentExtended(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# resume flag in _run_react_loop
+# compact flag in _run_react_loop
 # ---------------------------------------------------------------------------
 
-class TestResumeInLoop(unittest.TestCase):
+class TestCompactInLoop(unittest.TestCase):
 
-    def _setup_with_resume(self, threshold: float = 0.5):
+    def _setup_with_compact(self, threshold: float = 0.5):
         from kegal.compiler import CompiledOutput
         source = {
             "models": [{"llm": "ollama", "model": "dummy"}],
@@ -832,7 +832,7 @@ class TestResumeInLoop(unittest.TestCase):
                 {
                     "id": "ctrl", "model": 0, "temperature": 0.0, "max_tokens": 100,
                     "show": True, "prompt": {"template": 0},
-                    "react": {"max_iterations": 3, "resume": True, "resume_threshold": threshold},
+                    "react": {"max_iterations": 3, "compact": True, "compact_threshold": threshold},
                     "react_output": {
                         "type": "object",
                         "properties": {"next_agent": {"type": "string"}, "done": {"type": "boolean"}},
@@ -877,7 +877,7 @@ class TestResumeInLoop(unittest.TestCase):
     def test_compact_called_when_threshold_exceeded(self):
         """_maybe_compact must be called when input_size >= max_tokens * threshold."""
         from kegal.llm.llm_model import LLmResponse
-        c, mock_client = self._setup_with_resume(threshold=0.5)
+        c, mock_client = self._setup_with_compact(threshold=0.5)
 
         # First call: input_size=60 >= 100*0.5=50 → compact triggered
         # Second call: done
@@ -893,10 +893,10 @@ class TestResumeInLoop(unittest.TestCase):
 
         mock_compact.assert_called()
 
-    def test_compact_not_called_when_resume_false(self):
-        """_maybe_compact must NOT be called when resume=false even if threshold exceeded."""
+    def test_compact_not_called_when_compact_false(self):
+        """_maybe_compact must NOT be called when compact=false even if threshold exceeded."""
         from kegal.llm.llm_model import LLmResponse
-        # resume=False in NodeReact default
+        # compact=False in NodeReact default
         from kegal.compiler import CompiledOutput
         source = {
             "models": [{"llm": "ollama", "model": "dummy"}],
@@ -909,7 +909,7 @@ class TestResumeInLoop(unittest.TestCase):
                 {
                     "id": "ctrl", "model": 0, "temperature": 0.0, "max_tokens": 100,
                     "show": True, "prompt": {"template": 0},
-                    "react": {"max_iterations": 2, "resume": False},
+                    "react": {"max_iterations": 2, "compact": False},
                     "react_output": {
                         "type": "object",
                         "properties": {"next_agent": {"type": "string"}, "done": {"type": "boolean"}},

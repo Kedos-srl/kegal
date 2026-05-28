@@ -10,7 +10,7 @@ serialization methods available after `compile()`.
 
 Add `context_window` (in tokens) to a model entry. This unlocks:
 
-1. **Accurate ReAct compaction** — the resume threshold is computed against
+1. **Accurate ReAct compaction** — the compact threshold is computed against
    the true context window instead of `max_tokens` (the output budget).
 2. **Context utilization in markdown output** — `save_outputs_as_markdown()`
    prints a utilization percentage per node.
@@ -168,10 +168,10 @@ for node in compiler.get_outputs().nodes:
 
 ## 5. Advanced: ReAct compaction with `context_window`
 
-When a ReAct controller has `resume: true`, compaction triggers when:
+When a ReAct controller has `compact: true`, compaction triggers when:
 
 ```
-input_size ≥ context_window × resume_threshold
+input_size ≥ context_window × compact_threshold
 ```
 
 Without `context_window`, `max_tokens` is used as the denominator — a much
@@ -182,7 +182,7 @@ smaller and less accurate proxy. The difference matters:
 | `context_window: 32768` | 32 768 tokens | 26 214 tokens |
 | No `context_window`, `max_tokens: 512` | 512 tokens | 410 tokens → compacts on turn 1 |
 
-Always set `context_window` when using long ReAct loops with `resume: true`.
+Always set `context_window` when using long ReAct loops with `compact: true`.
 
 ```yaml
 models:
@@ -197,8 +197,8 @@ nodes:
     max_tokens: 512
     react:
       max_iterations: 20
-      resume: true
-      resume_threshold: 0.80    # compact when 80% of 32768 tokens are used as input
+      compact: true
+      compact_threshold: 0.80    # compact when 80% of 32768 tokens are used as input
 ```
 
 ---
@@ -266,7 +266,7 @@ with Compiler(uri="chat.yml") as compiler:
 ## Key points
 
 - `context_window` is optional but strongly recommended when using ReAct
-  with `resume: true` or when you want utilization percentages in the report.
+  with `compact: true` or when you want utilization percentages in the report.
 - `show: false` hides a node from the markdown report but does not skip its
   execution.
 - `get_outputs()` always returns the most recent `compile()` result.
@@ -278,5 +278,5 @@ with Compiler(uri="chat.yml") as compiler:
 ---
 
 > **Related tutorials:**
-> [12 ReAct loop](12_react_loop.md) — resume and compaction in practice  
+> [12 ReAct loop](12_react_loop.md) — compact and compaction in practice  
 > [11 Multi-provider graphs](11_multi_provider.md) — `context_window` per provider

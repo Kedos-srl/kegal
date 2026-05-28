@@ -65,7 +65,7 @@ graph TD
 | `model`          | `str`          | No       | Full model name or ARN (e.g. `"arn:aws:bedrock:...:claude-sonnet-4-5-20250929-v1:0"`). |
 | `api_key`        | `str` \| `None`| Yes      | API key if required. |
 | `host`           | `str` \| `None`| Yes      | Custom host endpoint. |
-| `context_window` | `int` \| `None`| Yes      | Token context window of the model (e.g. `32768`). When set, used as the compaction threshold in the ReAct `resume` feature instead of `max_tokens`, and shown as a context-utilization percentage in markdown output. |
+| `context_window` | `int` \| `None`| Yes      | Token context window of the model (e.g. `32768`). When set, used as the compaction threshold in the ReAct `compact` feature instead of `max_tokens`, and shown as a context-utilization percentage in markdown output. |
 | `aws_region_name`| `str` \| `None`| Yes      | AWS region when using Bedrock. |
 | `aws_access_key` | `str` \| `None`| Yes      | AWS access key. |
 | `aws_secret_key` | `str` \| `None`| Yes      | AWS secret key. |
@@ -84,7 +84,7 @@ Provided Models
 llm: "ollama"
 model: "qwen2.5:7b"
 host: "http://localhost:11434"
-context_window: 32768   # optional — enables accurate resume threshold and utilization output
+context_window: 32768   # optional — enables accurate compact threshold and utilization output
 ```
 
 
@@ -672,8 +672,8 @@ Configuration block for a **ReAct controller** node. Placed inside `GraphNode.re
 | Field               | Type    | Optional | Default | Description |
 |---------------------|---------|----------|---------|-------------|
 | `max_iterations`    | `int`   | Yes      | `10`    | Maximum number of agent dispatches before the loop is force-stopped. |
-| `resume`            | `bool`  | Yes      | `false` | When `true`, automatically compacts the conversation buffer when it approaches the context limit. |
-| `resume_threshold`  | `float` | Yes      | `0.8`   | Fraction of the model's `context_window` (or `max_tokens` if `context_window` is not set) at which compaction is triggered. Only relevant when `resume: true`. |
+| `compact`            | `bool`  | Yes      | `false` | When `true`, automatically compacts the conversation buffer when it approaches the context limit. |
+| `compact_threshold`  | `float` | Yes      | `0.8`   | Fraction of the model's `context_window` (or `max_tokens` if `context_window` is not set) at which compaction is triggered. Only relevant when `compact: true`. |
 
 ### ReAct execution loop
 
@@ -686,7 +686,7 @@ flowchart TD
     PARSE -- next_agent=X --> FIND[Find agent edge X\nin react list]
     FIND --> RUN["Run agent subgraph\n(isolated state)"]
     RUN --> OBS[Inject observation\ninto conversation buffer]
-    OBS --> RESUME{resume=true and\nthreshold exceeded?}
+    OBS --> RESUME{compact=true and\nthreshold exceeded?}
     RESUME -- yes --> COMPACT[Compact conversation\nwith compact prompt]
     RESUME -- no --> CHECK
     COMPACT --> CHECK{max_iterations\nexceeded?}
@@ -722,8 +722,8 @@ flowchart LR
 ```yaml
 react:
   max_iterations: 8
-  resume: true
-  resume_threshold: 0.75
+  compact: true
+  compact_threshold: 0.75
 ```
 
 ### Controller vs agent feature support
@@ -944,7 +944,7 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | `tools`                 | `list[LLMTool]` \| `None`              | Yes      | Tool definitions (from `kegal.llm.llm_model`). Each tool is referenced by its `name` in `GraphNode.tools`. |
 | `mcp_servers`           | `list[GraphMcpServer]` \| `None`       | Yes      | MCP server configurations. Each server is referenced by its `id` in `GraphNode.mcp_servers`. |
 | `prompts`               | `list[GraphInputData]`                 | No       | Prompt templates (indexed by `NodePrompt.template`). |
-| `react_compact_prompts` | `list[GraphInputData]` \| `None`       | Yes      | Custom prompts used to summarize the ReAct conversation buffer when `resume: true` triggers compaction. Accepts `uri` or inline `template` exactly like regular `prompts`. Index 0 overrides the built-in default compaction prompt. |
+| `react_compact_prompts` | `list[GraphInputData]` \| `None`       | Yes      | Custom prompts used to summarize the ReAct conversation buffer when `compact: true` triggers compaction. Accepts `uri` or inline `template` exactly like regular `prompts`. Index 0 overrides the built-in default compaction prompt. |
 | `chat_history`          | `dict[str, list[dict[str, str]] \| ChatHistoryFile]` \| `None` | Yes | Conversation history as a dict mapping scope names to either an inline list of `{role, content}` message pairs or a `ChatHistoryFile` (external JSON file). A node references its history by name via `NodePrompt.chat_history`. Each scope may be assigned to at most one node — sharing a scope between two nodes raises `ValueError` at `Compiler` construction time. |
 | `user_message`          | `str` \| `None`                        | Yes      | Current user prompt. |
 | `retrieved_chunks`      | `str` \| `None`                        | Yes      | Additional retrieved content (e.g., document snippets). |

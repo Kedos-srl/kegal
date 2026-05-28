@@ -32,7 +32,7 @@ models:
   - llm: "ollama"           # provider: ollama | anthropic | anthropic_aws | openai | bedrock
     model: "qwen2.5:7b"     # model name or ARN
     host: "http://localhost:11434"  # ollama only
-    context_window: 32768   # required when using react resume: true
+    context_window: 32768   # required when using react compact: true
     api_key: "..."          # anthropic / openai
     # aws_region_name, aws_access_key, aws_secret_key for bedrock / anthropic_aws
 ```
@@ -115,8 +115,8 @@ nodes:
     # ReAct controller (mutually exclusive with tools/mcp_servers/blackboard)
     react:
       max_iterations: 20        # int — hard cap on dispatch loop
-      resume: true              # enable automatic conversation compaction
-      resume_threshold: 0.8     # compact at this fraction of context_window (default: 0.8)
+      compact: true              # enable automatic conversation compaction
+      compact_threshold: 0.8     # compact at this fraction of context_window (default: 0.8)
     react_output:               # JSON schema the controller must return each iteration
       type: object
       properties:
@@ -421,13 +421,13 @@ Agent nodes must have:
 4. Last sub-graph node's `response.json_output`
 5. Echo of `agent_input` (with warning) if nothing produced
 
-### Conversation compaction (resume)
+### Conversation compaction (compact)
 
 ```yaml
 react:
   max_iterations: 30
-  resume: true
-  resume_threshold: 0.8    # compact when conversation > 80% of context_window (default)
+  compact: true
+  compact_threshold: 0.8    # compact when conversation > 80% of context_window (default)
 
 models:
   - llm: "ollama"
@@ -436,7 +436,7 @@ models:
     context_window: 32768  # required for accurate threshold calculation
 ```
 
-Always set `context_window` on the model when using `resume: true`.
+Always set `context_window` on the model when using `compact: true`.
 
 ### Piping controller output downstream
 
@@ -545,8 +545,8 @@ Setting `tools`, `mcp_servers`, `blackboard.read`, or `blackboard.write` on a co
 ### Rule 4 — Blackboard writes must come from no-tool nodes
 `blackboard.write: true` appends `response.messages`. A node that also calls tools will pollute the blackboard with tool-call strings. Use a dedicated text-only node for clean writes.
 
-### Rule 5 — `context_window` is required for resume
-Without `context_window` on the model, `resume: true` uses `max_tokens` as the budget — far too small, causing premature compaction.
+### Rule 5 — `context_window` is required for compact
+Without `context_window` on the model, `compact: true` uses `max_tokens` as the budget — far too small, causing premature compaction.
 
 ### Rule 6 — Prompt template indices start at 0
 Both `models:` and `prompts:` are 0-indexed lists. Index out of range is caught at `Compiler()` construction, not at `compile()`.
@@ -634,8 +634,8 @@ nodes:
     prompt: { template: 0, user_message: true }
     react:
       max_iterations: 30
-      resume: true
-      resume_threshold: 0.8     # default
+      compact: true
+      compact_threshold: 0.8     # default
 
     react_output:
       type: object

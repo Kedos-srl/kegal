@@ -215,22 +215,22 @@ nodes:
 
 ---
 
-## 4. Intermediate: resume — automatic compaction
+## 4. Intermediate: compact — automatic compaction
 
 For long loops the conversation buffer can exceed the model's context window.
-Set `resume: true` and KeGAL will compact the buffer automatically when it
+Set `compact: true` and KeGAL will compact the buffer automatically when it
 approaches the limit.
 
 ```yaml
 react:
   max_iterations: 20
-  resume: true
-  resume_threshold: 0.75    # compact at 75% of the context window
+  compact: true
+  compact_threshold: 0.75    # compact at 75% of the context window
 ```
 
 The `context_window` field on the model is used as the denominator. Without
 it, `max_tokens` is used — a much smaller proxy. Always set `context_window`
-when using `resume: true`.
+when using `compact: true`.
 
 ```yaml
 models:
@@ -373,7 +373,7 @@ See [Tutorial 6: Chat history](06_chat_history.md) for full details.
 - Agent nodes are excluded from the main DAG and only run when dispatched.
 - `react` and `children`/`fan_in` are mutually exclusive on the same edge entry.
 - `max_iterations` caps the loop regardless of the `done` signal.
-- `resume: true` requires `context_window` on the model for accurate compaction.
+- `compact: true` requires `context_window` on the model for accurate compaction.
 - Concurrent ReAct controllers at the same topological level are not supported
   and raise `ValueError`.
 

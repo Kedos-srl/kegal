@@ -1219,9 +1219,9 @@ class Compiler:
                 content=f"[observation from {next_agent}]\n{agent_output}",
             ))
 
-            if react_cfg.resume:
+            if react_cfg.compact:
                 self._maybe_compact(
-                    conversation, node, react_cfg.resume_threshold, response
+                    conversation, node, react_cfg.compact_threshold, response
                 )
         else:
             logger.warning(

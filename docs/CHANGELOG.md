@@ -197,13 +197,13 @@ New feature — replaces the non-existent predecessor with a structured multi-bo
 
 Iterative Reason+Act execution pattern for controller nodes.
 
-- **`NodeReact`** model (`graph_react.py`): `max_iterations` (default 10), `resume` (bool), `resume_threshold` (float 0.8). Set on `GraphNode.react` to mark a node as a ReAct controller.
+- **`NodeReact`** model (`graph_react.py`): `max_iterations` (default 10), `compact` (bool), `compact_threshold` (float 0.8). Set on `GraphNode.react` to mark a node as a ReAct controller.
 - **`GraphNode.react_output`** — JSON schema for the controller's routing output. Reserved fields: `next_agent`, `done`, `reasoning`, `agent_input`, `final_answer`.
 - **`GraphEdge.react`** — list of available agent subgraph edges. Mutually exclusive with `children` (validated at parse time by Pydantic `model_validator`).
 - **`Graph.react_compact_prompts`** — optional list of `GraphInputData` for custom compaction prompts.
 - **`Compiler._run_react_loop()`** — calls the controller LLM, parses routing JSON, dispatches to the selected agent subgraph, injects the observation, and repeats until `done: true` or `max_iterations` is reached.
 - **`Compiler._run_react_agent()`** — isolated agent subgraph execution: saves/restores global `message_passing` and `outputs` state, runs the subgraph sequentially, returns the agent's text result.
-- **`Compiler._maybe_compact()`** — triggered when `resume: true` and `input_size ≥ max_tokens × resume_threshold`; compacts the conversation buffer via an LLM call.
+- **`Compiler._maybe_compact()`** — triggered when `compact: true` and `input_size ≥ max_tokens × compact_threshold`; compacts the conversation buffer via an LLM call.
 - **`Compiler.get_react_trace(controller_id)`** — returns a `ReactTrace` with per-iteration detail.
 - **`ReactTrace`** and **`ReactIteration`** — Pydantic models exported from `kegal`.
 - **DAG changes** — react agent nodes are excluded from the main DAG; `compile()` Phase 3 runs controllers sequentially after regular nodes at the same level; concurrent controllers at the same level raise `ValueError`.

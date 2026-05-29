@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.3.0] - 2026-05-29](#0130---2026-05-29)
 - [[0.1.2.9] - 2026-05-19](#0129---2026-05-19)
 - [[0.1.2.8] - 2026-05-14](#0128---2026-05-14)
 - [[0.1.2.7] - 2026-05-13](#0127---2026-05-13)
@@ -13,6 +14,50 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.3.0] - 2026-05-29
+
+### Added
+
+- **`ordered_children` and `ordered_fan_in` edge fields** (`graph_edge.py`, `compiler.py`) — sequential counterparts to `children` and `fan_in`. `ordered_children` launches siblings one after another (each depends on the previous); `ordered_fan_in` chains predecessors sequentially into an aggregator. Both work identically in the main DAG and inside react sub-graph dispatches, replacing deeply nested `children` chains with a flat, readable list. Mutually exclusive with `react` (enforced at model-validation level for `ordered_children`, at compiler level for `ordered_fan_in`).
+
+- **`tools_module` in `kegal.yml`** (`cli.py`) — CLI projects can now wire Python tool executors without writing a Python entry point. Point `tools_module: ./tools.py` to any file that defines `tool_executors = {"name": fn}` at module level; the CLI loads it via `importlib` at startup and passes the dict to `Compiler`. Missing file or missing dict raises an error before the graph starts.
+
+### Changed
+
+- **`NodeReact.resume` → `compact`, `resume_threshold` → `compact_threshold`** (`graph_react.py`, `compiler.py`) — renamed to avoid ambiguity with the English word "resume" (which reads as "restart" rather than "summarize"). `compact: true` / `compact_threshold: 0.8` are the new field names. Default values unchanged.
+
+### Fixed
+
+- **Controller restriction consistency** (`compiler.py`) — `tools`, `mcp_servers`, and `blackboard.read=True` on a ReAct controller previously logged `logger.warning` and continued silently. All three now raise `ValueError` at `Compiler()` construction, consistent with the pre-existing `blackboard.write=True` error. The graph never starts with an invalid controller configuration.
+
+- **`show=True` on react agent nodes** (`compiler.py`) — agent outputs are not included in compiled output (they run in an isolated context). Setting `show=True` on a react agent now logs a `logger.warning` at `Compiler()` construction pointing to `message_passing.output` as the correct mechanism.
+
+- **Controller `message_passing.output=True` with no `final_answer`** (`compiler.py`) — when the ReAct loop ended without producing a `final_answer`, the generic `_check_message_passing` fallback pushed the internal routing JSON dict to the pipe. Now: only the `final_answer` string is pushed; if absent, nothing is written and a warning is logged.
+
+- **`_update_blackboard` stale in-memory cache** (`compiler.py`) — when a react agent wrote to a blackboard via `blackboard.write: true` during a dispatch, the in-memory `_boards` cache was restored to the pre-dispatch state. Subsequent writes from main-DAG Cat-2 nodes used the stale cache as the base, potentially losing content. `_update_blackboard` now always reads the current content from disk before appending, consistent with `_assemble_board`.
+
+- **React sub-graph ordering docs** (`docs/quick_reference.md`) — corrected the misleading statement that "message_passing inference does not apply within sub-graphs." Clarified the two distinct cases: `children` sub-DAG dispatches (inference does not apply, use `ordered_children`); separate react entries (sequenced by the controller across iterations, message passing flows through controller observations).
+
+- **`test_contradictory_structure_emits_warning`** (`test/test_graphs.py`) — test expected `logger.warning` but the code raises `ValueError` (changed in 0.1.2.8). Renamed to `test_contradictory_structure_raises` and updated assertion.
+
+### Tests
+
+- **21 new tests** (`test/test_ordered_edges.py`) — schema validation, main DAG sequential deps, react sub-graph sequential deps, traversal-helper coverage, and validation for the new edge fields.
+- **6 new tests** (`test/test_react.py`) — `TestReactAgentShowWarning`, `TestControllerMessagePassingOutput`, `TestUpdateBlackboardReadsFromDisk` covering the three behaviour fixes.
+- **11 new tests** (`test/test_cli.py`) — `tools_module` loading, error paths, and `_cmd_run` integration.
+
+### Docs
+
+- **`docs/quick_reference.md`** — comprehensive update: `compact` rename, ordered edge variants (§5.5), Rule 2 updated, `show` note on react agents, `final_answer`-or-nothing note, `tools_module` CLI section.
+- **`docs/tutorials/04_fan_out_fan_in.md`** — new §7 `ordered_children` and §8 `ordered_fan_in`.
+- **`docs/tutorials/08_tool_executors.md`** — new §7 `tools_module` CLI + importlib example.
+- **`docs/tutorials/09_mcp_servers.md`** — fixed `show: true` → `show: false` on react agent node.
+- **`docs/tutorials/12_react_loop.md`** — fixed `show: true` on agent nodes; `show` row added to feature table; Key Points updated with `show` warning, `final_answer` behavior, and `ordered_children` usage.
+- **`docs/graph_doc.md`** — `ordered_children`/`ordered_fan_in` rows in `GraphEdge` table; `compact` rename; controller restriction notes updated.
+- **`docs/cli.md`** — `tools_module` field documented with full usage example.
 
 ---
 

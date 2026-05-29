@@ -258,7 +258,7 @@ nodes:
     model: 0
     temperature: 0.0
     max_tokens: 512
-    show: true
+    show: false               # react agents: show=true is ignored — use message_passing.output
     mcp_servers: ["sqlite"]          # ← MCP on the agent, not the controller
     message_passing: { input: true, output: true }
     prompt: { template: 1 }

@@ -213,8 +213,8 @@ class TestEdgeSystemValidation(unittest.TestCase):
                 "edges": [{"node": "A", "depends_on": ["B"]}],
             })
 
-    def test_contradictory_structure_emits_warning(self):
-        """Same node with different children in two declarations emits a warning."""
+    def test_contradictory_structure_raises(self):
+        """Same node with different children in two declarations raises ValueError."""
         c = _make_compiler(
             [_node("A"), _node("B"), _node("C"), _node("D"), _node("E")],
             [
@@ -226,9 +226,9 @@ class TestEdgeSystemValidation(unittest.TestCase):
                 ]},
             ],
         )
-        with self.assertLogs("kegal.compiler", level=logging.WARNING) as cm:
+        with self.assertRaises(ValueError) as ctx:
             c._build_dag()
-        self.assertTrue(any("contradictory" in line for line in cm.output))
+        self.assertIn("contradictory", str(ctx.exception))
 
 
 class TestEdgeSystemMessagePassingPreserved(unittest.TestCase):

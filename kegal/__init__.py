@@ -47,7 +47,7 @@ from .validators import (
 from . import llm
 from .llm.llm_model import LLMTool
 
-__version__ = "0.1.2.9"
+__version__ = "0.1.3.0"
 
 __all__ = [
     # Graph models

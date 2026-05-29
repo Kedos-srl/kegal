@@ -91,7 +91,7 @@ nodes:
     model: 0
     temperature: 0.0
     max_tokens: 64
-    show: true
+    show: false               # react agents: show=true is ignored — use message_passing.output
     message_passing: { input: true, output: true }
     prompt: { template: 1 }
 
@@ -99,7 +99,7 @@ nodes:
     model: 0
     temperature: 0.0
     max_tokens: 64
-    show: true
+    show: false               # react agents: show=true is ignored — use message_passing.output
     message_passing: { input: true, output: true }
     prompt: { template: 2 }
 ```
@@ -360,7 +360,8 @@ See [Tutorial 6: Chat history](06_chat_history.md) for full details.
 | `blackboard.read` | ✗ raises `ValueError` at init | ✓ |
 | `blackboard.write` | ✗ raises `ValueError` at init | ✓ writes persist across iterations |
 | `message_passing.input` | ✓ seeds initial conversation | ✓ receives `agent_input` |
-| `message_passing.output` | ✓ pushes `final_answer` downstream | ✓ result observed by controller |
+| `message_passing.output` | ✓ pushes `final_answer` downstream (nothing if absent) | ✓ result observed by controller |
+| `show` | ✓ controller output shown in report | ✗ ignored — use `message_passing.output` |
 | `images / documents` | ✓ included in every controller call | ✓ standard |
 | `chat_history` | ✓ seeds conversation buffer | ✓ standard |
 | `user_message` | ✓ first turn in conversation | ✓ standard |
@@ -376,6 +377,19 @@ See [Tutorial 6: Chat history](06_chat_history.md) for full details.
 - `compact: true` requires `context_window` on the model for accurate compaction.
 - Concurrent ReAct controllers at the same topological level are not supported
   and raise `ValueError`.
+- `show: true` on agent nodes is silently ignored — agent outputs are not included
+  in compiled output. Use `message_passing.output: true` to surface results.
+- `message_passing.output: true` on the controller pushes `final_answer` downstream.
+  If the loop ends without a `final_answer`, nothing is pushed and a warning is logged.
+- Use `ordered_children` on a react agent entry to sequence a multi-step sub-DAG
+  without nested `children`:
+
+```yaml
+react:
+  - node: "analyze_agent"
+    ordered_children:
+      - node: "writer_agent"    # runs after analyze_agent in the same dispatch
+```
 
 ---
 

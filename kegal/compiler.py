@@ -538,8 +538,8 @@ class Compiler:
         # are mutually exclusive: react is for agent dispatch, children/fan_in are
         # for the main DAG topology.
         def _check_react_edge_mixing(edge: GraphEdge) -> None:
-            # react+children is already caught by GraphEdge._check_mutual_exclusivity.
-            # fan_in is not covered by the model validator, so we check it here.
+            # react+children and react+ordered_children are caught by GraphEdge._check_mutual_exclusivity.
+            # fan_in and ordered_fan_in are not covered by the model validator, so we check them here.
             if edge.react and edge.fan_in:
                 errors.append(
                     f"Node '{edge.node}' has both 'react' and 'fan_in' on the same edge. "
@@ -799,7 +799,7 @@ class Compiler:
                 traverse(child_edge)
                 if child_edge.node in deps:
                     deps[child_edge.node].add(prev_id)
-                prev_id = child_edge.node
+                    prev_id = child_edge.node  # only advance chain through DAG participants
 
             # ordered_fan_in: sequential chain — each node depends on previous; aggregator depends on all
             prev_id = None
@@ -809,7 +809,7 @@ class Compiler:
                     deps[node_id].add(fi_edge.node)
                     if prev_id is not None:
                         deps[fi_edge.node].add(prev_id)
-                prev_id = fi_edge.node
+                    prev_id = fi_edge.node  # only advance chain through DAG participants
 
             # react list: do NOT traverse — agent nodes run outside the DAG
 

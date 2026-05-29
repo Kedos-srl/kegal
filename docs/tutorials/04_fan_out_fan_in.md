@@ -371,6 +371,71 @@ edges:
 
 ---
 
+## 7. Intermediate: `ordered_children` — sequential fan-out
+
+`ordered_children` is the sequential counterpart of `children`. Siblings execute
+one after another instead of in parallel:
+
+```yaml
+edges:
+  - node: "dispatcher"
+    ordered_children:
+      - node: "step_1"
+      - node: "step_2"
+      - node: "step_3"
+```
+
+`step_1` runs after `dispatcher`. `step_2` waits for `step_1`. `step_3` waits
+for `step_2`. Equivalent to manually chaining `children`, but flat and readable.
+
+`children` and `ordered_children` can coexist on the same edge — the parallel
+set and the sequential set are independent:
+
+```yaml
+edges:
+  - node: "parent"
+    children:                # A and B run in parallel
+      - node: "A"
+      - node: "B"
+    ordered_children:        # C then D run sequentially
+      - node: "C"
+      - node: "D"
+```
+
+---
+
+## 8. Intermediate: `ordered_fan_in` — sequential aggregation
+
+`ordered_fan_in` makes predecessors execute sequentially before the aggregator:
+
+```yaml
+edges:
+  - node: "synthesizer"
+    ordered_fan_in:
+      - node: "collector"
+      - node: "processor"
+      - node: "validator"
+```
+
+`collector` → `processor` → `validator` → `synthesizer`. Each step waits for
+the previous. Useful when each predecessor builds on the output of the last.
+
+`fan_in` (parallel) and `ordered_fan_in` (sequential) can coexist on the same
+edge, acting on different sets of predecessors:
+
+```yaml
+edges:
+  - node: "synthesizer"
+    fan_in:                  # X and Y run in parallel, both feed synthesizer
+      - node: "X"
+      - node: "Y"
+    ordered_fan_in:          # A then B sequentially, both feed synthesizer
+      - node: "A"
+      - node: "B"
+```
+
+---
+
 > **Related tutorials:**
 > [01 Message passing](01_message_passing.md) — passing data between nodes  
 > [03 Guard nodes](03_guard_nodes.md) — automatic pre-flight barriers  

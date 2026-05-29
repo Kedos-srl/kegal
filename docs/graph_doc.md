@@ -754,6 +754,8 @@ The controller and agent nodes have different execution paths and therefore supp
 | `node`     | `str`                      | No       | Unique identifier of the node this edge entry describes. |
 | `children` | `list[GraphEdge]` \| `None`| Yes      | **Fan-out**: nodes to launch in parallel when this node completes. Each entry is itself a `GraphEdge`, allowing recursive sub-structure at any depth. |
 | `fan_in`   | `list[GraphEdge]` \| `None`| Yes      | **Aggregation**: nodes this node waits for before starting. This node will not execute until every node listed here has completed. |
+| `ordered_children` | `list[GraphEdge]` \| `None` | Yes | **Sequential fan-out**: nodes launch one after another — first depends on this node, each subsequent depends on the previous. Mutually exclusive with `react`. |
+| `ordered_fan_in`   | `list[GraphEdge]` \| `None` | Yes | **Sequential aggregation chain**: predecessors run sequentially (each depends on the previous); this node waits for the last. Mutually exclusive with `react`. |
 | `react`    | `list[GraphEdge]` \| `None`| Yes      | **ReAct agent list**: nodes available to the controller for iterative dispatch. Each entry is a `GraphEdge` (with optional `children`/`fan_in` for multi-step agent subgraphs). Mutually exclusive with `children` and `fan_in`. |
 
 > **Mutual exclusivity**: `react` cannot be combined with `children` or `fan_in` on the same edge entry. `react` + `children` raises a `ValidationError` at parse time; `react` + `fan_in` raises a `ValueError` at `Compiler` construction. Use `message_passing` to order the controller relative to other nodes — the inference stage handles scheduling automatically.

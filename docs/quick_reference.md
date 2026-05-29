@@ -86,7 +86,7 @@ nodes:
     model: 0                    # required — index into models list
     temperature: 0.0            # float 0.0–1.0
     max_tokens: 512             # int — max output tokens
-    show: true                  # bool — include in output report
+    show: true                  # bool — include in output report (ignored on react agents — use message_passing.output instead)
     prompt:
       template: 0               # required — index into prompts list
       user_message: true        # inject {user_message} placeholder
@@ -222,6 +222,57 @@ edges:
 
 A node appears in `children` (who launches it) AND `fan_in` (who waits for it). This double appearance is correct and intentional.
 
+### 5.5 Ordered variants: `ordered_children` and `ordered_fan_in`
+
+`ordered_children` runs siblings **sequentially** instead of in parallel.
+Each entry depends on the previous one, and the first depends on the parent:
+
+```yaml
+edges:
+  - node: "parent"
+    ordered_children:
+      - node: "step_1"   # depends on parent
+      - node: "step_2"   # depends on step_1
+      - node: "step_3"   # depends on step_2
+```
+
+`ordered_fan_in` makes predecessors run **sequentially** before the aggregator:
+
+```yaml
+edges:
+  - node: "synthesizer"
+    ordered_fan_in:
+      - node: "A"        # runs first
+      - node: "B"        # depends on A
+      - node: "C"        # depends on B → synthesizer waits for C
+```
+
+Both can coexist with their parallel counterparts on the same edge:
+
+```yaml
+edges:
+  - node: "parent"
+    children:           # X and Y in parallel
+      - node: "X"
+      - node: "Y"
+    ordered_children:   # A then B sequentially
+      - node: "A"
+      - node: "B"
+```
+
+Both work identically inside react sub-graph dispatches — use `ordered_children`
+on a react agent entry to sequence its sub-DAG without nesting `children`:
+
+```yaml
+react:
+  - node: "analyze_agent"
+    ordered_children:
+      - node: "writer_agent"
+      - node: "validator_agent"   # flat, readable — no nested children needed
+```
+
+---
+
 ### 5.4 ReAct edges
 
 ```yaml
@@ -248,7 +299,9 @@ edges:
       - node: "report_agent"
 ```
 
-**Sub-graph ordering rule:** Inside a react sub-graph, sequential ordering requires explicit `children`/`fan_in` declarations. The global `message_passing` flag inference does NOT apply within sub-graphs.
+**Ordering rule for `children` sub-DAGs:** When two agents run inside the **same dispatch** (linked via `children`), they share one isolated pipe. Within that execution, `message_passing` order inference does NOT apply — use `children` to guarantee sequence.
+
+**Separate react entries are ordered by the controller.** `agent_a` and `agent_b` as distinct entries in the `react:` list are dispatched in separate controller iterations. Message passing between them flows through the controller: `agent_a`'s output becomes the controller's observation, the controller embeds it in `agent_input`, and `agent_b` receives it via `message_passing.input: true`.
 
 ---
 
@@ -442,6 +495,8 @@ Always set `context_window` on the model when using `compact: true`.
 
 A controller with `message_passing.output: true` writes its `final_answer` to the shared pipe after the loop ends. Downstream nodes with `input: true` receive it automatically.
 
+If the loop ends without a `final_answer` (e.g. `max_iterations` reached without `done: true`), **nothing is written to the pipe** and a warning is logged. Always ensure the controller produces a `final_answer` before signalling `done: true`.
+
 ---
 
 ## 11. Execution Order — DAG Rules
@@ -529,15 +584,22 @@ edges:
 # Or rely on message_passing order inference for a linear chain.
 ```
 
-### Rule 2 — ReAct sub-graphs need explicit ordering
-Inside a react sub-graph, `message_passing` order inference does NOT apply. Use `children`/`fan_in` for sequential agent pairs:
+### Rule 2 — Use `ordered_children` for sequential siblings
+`children` is parallel. For sequential execution of siblings under a common parent, use `ordered_children`:
 
 ```yaml
-react:
-  - node: "analyze"
-    children:
-      - node: "write"    # write runs AFTER analyze completes
+# WRONG — parallel, not sequential
+children:
+  - node: "step_1"
+  - node: "step_2"
+
+# CORRECT — sequential
+ordered_children:
+  - node: "step_1"
+  - node: "step_2"
 ```
+
+Inside react dispatches, `ordered_children` replaces the nested `children` workaround for sequencing agents within a single dispatch.
 
 ### Rule 3 — Controller never has tools, MCP servers, or blackboard access
 Setting `tools`, `mcp_servers`, `blackboard.read`, or `blackboard.write` on a controller raises `ValueError` at `Compiler()` construction. Attach all of these to agent nodes only.
@@ -554,7 +616,10 @@ Both `models:` and `prompts:` are 0-indexed lists. Index out of range is caught 
 ### Rule 7 — MCP paths must be absolute on the target machine
 The `command` field is executed on the machine running kegal, not the machine authoring the YAML. Use absolute paths for `command` and ensure `args` paths resolve from the working directory where `kegal run` is executed.
 
-### Rule 8 — One MCP server per node reference
+### Rule 8 — `show: true` is ignored on react agent nodes
+React agent outputs are not included in compiled output — agent nodes run in an isolated context that is discarded after each dispatch. Setting `show: true` on a react agent logs a warning at `Compiler()` construction. Use `message_passing.output: true` on the agent and `message_passing.output: true` on the controller to surface results downstream.
+
+### Rule 9 — One MCP server per node reference
 The object form `{id: server_id, tools: [...]}` is the correct way to filter tools per node. The string shorthand `"server_id"` exposes all tools.
 
 ---
@@ -630,7 +695,8 @@ nodes:
     model: 0
     temperature: 0.0
     max_tokens: 1536
-    show: false
+    show: true                   # controller output (final_answer) shown in report
+    message_passing: { output: true }   # final_answer flows to downstream nodes
     prompt: { template: 0, user_message: true }
     react:
       max_iterations: 30
@@ -651,7 +717,7 @@ nodes:
     temperature: 0.0
     max_tokens: 2048
     max_tool_calls: 15
-    show: false
+    show: false                  # react agent — show has no effect
     message_passing: { input: true, output: true }
     mcp_servers:
       - id: "files"
@@ -675,7 +741,7 @@ nodes:
     temperature: 0.0
     max_tokens: 4096
     max_tool_calls: 10
-    show: true
+    show: false                  # react agents: show=true is ignored — use message_passing.output
     message_passing: { input: true, output: false }
     blackboard: { id: findings, read: true }
     mcp_servers:

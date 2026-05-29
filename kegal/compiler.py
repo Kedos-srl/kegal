@@ -347,6 +347,10 @@ class Compiler:
                 scan_edge(child)
             for fi in (edge.fan_in or []):
                 scan_edge(fi)
+            for child in (edge.ordered_children or []):
+                scan_edge(child)
+            for fi in (edge.ordered_fan_in or []):
+                scan_edge(fi)
 
         for root_edge in self.edges:
             scan_edge(root_edge)
@@ -358,6 +362,10 @@ class Compiler:
             self._collect_subgraph_ids(child, result)
         for fi in (edge.fan_in or []):
             self._collect_subgraph_ids(fi, result)
+        for child in (edge.ordered_children or []):
+            self._collect_subgraph_ids(child, result)
+        for fi in (edge.ordered_fan_in or []):
+            self._collect_subgraph_ids(fi, result)
 
     def _collect_main_edge_ids(self) -> set[str]:
         """Return IDs of all nodes in the main edge tree (not inside react lists)."""
@@ -368,6 +376,10 @@ class Compiler:
             for child in (edge.children or []):
                 scan_edge(child)
             for fi in (edge.fan_in or []):
+                scan_edge(fi)
+            for child in (edge.ordered_children or []):
+                scan_edge(child)
+            for fi in (edge.ordered_fan_in or []):
                 scan_edge(fi)
             # deliberately do NOT recurse into edge.react
 
@@ -389,6 +401,10 @@ class Compiler:
                 collect(child)
             for fi in (e.fan_in or []):
                 collect(fi)
+            for child in (e.ordered_children or []):
+                collect(child)
+            for fi in (e.ordered_fan_in or []):
+                collect(fi)
 
         for edge in self.edges:
             collect(edge)
@@ -409,6 +425,10 @@ class Compiler:
             for child in (edge.children or []):
                 scan(child)
             for fi in (edge.fan_in or []):
+                scan(fi)
+            for child in (edge.ordered_children or []):
+                scan(child)
+            for fi in (edge.ordered_fan_in or []):
                 scan(fi)
 
         for root_edge in self.edges:
@@ -536,6 +556,8 @@ class Compiler:
                 _check_react_edge_mixing(child)
             for fi in (edge.fan_in or []):
                 _check_react_edge_mixing(fi)
+            for child in (edge.ordered_children or []):
+                _check_react_edge_mixing(child)
             for fi in (edge.ordered_fan_in or []):
                 _check_react_edge_mixing(fi)
             for agent_edge in (edge.react or []):

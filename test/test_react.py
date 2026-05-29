@@ -1046,3 +1046,188 @@ class TestReactGraphIntegration(unittest.TestCase):
         # Assert files exist
         self.assertTrue((out_dir / "react_graph.json").exists())
         self.assertTrue((out_dir / "react_graph.md").exists())
+
+
+# ---------------------------------------------------------------------------
+# Issue 1 — show=True on react agent should warn
+# ---------------------------------------------------------------------------
+
+class TestReactAgentShowWarning(unittest.TestCase):
+
+    def test_show_true_on_agent_logs_warning(self):
+        """A react agent with show=True must produce a logger.warning."""
+        c = _make_compiler(
+            [
+                _node("ctrl", react=True),
+                {
+                    "id": "agent", "model": 0, "temperature": 0.0,
+                    "max_tokens": 100, "show": True,           # ← show=True
+                    "message_passing": {"input": False, "output": False},
+                    "prompt": {"template": 0},
+                },
+            ],
+            [{"node": "ctrl", "react": [{"node": "agent"}]}],
+        )
+        import logging
+        with self.assertLogs("kegal", level=logging.WARNING) as cm:
+            c._build_react_controller_map()
+        self.assertTrue(any("show" in msg and "agent" in msg for msg in cm.output))
+
+    def test_show_false_on_agent_no_warning(self):
+        """A react agent with show=False must not produce any warning about show."""
+        c = _make_compiler(
+            [_node("ctrl", react=True), _node("agent")],  # show=False by default in _node
+            [{"node": "ctrl", "react": [{"node": "agent"}]}],
+        )
+        import logging
+        import io
+        handler = logging.handlers = None
+        # Capture — should be no show-related warning
+        with self.assertRaises(AssertionError):
+            with self.assertLogs("kegal", level=logging.WARNING) as cm:
+                c._build_react_controller_map()
+                # If no warnings at all, assertLogs raises AssertionError — that's expected
+
+
+# ---------------------------------------------------------------------------
+# Issue 2 — controller output=True with no final_answer must not push JSON
+# ---------------------------------------------------------------------------
+
+class TestControllerMessagePassingOutput(unittest.TestCase):
+
+    def _setup_controller_with_output(self, final_answer=None):
+        """Build a minimal compiler where the controller has message_passing.output=True."""
+        from kegal.compiler import CompiledOutput
+        source = {
+            "models": [{"llm": "ollama", "model": "dummy"}],
+            "prompts": [
+                {"template": {"system_template": {}, "prompt_template": {}}},
+                {"template": {"system_template": {}, "prompt_template": {}}},
+            ],
+            "user_message": "test",
+            "nodes": [
+                {
+                    "id": "ctrl", "model": 0, "temperature": 0.0, "max_tokens": 100,
+                    "show": True, "prompt": {"template": 0},
+                    "message_passing": {"input": False, "output": True},
+                    "react": {"max_iterations": 2},
+                    "react_output": {
+                        "type": "object",
+                        "properties": {
+                            "next_agent": {"type": "string"},
+                            "done": {"type": "boolean"},
+                            "final_answer": {"type": "string"},
+                        },
+                        "required": ["done"],
+                    },
+                },
+                {"id": "agent_a", "model": 0, "temperature": 0.0, "max_tokens": 50,
+                 "show": False, "prompt": {"template": 1}},
+            ],
+            "edges": [{"node": "ctrl", "react": [{"node": "agent_a"}]}],
+        }
+        graph = Graph.model_validate(source)
+        c = object.__new__(Compiler)
+        c.nodes = {n.id: n for n in graph.nodes}
+        c.edges = graph.edges
+        c.prompts = Compiler._load_prompt_inputs(graph.prompts)
+        c.react_compact_prompts = []
+        c.user_message = "test"
+        c.retrieved_chunks = None
+        c.chat_history = {}
+        c.images = None
+        c.documents = None
+        c.tools = None
+        c._board_entries = {}
+        c._boards = {}
+        c._board_paths = {}
+        c.mcp_handlers = {}
+        c.tool_executors = {}
+        c.message_passing = []
+        c.graph_mcp_servers = []
+        c._react_trace = {}
+        c._react_controllers = c._build_react_controller_map()
+        c._outputs_lock = __import__("threading").Lock()
+        c._message_passing_lock = __import__("threading").Lock()
+        c._blackboard_lock = __import__("threading").Lock()
+        c.context_windows = [None]
+        c.outputs = CompiledOutput()
+        mock_client = MagicMock()
+        c.clients = [mock_client]
+
+        routing_done = {"done": True}
+        if final_answer is not None:
+            routing_done["final_answer"] = final_answer
+
+        from kegal.llm.llm_model import LLmResponse
+        mock_client.complete.return_value = LLmResponse(
+            json_output=routing_done, input_size=10, output_size=5
+        )
+        return c
+
+    def test_final_answer_pushed_to_pipe(self):
+        """When final_answer is present, it must be pushed to message_passing."""
+        c = self._setup_controller_with_output(final_answer="The answer is 42.")
+        ctrl_edge = c._react_controllers["ctrl"]
+        with patch.object(c, "_run_react_agent", return_value="obs"):
+            c._run_react_loop(ctrl_edge, c.nodes["ctrl"])
+        self.assertIn("The answer is 42.", c.message_passing)
+
+    def test_no_final_answer_nothing_pushed_to_pipe(self):
+        """When final_answer is absent, nothing must be pushed to message_passing."""
+        c = self._setup_controller_with_output(final_answer=None)
+        ctrl_edge = c._react_controllers["ctrl"]
+        with patch.object(c, "_run_react_agent", return_value="obs"):
+            c._run_react_loop(ctrl_edge, c.nodes["ctrl"])
+        # Pipe must be empty — no JSON dict fallback
+        self.assertEqual(c.message_passing, [])
+
+    def test_no_final_answer_logs_warning(self):
+        """When output=True but no final_answer, a warning must be logged."""
+        import logging
+        c = self._setup_controller_with_output(final_answer=None)
+        ctrl_edge = c._react_controllers["ctrl"]
+        with patch.object(c, "_run_react_agent", return_value="obs"):
+            with self.assertLogs("kegal", level=logging.WARNING) as cm:
+                c._run_react_loop(ctrl_edge, c.nodes["ctrl"])
+        self.assertTrue(any("final_answer" in msg or "output" in msg for msg in cm.output))
+
+
+# ---------------------------------------------------------------------------
+# Issue 3 — _update_blackboard must read from disk, not stale _boards cache
+# ---------------------------------------------------------------------------
+
+class TestUpdateBlackboardReadsFromDisk(unittest.TestCase):
+
+    def test_update_reads_current_disk_content_not_stale_cache(self):
+        """_update_blackboard must base its append on the disk file, not _boards cache."""
+        import tempfile, threading
+        from pathlib import Path
+        from kegal.compiler import CompiledOutput
+        from kegal.llm.llm_model import LLmResponse
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            board_path = Path(tmpdir) / "board.md"
+            board_path.write_text("initial content", encoding="utf-8")
+
+            # Simulate stale in-memory cache (as if a dispatch wrote to disk but _boards was restored)
+            c = object.__new__(Compiler)
+            c._boards = {"b": "STALE"}          # stale — doesn't match disk
+            c._board_paths = {"b": board_path}
+            c._board_entries = {}
+            c._blackboard_lock = threading.Lock()
+            c.outputs = CompiledOutput()
+
+            from kegal.graph_blackboard import NodeBlackboardRef
+            from kegal.graph_node import GraphNode
+            node = MagicMock()
+            node.blackboard = NodeBlackboardRef(id="b", read=False, write=True)
+
+            response = LLmResponse(messages=["new finding"], input_size=5)
+            c._update_blackboard(node, response)
+
+            result = board_path.read_text(encoding="utf-8")
+            # Must contain the original disk content, not the stale cache
+            self.assertIn("initial content", result)
+            self.assertIn("new finding", result)
+            self.assertNotIn("STALE", result)

@@ -1,7 +1,7 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from pydantic import ValidationError
-from kegal.compiler import Compiler
+from kegal.compiler import Compiler, CompiledOutput
 from kegal.graph import Graph
 from kegal.graph_edge import GraphEdge
 
@@ -34,6 +34,15 @@ def _bare_compiler(nodes_cfg, edges_cfg):
     c.react_compact_prompts = []
     c._react_trace = {}
     c._react_controllers = c._build_react_controller_map()
+    return c
+
+
+def _runtime_compiler(nodes_cfg, edges_cfg):
+    """Like _bare_compiler but also adds runtime state needed for _run_react_agent."""
+    c = _bare_compiler(nodes_cfg, edges_cfg)
+    c.message_passing = []
+    c.outputs = CompiledOutput()
+    c._boards = {}
     return c
 
 
@@ -188,80 +197,215 @@ class TestOrderedFanInDAG(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 # Task 4 — React sub-graph: ordered_children and ordered_fan_in
+# Tests exercise the real _run_react_agent call path via patched _run_node.
 # ---------------------------------------------------------------------------
 
 class TestOrderedEdgesReactSubgraph(unittest.TestCase):
 
+    def _make_compiler_with_react(self, agent_edge):
+        """Build a minimal runtime compiler whose react agent uses the given agent_edge."""
+        # Collect all node ids from agent_edge recursively
+        all_ids = set()
+
+        def _collect_ids(e):
+            all_ids.add(e.node)
+            for x in (e.children or []):
+                _collect_ids(x)
+            for x in (e.fan_in or []):
+                _collect_ids(x)
+            for x in (e.ordered_children or []):
+                _collect_ids(x)
+            for x in (e.ordered_fan_in or []):
+                _collect_ids(x)
+
+        _collect_ids(agent_edge)
+
+        ctrl_id = "ctrl"
+        nodes_cfg = [
+            {**_n(ctrl_id), "react": {"max_iterations": 1}},
+        ] + [_n(nid) for nid in sorted(all_ids)]
+        edges_cfg = [{"node": ctrl_id, "react": [agent_edge.model_dump(exclude_none=True)]}]
+        c = _runtime_compiler(nodes_cfg, edges_cfg)
+        return c, agent_edge
+
     def test_ordered_children_sequential_in_react_dispatch(self):
-        """ordered_children within a react dispatch creates sequential local_deps."""
+        """_run_react_agent executes ordered_children nodes in sequential order."""
         agent_edge = GraphEdge(
             node="agent",
-            ordered_children=[GraphEdge(node="step_b"), GraphEdge(node="step_c")]
+            ordered_children=[GraphEdge(node="step_b"), GraphEdge(node="step_c")],
         )
-        local_deps: dict = {}
+        c, ae = self._make_compiler_with_react(agent_edge)
 
-        def collect(edge):
-            nid = edge.node
-            if nid not in local_deps:
-                local_deps[nid] = set()
-            for child in (edge.children or []):
-                collect(child)
-                local_deps[child.node].add(nid)
-            for fi in (edge.fan_in or []):
-                collect(fi)
-                local_deps[nid].add(fi.node)
-            prev = nid
-            for child in (edge.ordered_children or []):
-                collect(child)
-                local_deps[child.node].add(prev)
-                prev = child.node
-            prev = None
-            for fi in (edge.ordered_fan_in or []):
-                collect(fi)
-                local_deps[nid].add(fi.node)
-                if prev is not None:
-                    local_deps[fi.node].add(prev)
-                prev = fi.node
+        call_order = []
 
-        collect(agent_edge)
-        self.assertIn("agent", local_deps["step_b"])
-        self.assertIn("step_b", local_deps["step_c"])
+        def fake_run_node(node):
+            call_order.append(node.id)
+
+        with patch.object(c, "_run_node", side_effect=fake_run_node):
+            c._run_react_agent(ae, "input")
+
+        # agent must run before step_b, and step_b before step_c
+        self.assertIn("agent", call_order)
+        self.assertIn("step_b", call_order)
+        self.assertIn("step_c", call_order)
+        self.assertLess(call_order.index("agent"), call_order.index("step_b"))
+        self.assertLess(call_order.index("step_b"), call_order.index("step_c"))
 
     def test_ordered_fan_in_sequential_in_react_dispatch(self):
-        """ordered_fan_in within a react dispatch creates sequential chain."""
-        synth_edge = GraphEdge(
+        """_run_react_agent executes ordered_fan_in nodes in sequential chain order."""
+        agent_edge = GraphEdge(
             node="synth",
-            ordered_fan_in=[GraphEdge(node="P"), GraphEdge(node="Q")]
+            ordered_fan_in=[GraphEdge(node="P"), GraphEdge(node="Q")],
         )
-        local_deps: dict = {}
+        c, ae = self._make_compiler_with_react(agent_edge)
 
-        def collect(edge):
-            nid = edge.node
-            if nid not in local_deps:
-                local_deps[nid] = set()
-            for child in (edge.children or []):
-                collect(child)
-                local_deps[child.node].add(nid)
-            for fi in (edge.fan_in or []):
-                collect(fi)
-                local_deps[nid].add(fi.node)
-            prev = nid
-            for child in (edge.ordered_children or []):
-                collect(child)
-                local_deps[child.node].add(prev)
-                prev = child.node
-            prev = None
-            for fi in (edge.ordered_fan_in or []):
-                collect(fi)
-                local_deps[nid].add(fi.node)
-                if prev is not None:
-                    local_deps[fi.node].add(prev)
-                prev = fi.node
+        call_order = []
 
-        collect(synth_edge)
-        self.assertIn("P", local_deps["synth"])
-        self.assertIn("Q", local_deps["synth"])
-        self.assertIn("P", local_deps["Q"])
+        def fake_run_node(node):
+            call_order.append(node.id)
+
+        with patch.object(c, "_run_node", side_effect=fake_run_node):
+            c._run_react_agent(ae, "input")
+
+        # P must run before Q (chain: P → Q → synth)
+        self.assertIn("P", call_order)
+        self.assertIn("Q", call_order)
+        self.assertIn("synth", call_order)
+        self.assertLess(call_order.index("P"), call_order.index("Q"))
+        self.assertLess(call_order.index("Q"), call_order.index("synth"))
+
+
+# ---------------------------------------------------------------------------
+# Issue 1 — _collect_main_edge_ids must traverse ordered_children / ordered_fan_in
+# ---------------------------------------------------------------------------
+
+class TestCollectMainEdgeIds(unittest.TestCase):
+
+    def test_ordered_children_node_in_main_edge_ids(self):
+        """A node reachable only via ordered_children must appear in main_edge_ids."""
+        c = _bare_compiler(
+            [_n("parent"), _n("A"), _n("B")],
+            [{"node": "parent", "ordered_children": [{"node": "A"}, {"node": "B"}]}],
+        )
+        main_ids = c._collect_main_edge_ids()
+        self.assertIn("parent", main_ids)
+        self.assertIn("A", main_ids)
+        self.assertIn("B", main_ids)
+
+    def test_ordered_fan_in_node_in_main_edge_ids(self):
+        """A node reachable only via ordered_fan_in must appear in main_edge_ids."""
+        c = _bare_compiler(
+            [_n("A"), _n("B"), _n("synth")],
+            [{"node": "synth", "ordered_fan_in": [{"node": "A"}, {"node": "B"}]}],
+        )
+        main_ids = c._collect_main_edge_ids()
+        self.assertIn("synth", main_ids)
+        self.assertIn("A", main_ids)
+        self.assertIn("B", main_ids)
+
+
+# ---------------------------------------------------------------------------
+# Issue 2 — _collect_react_agent_ids must traverse ordered_children / ordered_fan_in
+# ---------------------------------------------------------------------------
+
+class TestCollectReactAgentIds(unittest.TestCase):
+
+    def test_ordered_children_react_agent_ids_collected(self):
+        """React agents nested under ordered_children must appear in react_agent_ids."""
+        # ctrl node has ordered_children leading to an intermediate node that carries
+        # the react list — we verify that a react subgraph under ordered_children is found.
+        nodes_cfg = [
+            {**_n("ctrl"), "react": {"max_iterations": 1}},
+            _n("mid"),
+            _n("agent"),
+        ]
+        # ctrl → ordered_children → [mid(react=[agent])]
+        # mid itself is a controller under an ordered_children slot
+        edges_cfg = [
+            {
+                "node": "ctrl",
+                "ordered_children": [
+                    {"node": "mid", "react": [{"node": "agent"}]}
+                ],
+            }
+        ]
+        c = _bare_compiler(nodes_cfg, edges_cfg)
+        react_ids = c._collect_react_agent_ids()
+        self.assertIn("agent", react_ids)
+
+    def test_ordered_fan_in_react_agent_ids_collected(self):
+        """React agents nested under ordered_fan_in must appear in react_agent_ids."""
+        nodes_cfg = [
+            {**_n("ctrl"), "react": {"max_iterations": 1}},
+            _n("fi_node"),
+            _n("agent"),
+        ]
+        edges_cfg = [
+            {
+                "node": "ctrl",
+                "ordered_fan_in": [
+                    {"node": "fi_node", "react": [{"node": "agent"}]}
+                ],
+            }
+        ]
+        c = _bare_compiler(nodes_cfg, edges_cfg)
+        react_ids = c._collect_react_agent_ids()
+        self.assertIn("agent", react_ids)
+
+
+# ---------------------------------------------------------------------------
+# Issues 4 & 5 — _check_react_edge_mixing must recurse into ordered_children
+# ---------------------------------------------------------------------------
+
+class TestCheckReactEdgeMixingOrderedChildren(unittest.TestCase):
+
+    def test_check_react_edge_mixing_recurses_ordered_children(self):
+        """react+fan_in conflict buried under ordered_children must be detected."""
+        # Build a graph where the react+fan_in violation is inside an ordered_children slot.
+        # The GraphEdge model validator does not catch this combination; the compiler
+        # validation must find it during _check_react_edge_mixing traversal.
+        nodes_cfg = [
+            _n("root"),
+            {**_n("mid"), "react": {"max_iterations": 1}},
+            _n("agent"),
+            _n("fi"),
+        ]
+        # root → ordered_children → [mid with react=[agent] AND fan_in=[fi]]
+        # react + fan_in on the same edge is a validation error caught by compiler
+        edges_cfg = [
+            {
+                "node": "root",
+                "ordered_children": [
+                    {
+                        "node": "mid",
+                        "react": [{"node": "agent"}],
+                        "fan_in": [{"node": "fi"}],
+                    }
+                ],
+            }
+        ]
+        graph = Graph.model_validate({
+            "models": [{"llm": "ollama", "model": "dummy"}],
+            "prompts": [{"template": {"system_template": {}, "prompt_template": {}}}],
+            "nodes": nodes_cfg,
+            "edges": edges_cfg,
+        })
+        c = object.__new__(Compiler)
+        c.nodes = {n.id: n for n in graph.nodes}
+        c.edges = graph.edges
+        c.clients = [MagicMock()]
+        c.context_windows = [None]
+        c.prompts = [{}]
+        c.tools = None
+        c.graph_mcp_servers = []
+        c._board_entries = {}
+        c.react_compact_prompts = []
+        c._react_trace = {}
+        c._react_controllers = {}
+        c.mcp_handlers = {}
+        with self.assertRaises(ValueError) as ctx:
+            c._validate_indices()
+        self.assertIn("fan_in", str(ctx.exception))
 
 
 # ---------------------------------------------------------------------------
@@ -301,3 +445,27 @@ class TestOrderedEdgesValidation(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             c._validate_indices()
         self.assertIn("ordered_fan_in", str(ctx.exception))
+
+
+class TestCollectOrderedMainIds(unittest.TestCase):
+
+    def test_ordered_children_node_included(self):
+        """Nodes reachable only via ordered_children appear in _collect_ordered_main_ids."""
+        c = _bare_compiler(
+            [_n("parent"), _n("A"), _n("B")],
+            [{"node": "parent", "ordered_children": [{"node": "A"}, {"node": "B"}]}],
+        )
+        ids = c._collect_ordered_main_ids()
+        self.assertIn("A", ids)
+        self.assertIn("B", ids)
+
+    def test_ordered_fan_in_node_included(self):
+        """Nodes reachable only via ordered_fan_in appear in _collect_ordered_main_ids."""
+        c = _bare_compiler(
+            [_n("P"), _n("Q"), _n("synth")],
+            [{"node": "synth", "ordered_fan_in": [{"node": "P"}, {"node": "Q"}]}],
+        )
+        ids = c._collect_ordered_main_ids()
+        self.assertIn("P", ids)
+        self.assertIn("Q", ids)
+        self.assertIn("synth", ids)

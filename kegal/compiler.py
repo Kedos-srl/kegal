@@ -470,6 +470,15 @@ class Compiler:
                         f"with message_passing.input=true."
                     )
 
+        for agent_id in self._collect_react_agent_ids():
+            agent_node = self.nodes.get(agent_id)
+            if agent_node and agent_node.show:
+                logger.warning(
+                    f"Node '{agent_id}' is a ReAct agent with show=true — agent outputs "
+                    f"are not included in compiled output. Use message_passing.output=true "
+                    f"to capture results instead."
+                )
+
         return controllers
 
     @staticmethod
@@ -517,9 +526,17 @@ class Compiler:
                     f"These are mutually exclusive — use message_passing to order "
                     f"dependencies around the controller."
                 )
+            if edge.react and edge.ordered_fan_in:
+                errors.append(
+                    f"Node '{edge.node}' has both 'react' and 'ordered_fan_in' on the same edge. "
+                    f"These are mutually exclusive — use message_passing to order "
+                    f"dependencies around the controller."
+                )
             for child in (edge.children or []):
                 _check_react_edge_mixing(child)
             for fi in (edge.fan_in or []):
+                _check_react_edge_mixing(fi)
+            for fi in (edge.ordered_fan_in or []):
                 _check_react_edge_mixing(fi)
             for agent_edge in (edge.react or []):
                 _check_react_edge_mixing(agent_edge)
@@ -705,6 +722,10 @@ class Compiler:
                 detect_cycles(child, path)
             for fi in (edge.fan_in or []):
                 detect_cycles(fi, path)
+            for child in (edge.ordered_children or []):
+                detect_cycles(child, path)
+            for fi in (edge.ordered_fan_in or []):
+                detect_cycles(fi, path)
 
         # — Recursive traversal ————————————————————————————————————————————
         def traverse(edge: GraphEdge) -> None:
@@ -720,15 +741,20 @@ class Compiler:
                 )
 
             # Warn on contradictory internal structure for the same node id
-            has_structure = edge.children is not None or edge.fan_in is not None
+            has_structure = (
+                edge.children is not None or edge.fan_in is not None
+                or edge.ordered_children is not None or edge.ordered_fan_in is not None
+            )
             if has_structure:
                 if node_id in declared_structure:
                     prev = declared_structure[node_id]
-                    if prev.children != edge.children or prev.fan_in != edge.fan_in:
+                    if (prev.children != edge.children or prev.fan_in != edge.fan_in
+                            or prev.ordered_children != edge.ordered_children
+                            or prev.ordered_fan_in != edge.ordered_fan_in):
                         raise ValueError(
                             f"Node '{node_id}' has contradictory structure declarations: "
                             f"the same node appears in multiple edges with different "
-                            f"'children' or 'fan_in' definitions."
+                            f"'children', 'fan_in', 'ordered_children', or 'ordered_fan_in' definitions."
                         )
                 else:
                     declared_structure[node_id] = edge
@@ -744,6 +770,24 @@ class Compiler:
                 traverse(child_edge)             # validate before accessing deps
                 if child_edge.node in deps:
                     deps[child_edge.node].add(node_id)
+
+            # ordered_children: sequential — first depends on parent, each on previous
+            prev_id = node_id
+            for child_edge in (edge.ordered_children or []):
+                traverse(child_edge)
+                if child_edge.node in deps:
+                    deps[child_edge.node].add(prev_id)
+                prev_id = child_edge.node
+
+            # ordered_fan_in: sequential chain — each node depends on previous; aggregator depends on all
+            prev_id = None
+            for fi_edge in (edge.ordered_fan_in or []):
+                traverse(fi_edge)
+                if fi_edge.node in deps:
+                    deps[node_id].add(fi_edge.node)
+                    if prev_id is not None:
+                        deps[fi_edge.node].add(prev_id)
+                prev_id = fi_edge.node
 
             # react list: do NOT traverse — agent nodes run outside the DAG
 
@@ -787,6 +831,10 @@ class Compiler:
             for child in (e.children or []):
                 collect_ids(child)
             for fi in (e.fan_in or []):
+                collect_ids(fi)
+            for child in (e.ordered_children or []):
+                collect_ids(child)
+            for fi in (e.ordered_fan_in or []):
                 collect_ids(fi)
 
         for edge in self.edges:
@@ -1249,7 +1297,16 @@ class Compiler:
 
         enable_history = self._chat_history_check(node)
         self._record_output(node, final_response, elapsed, enable_history)
-        self._check_message_passing(final_response, node)
+
+        if node.message_passing.output:
+            if final_answer:
+                with self._message_passing_lock:
+                    self.message_passing.append(final_answer)
+            else:
+                logger.warning(
+                    f"[ReAct] Controller '{node.id}' has message_passing.output=true "
+                    f"but produced no final_answer — nothing written to pipe."
+                )
 
         self._react_trace[node.id] = ReactTrace(
             controller_id=node.id,
@@ -1285,6 +1342,20 @@ class Compiler:
             for fi in (edge.fan_in or []):
                 collect(fi)
                 local_deps[nid].add(fi.node)
+            # ordered_children: sequential — first depends on parent, each on previous
+            prev_id = nid
+            for child in (edge.ordered_children or []):
+                collect(child)
+                local_deps[child.node].add(prev_id)
+                prev_id = child.node
+            # ordered_fan_in: sequential chain into aggregator
+            prev_id = None
+            for fi in (edge.ordered_fan_in or []):
+                collect(fi)
+                local_deps[nid].add(fi.node)
+                if prev_id is not None:
+                    local_deps[fi.node].add(prev_id)
+                prev_id = fi.node
 
         collect(agent_edge)
         levels = self._topological_levels(local_deps)
@@ -1553,10 +1624,15 @@ class Compiler:
         board_id = node.blackboard.id
         new_content = "\n\n".join(response.messages)
         with self._blackboard_lock:
-            current = self._boards.get(board_id, "")
+            path = self._board_paths.get(board_id)
+            # Always read from disk when available — keeps write consistent with
+            # _assemble_board and avoids stale-cache errors after react dispatches.
+            if path is not None and path.exists():
+                current = path.read_text(encoding="utf-8")
+            else:
+                current = self._boards.get(board_id, "")
             updated = (current.rstrip() + "\n\n" + new_content) if current else new_content
             self._boards[board_id] = updated
-            path = self._board_paths.get(board_id)
             if path is not None:
                 path.write_text(updated, encoding="utf-8")
 

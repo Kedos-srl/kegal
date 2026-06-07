@@ -49,8 +49,4 @@ setup(
             "kegal=kegal.cli:main",
         ],
     },
-    include_package_data=True,
-    package_data={
-        "kegal": ["docs/*.md"],
-    },
 )

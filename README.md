@@ -15,29 +15,30 @@ everything is controlled by the LLM through its tooling capabilities.
 
 ## Installation
 
-Install directly from GitHub:
+Install from PyPI with the provider(s) you need:
 
 ```bash
-pip install git+https://github.com/kedos-srl/kegal.git
+pip install "kegal[anthropic]"   # Anthropic
+pip install "kegal[openai]"      # OpenAI
+pip install "kegal[gemini]"      # Google Gemini
+pip install "kegal[ollama]"      # Ollama (local)
+pip install "kegal[aws]"         # AWS Bedrock
+pip install "kegal[all]"         # all providers
 ```
 
-From `requirements.txt`: 
-```
-kegal @ git+https://github.com/kedos-srl/kegal.git
-```
-
-Or clone and install in development mode:
+Or clone and install in development mode (all providers):
 
 ```bash
 git clone https://github.com/kedos-srl/kegal.git
 cd kegal
-pip install -r requirements.txt
-pip install -e .
+pip install -e ".[all]"
 ```
 
 ## Documentation
 
-- [Graph Framework](docs/graph_doc.md) - Full field reference for the `Graph` model hierarchy
+Full documentation is available at **https://kedos-srl.github.io/kegal/**
+
+- [Graph Reference](docs/graph_doc.md) - Full field reference for the `Graph` model hierarchy
 - [LLM Providers](docs/llm_doc.md) - Guide on LLM providers and integration
 - [Tutorials](docs/tutorials.md) - 13 topic tutorials from basics to advanced: structured output, RAG, chat history, blackboard, ReAct, and more
 - [Changelog](docs/CHANGELOG.md) - Version history and release notes
@@ -219,7 +220,7 @@ kegal run path/to/my_project
 - **Graph-based workflows** – define multi-node agent pipelines in YAML or JSON
 - **Fan-out / fan-in edges** – `children` launches parallel sub-tasks; `fan_in` aggregates multiple branches before continuing; both are recursive and composable
 - **Multi-board blackboard pipeline** – multiple named shared markdown boards (`GraphBlackboard`) written and read across nodes; Cat-1 writers seed a board, Cat-2 enrichers extend it in parallel, Cat-3 readers consume the final result. Boards support `import` chains (prepend another board's content at read time) and `cleanup` control (truncate at init or preserve existing content). Execution order is inferred automatically from `blackboard.read/write` flags even with flat edge declarations.
-- **ReAct loop** – controller node iteratively reasons and dispatches to specialist agent nodes until it signals `done: true`; supports automatic conversation compaction (`resume: true`) for long loops; controller output flows to downstream nodes via `message_passing` like any regular node
+- **ReAct loop** – controller node iteratively reasons and dispatches to specialist agent nodes until it signals `done: true`; supports automatic conversation compaction (`compact: true`) for long loops; controller output flows to downstream nodes via `message_passing` like any regular node
 - **Structured output** – enforce JSON schemas on LLM responses
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
 - **Message passing** – forward node outputs to downstream nodes; ordering inferred automatically from flags and declaration order — no explicit edge required for linear pipelines
@@ -235,15 +236,11 @@ kegal run path/to/my_project
 
 ## Supported LLM Providers
 
-- **Anthropic** - Direct API and AWS Bedrock
-- **OpenAI** - GPT models
-- **Ollama** - Local LLM hosting
-- **AWS Bedrock** - Amazon Nova and other models
-
-
-## TO DO
-- Add support for gemini
-  
+- **Anthropic** - Direct API (`kegal[anthropic]`)
+- **OpenAI** - GPT models (`kegal[openai]`)
+- **Google Gemini** - Gemini models (`kegal[gemini]`)
+- **Ollama** - Local LLM hosting (`kegal[ollama]`)
+- **AWS Bedrock** - Amazon Nova and Anthropic via Bedrock (`kegal[aws]`)
 
 ## Copyright
 

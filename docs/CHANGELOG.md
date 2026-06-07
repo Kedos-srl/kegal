@@ -39,13 +39,19 @@ All notable changes to KeGAL are documented here.
 - **18 new tests** (`test/test_llm_gemini_unit.py`) — full unit coverage of `LlmGemini` using mocked `google.genai`: init validation, chat history role mapping, images/PDFs, tool schema conversion, structured output config, text/JSON/tool-call response parsing, token counts, runtime error propagation.
 - **`test/test_llm_gemini.py`** — integration test skeleton; all tests skip automatically unless `GEMINI_API_KEY` is set in the environment.
 
+### Fixed
+
+- **`pyproject.toml` build backend** — changed `setuptools.backends.legacy:build` to the standard `setuptools.build_meta`, which is universally available across setuptools versions. The previous entry caused `BackendUnavailable` errors with some pip/build tool versions.
+- **`setup.py` dead `package_data`** — removed `package_data={"kegal": ["docs/*.md"]}`, which pointed to a non-existent `kegal/docs/` subdirectory and had no effect.
+
 ### Docs
 
-- **`docs/index.md`** — installation section updated with per-provider extras; Gemini added to supported providers table.
+- **`docs/index.md`** — full home page redesign: three-tab install/quickstart/minimal-graph strip; compiler pipeline diagram; three-tab execution pattern diagrams (Static DAG with fan-out/fan-in and blackboard, Dynamic ReAct loop, Blackboard); Material feature grid; formal foundations teaser.
 - **`docs/graph_doc.md`** — `api_key` field documents `${ENV_VAR}` syntax; `gemini` added to provider list.
 - **`docs/quick_reference.md`** — §17 providers table extended with Gemini; `${ENV_VAR}` section added with shell and conda examples.
 - **`docs/tutorials/11_multi_provider.md`** — Gemini added to provider reference table; new §6 "Keeping secrets out of YAML" with env var examples for all providers.
 - **`docs/llm_doc.md`** — new §8 `kegal.llm.llm_gemini`; lazy-import note in §1; `${ENV_VAR}` documented in `kegal.utils` section.
+- **`docs/cli.md`** — version number updated to `0.1.4.0`.
 
 ---
 

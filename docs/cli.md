@@ -10,7 +10,7 @@ kegal [--version] run [path]
 
 ```bash
 kegal --version
-# kegal 0.1.2.8
+# kegal 0.1.4.0
 ```
 
 ## Project layout

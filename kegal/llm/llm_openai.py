@@ -2,8 +2,6 @@ import json
 import logging
 from typing import Any
 
-import openai
-
 logger = logging.getLogger(__name__)
 from .llm_model import (LlmModel,
                        LLMImageData,
@@ -20,6 +18,10 @@ class LlmOpenai(LlmModel):
             raise ValueError("Missing required 'model' parameter")
         if "api_key" not in kwargs.keys():
             raise ValueError("Missing required 'api_key' parameter")
+        try:
+            import openai
+        except ImportError:
+            raise ImportError("openai package required. Install with: pip install kegal[openai]")
         super().__init__(kwargs.get("model"))
         self.client = openai.OpenAI(api_key=kwargs.get("api_key"))
 

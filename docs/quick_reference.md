@@ -29,11 +29,11 @@ chat_history: # optional — persistent conversation history
 
 ```yaml
 models:
-  - llm: "ollama"           # provider: ollama | anthropic | anthropic_aws | openai | bedrock
+  - llm: "ollama"           # provider: ollama | anthropic | anthropic_aws | openai | bedrock | gemini
     model: "qwen2.5:7b"     # model name or ARN
     host: "http://localhost:11434"  # ollama only
     context_window: 32768   # required when using react compact: true
-    api_key: "..."          # anthropic / openai
+    api_key: "${ANTHROPIC_API_KEY}"  # use ${ENV_VAR} to read from environment
     # aws_region_name, aws_access_key, aws_secret_key for bedrock / anthropic_aws
 ```
 
@@ -796,3 +796,30 @@ level. Missing file or missing dict → hard error, exit 1.
 | `anthropic_aws` | Claude via Bedrock | `model` (ARN), `aws_region_name`, `aws_access_key`, `aws_secret_key` |
 | `bedrock` | AWS Bedrock native | `model`, `aws_region_name`, `aws_access_key`, `aws_secret_key` |
 | `openai` | OpenAI API | `model`, `api_key` |
+| `gemini` | Google Gemini | `model`, `api_key` |
+
+All string fields in `models:` support `${ENV_VAR}` substitution — the value is read from `os.environ` at graph load time. Use this to avoid hardcoding secrets in YAML files:
+
+```yaml
+models:
+  - llm: "anthropic"
+    model: "claude-sonnet-4-6"
+    api_key: "${ANTHROPIC_API_KEY}"
+
+  - llm: "gemini"
+    model: "gemini-2.0-flash"
+    api_key: "${GEMINI_API_KEY}"
+
+  - llm: "bedrock"
+    model: "..."
+    aws_region_name: "${AWS_REGION}"
+    aws_access_key: "${AWS_ACCESS_KEY_ID}"
+    aws_secret_key: "${AWS_SECRET_ACCESS_KEY}"
+```
+
+Set the variables in your shell before running:
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GEMINI_API_KEY="AIza..."
+```
+Or use a conda environment variable: `conda env config vars set GEMINI_API_KEY="AIza..." -n myenv`

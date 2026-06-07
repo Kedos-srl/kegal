@@ -1,7 +1,6 @@
 import json
 import logging
 from typing import Any
-from botocore.config import Config
 
 AWS_READ_TIMEOUT_SECONDS = 300  # Increased from default 60s to handle large model responses
 
@@ -39,12 +38,18 @@ class LlmAnthropic(LlmModel):
         super().__init__(kwargs.get("model"))
 
         if "api_key" in kwargs.keys():
-            import anthropic
-
+            try:
+                import anthropic
+            except ImportError:
+                raise ImportError("anthropic package required. Install with: pip install kegal[anthropic]")
             self.client = anthropic.Anthropic(api_key=kwargs.get("api_key"))
             self.aws = False
         else:
-            import boto3
+            try:
+                import boto3
+                from botocore.config import Config
+            except ImportError:
+                raise ImportError("boto3/botocore required. Install with: pip install kegal[aws]")
 
             if "aws_region_name" not in kwargs.keys():
                 raise ValueError("Missing required parameter: region_name")

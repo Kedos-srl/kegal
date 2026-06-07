@@ -1,4 +1,6 @@
 import json
+import os
+import re
 import urllib.request
 import mimetypes
 import base64
@@ -74,6 +76,28 @@ def load_json(source: str | Path):
     """Load JSON content from a file path or URL."""
     return load_text_from_source(source)
 
+_ENV_VAR_RE = re.compile(r'\$\{([^}]+)\}')
+
+
+def _substitute_env_vars(text: str) -> str:
+    """Replace every ${VAR_NAME} occurrence with os.environ[VAR_NAME].
+
+    Raises ValueError for any variable that is not set so the error is caught
+    early (before YAML parsing) with a clear message.
+    """
+    def _replace(match: re.Match) -> str:
+        var = match.group(1)
+        value = os.environ.get(var)
+        if value is None:
+            raise ValueError(
+                f"Environment variable '{var}' is not set "
+                f"(referenced as '${{{{var}}}}' in the graph file)"
+            )
+        return value
+
+    return _ENV_VAR_RE.sub(_replace, text)
+
+
 def load_contents(source: str | Path):
     """Create a Graph instance from a source (file path or URL), auto-detecting format."""
     # Simple extension detection
@@ -81,7 +105,7 @@ def load_contents(source: str | Path):
 
     # Parse based on extension
     if extension in ['.yml', '.yaml']:
-        return yaml.safe_load(load_text_from_source(source))
+        return yaml.safe_load(_substitute_env_vars(load_text_from_source(source)))
     elif extension in ['.json']:
         return json.loads(load_text_from_source(source))
     raise ValueError(f"Unsupported file format: {extension}. Supported formats: .yml, .yaml, .json")

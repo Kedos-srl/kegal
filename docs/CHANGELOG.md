@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.0] - 2026-06-07](#0140---2026-06-07)
 - [[0.1.3.0] - 2026-05-29](#0130---2026-05-29)
 - [[0.1.2.9] - 2026-05-19](#0129---2026-05-19)
 - [[0.1.2.8] - 2026-05-14](#0128---2026-05-14)
@@ -14,6 +15,37 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.0] - 2026-06-07
+
+### Added
+
+- **Google Gemini provider** (`kegal/llm/llm_gemini.py`) — new `llm: "gemini"` provider backed by the `google-genai` SDK. Supports text, chat history, images, PDFs (native, no conversion needed), tool calling, and structured output. Install with `pip install kegal[gemini]`. Chat history maps KeGAL's `assistant` role to Gemini's `model` role automatically.
+
+- **`${ENV_VAR}` substitution in graph YAML** (`kegal/utils.py`) — any `${VAR_NAME}` pattern in a graph YAML file is replaced with `os.environ["VAR_NAME"]` before parsing. Applies to all string fields (`api_key`, `aws_access_key`, `host`, etc.). Unset variables raise `ValueError` before the graph starts with a message identifying the missing variable name.
+
+- **`extras_require` packaging** (`setup.py`, `pyproject.toml`) — provider SDKs are now optional extras rather than mandatory dependencies. `pip install kegal` installs only the core framework; choose the providers you need: `kegal[anthropic]`, `kegal[openai]`, `kegal[ollama]`, `kegal[aws]`, `kegal[gemini]`, or `kegal[all]`.
+
+- **`pyproject.toml`** — added PEP 517/518 build system declaration (`setuptools` + `wheel`), making the package compatible with modern pip and build tools.
+
+### Changed
+
+- **Lazy SDK imports in all LLM providers** — provider SDK packages (`anthropic`, `openai`, `ollama`, `boto3`, `botocore`, `google-genai`) are now imported inside `__init__` rather than at module level. `import kegal` succeeds even if no provider SDK is installed; an `ImportError` with a `pip install kegal[<extra>]` hint is raised only when a provider class is instantiated.
+
+### Tests
+
+- **18 new tests** (`test/test_llm_gemini_unit.py`) — full unit coverage of `LlmGemini` using mocked `google.genai`: init validation, chat history role mapping, images/PDFs, tool schema conversion, structured output config, text/JSON/tool-call response parsing, token counts, runtime error propagation.
+- **`test/test_llm_gemini.py`** — integration test skeleton; all tests skip automatically unless `GEMINI_API_KEY` is set in the environment.
+
+### Docs
+
+- **`docs/index.md`** — installation section updated with per-provider extras; Gemini added to supported providers table.
+- **`docs/graph_doc.md`** — `api_key` field documents `${ENV_VAR}` syntax; `gemini` added to provider list.
+- **`docs/quick_reference.md`** — §17 providers table extended with Gemini; `${ENV_VAR}` section added with shell and conda examples.
+- **`docs/tutorials/11_multi_provider.md`** — Gemini added to provider reference table; new §6 "Keeping secrets out of YAML" with env var examples for all providers.
+- **`docs/llm_doc.md`** — new §8 `kegal.llm.llm_gemini`; lazy-import note in §1; `${ENV_VAR}` documented in `kegal.utils` section.
 
 ---
 

@@ -5,6 +5,7 @@ from .llm_openai import LlmOpenai
 from .llm_anthropic import LlmAnthropic
 from .llm_bedrock import LlmBedrock
 from .llm_ollama import LlmOllama
+from .llm_gemini import LlmGemini
 
 
 class LlmHandler:
@@ -14,6 +15,7 @@ class LlmHandler:
         "anthropic": LlmAnthropic,
         "bedrock": LlmBedrock,
         "openai": LlmOpenai,
+        "gemini": LlmGemini,
     }
 
     def __init__(self, **kwargs):

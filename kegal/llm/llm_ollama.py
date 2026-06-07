@@ -2,8 +2,6 @@ import json
 import logging
 from typing import Any
 
-from ollama import Client
-
 logger = logging.getLogger(__name__)
 from .llm_model import (LlmModel,
                        LLMImageData,
@@ -21,6 +19,10 @@ class LlmOllama(LlmModel):
     def __init__(self, **kwargs):
         if "model" not in kwargs.keys():
             raise ValueError("Missing required 'model' parameter")
+        try:
+            from ollama import Client
+        except ImportError:
+            raise ImportError("ollama package required. Install with: pip install kegal[ollama]")
         super().__init__(kwargs.get("model"))
         self.client = Client(host=kwargs.get("host", "http://localhost:11434"))
 

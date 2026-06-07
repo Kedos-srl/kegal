@@ -11,6 +11,7 @@ from .llm_anthropic import LlmAnthropic
 from .llm_openai import LlmOpenai
 from .llm_ollama import LlmOllama
 from .llm_bedrock import LlmBedrock
+from .llm_gemini import LlmGemini
 
 __all__ = [
     "LlmModel",
@@ -20,4 +21,5 @@ __all__ = [
     "LlmOpenai",
     "LlmOllama",
     "LlmBedrock",
+    "LlmGemini",
 ]

@@ -15,11 +15,12 @@ Most users never interact with these modules directly — the `Compiler` class i
 - [5. `kegal.llm.llm_bedrock`](#5-kegalllmllm_bedrock)
 - [6. `kegal.llm.llm_ollama`](#6-kegalllmllm_ollama)
 - [7. `kegal.llm.llm_openai`](#7-kegalllmllm_openai)
-- [8. `kegal.compiler`](#8-kegalcompiler)
-- [9. `kegal.compose`](#9-kegalcompose)
-- [10. `kegal.utils`](#10-kegalutils)
+- [8. `kegal.llm.llm_gemini`](#8-kegalllmllm_gemini)
+- [9. `kegal.compiler`](#9-kegalcompiler)
+- [10. `kegal.compose`](#10-kegalcompose)
+- [11. `kegal.utils`](#11-kegalutils)
 - [Example Configurations](#example-configurations)
-- [11. `kegal.mcp_handler`](#11-kegalmcp_handler)
+- [12. `kegal.mcp_handler`](#12-kegalmcp_handler)
 
 ---
 
@@ -35,8 +36,11 @@ from kegal.llm import (
     LlmOpenai,
     LlmOllama,
     LlmBedrock,
+    LlmGemini,
 )
 ```
+
+Provider classes are imported on demand — the corresponding SDK package (`anthropic`, `openai`, `ollama`, `boto3`, `google-genai`) is loaded only when the class is **instantiated**, not when `kegal` is imported. This means `import kegal` works even if only one provider's SDK is installed.
 
 
 ---
@@ -220,7 +224,39 @@ Key attributes set from `GraphModel`:
 
 ---
 
-## 8. `kegal.compiler`
+## 8. `kegal.llm.llm_gemini`
+
+Concrete implementation for **Google Gemini** (`llm: "gemini"`). Uses the `google-genai` SDK (`pip install kegal[gemini]`). Instantiated automatically by `LLMHandler`.
+
+Key attributes set from `GraphModel`:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `model` | `str` | Gemini model ID (e.g., `"gemini-2.0-flash"`, `"gemini-1.5-pro"`). |
+| `api_key` | `str` | Google AI Studio API key. |
+
+**Notable capabilities:**
+
+| Feature | Support |
+|---------|---------|
+| Text completion | ✓ |
+| Chat history | ✓ (maps `assistant` → `model` role internally) |
+| Images | ✓ native inline |
+| PDFs | ✓ native inline (no image conversion needed) |
+| Tool calling | ✓ function declarations |
+| Structured output | ✓ `response_mime_type: application/json` |
+
+```yaml
+models:
+  - llm: "gemini"
+    model: "gemini-2.0-flash"
+    api_key: "${GEMINI_API_KEY}"
+    context_window: 1048576    # 1M token context window
+```
+
+---
+
+## 9. `kegal.compiler`
 
 `compiler.py` contains the `Compiler` class that loads a graph configuration, initialises the LLM clients, and executes each node in the order defined by the graph edges.
 
@@ -297,7 +333,7 @@ outputs = compiler.get_outputs()
 
 ---
 
-## 9. `kegal.compose`
+## 10. `kegal.compose`
 
 `compose.py` contains prompt composition helpers used internally by the `Compiler` to assemble the final system and user prompts before each LLM call.
 
@@ -312,7 +348,7 @@ outputs = compiler.get_outputs()
 
 ---
 
-## 10. `kegal.utils`
+## 11. `kegal.utils`
 
 Utility functions used across the package:
 
@@ -320,10 +356,28 @@ Utility functions used across the package:
 |----------|-------------|
 | `load_yml(source)` | Load a YAML file into a Python dict. |
 | `load_json(source)` | Load a JSON file into a Python dict. |
-| `load_contents(source)` | Load a YAML or JSON file based on extension. |
+| `load_contents(source)` | Load a YAML or JSON file based on extension. Applies `${ENV_VAR}` substitution before parsing. |
 | `load_text_from_source(source)` | Load plain text from a local file path or HTTPS URL. |
 | `load_images_to_base64(source)` | Load an image from a path or URL and return `(media_type, base64_str)`. |
 | `load_pdfs_to_base64(source)` | Load a PDF from a path or URL and return `(media_type, base64_str)`. |
+
+### Environment variable substitution
+
+`load_contents` replaces every `${VAR_NAME}` occurrence in the YAML or JSON text with `os.environ["VAR_NAME"]` before parsing. This allows secrets (API keys, AWS credentials) to be stored in environment variables rather than hardcoded in graph files.
+
+```yaml
+# graph.yml — no secrets in source control
+models:
+  - llm: "anthropic"
+    model: "claude-sonnet-4-6"
+    api_key: "${ANTHROPIC_API_KEY}"
+
+  - llm: "gemini"
+    model: "gemini-2.0-flash"
+    api_key: "${GEMINI_API_KEY}"
+```
+
+If a referenced variable is not set, `load_contents` raises `ValueError` with the variable name before the graph starts. The substitution applies to all string fields — not just `api_key`.
 
 ### URI security — HTTPS only
 
@@ -585,7 +639,7 @@ edges:
 
 ---
 
-## 11. `kegal.mcp_handler`
+## 12. `kegal.mcp_handler`
 
 `McpHandler` connects a single MCP server (stdio or SSE transport), lists its tools, and executes tool calls on behalf of the compiler. The LLM layer never communicates with MCP directly — it only sees translated `LLMTool` definitions and receives plain-string results.
 

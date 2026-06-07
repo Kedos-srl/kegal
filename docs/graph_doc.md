@@ -63,7 +63,7 @@ graph TD
 |------------------|----------------|----------|-------------|
 | `llm`            | `str`          | No       | Identifier of the LLM provider (e.g. `"anthropic_aws"`). |
 | `model`          | `str`          | No       | Full model name or ARN (e.g. `"arn:aws:bedrock:...:claude-sonnet-4-5-20250929-v1:0"`). |
-| `api_key`        | `str` \| `None`| Yes      | API key if required. |
+| `api_key`        | `str` \| `None`| Yes      | API key if required. Supports `${ENV_VAR}` syntax — KeGAL substitutes the value from `os.environ` at load time (e.g. `"${ANTHROPIC_API_KEY}"`). |
 | `host`           | `str` \| `None`| Yes      | Custom host endpoint. |
 | `context_window` | `int` \| `None`| Yes      | Token context window of the model (e.g. `32768`). When set, used as the compaction threshold in the ReAct `compact` feature instead of `max_tokens`, and shown as a context-utilization percentage in markdown output. |
 | `aws_region_name`| `str` \| `None`| Yes      | AWS region when using Bedrock. |
@@ -77,6 +77,7 @@ Provided Models
 - bedrock
 - ollama
 - openai
+- gemini
 
 ### YAML Example
 

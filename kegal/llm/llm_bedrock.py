@@ -1,8 +1,6 @@
 import base64
 from typing import Any
 
-import boto3
-
 from .llm_model import (LlmModel,
                        LLMImageData,
                        LLMPdfData,
@@ -12,8 +10,6 @@ from .llm_model import (LlmModel,
                        LLMFunctionCall,
                        LLmResponse,
                        DEFAULT_JSON_OUTPUT_NAME)
-
-from botocore.exceptions import ClientError
 
 
 class LlmBedrock(LlmModel):
@@ -35,6 +31,11 @@ class LlmBedrock(LlmModel):
             raise ValueError("Missing required 'model' parameter")
         if "aws_region_name" not in kwarg.keys():
             raise ValueError("Missing required 'aws_region_name' parameter")
+
+        try:
+            import boto3
+        except ImportError:
+            raise ImportError("boto3 package required. Install with: pip install kegal[aws]")
 
         super().__init__(kwarg.get("model"))
         self.client = boto3.client(service_name='bedrock-runtime',
@@ -204,6 +205,7 @@ class LlmBedrock(LlmModel):
         return messages
 
     def _get_response(self, body) -> LLmResponse:
+        from botocore.exceptions import ClientError
         try:
             response_body = self.client.converse(**body)
 

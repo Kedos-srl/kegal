@@ -201,13 +201,14 @@ nodes:
 
 ## 5. Provider reference
 
-| Provider key       | Required fields              | Notes |
-|--------------------|------------------------------|-------|
-| `ollama`           | `host`                       | Local or remote Ollama instance. |
-| `anthropic`        | `api_key`                    | Anthropic cloud API. |
-| `anthropic_aws`    | `api_key`                    | Anthropic via AWS API Gateway. |
-| `openai`           | `api_key`                    | OpenAI cloud API. |
-| `bedrock`          | `aws_region_name`, `aws_access_key`, `aws_secret_key` | AWS Bedrock. |
+| Provider key       | Required fields              | Install extra | Notes |
+|--------------------|------------------------------|---------------|-------|
+| `ollama`           | `host`                       | `kegal[ollama]`     | Local or remote Ollama instance. No API key. |
+| `anthropic`        | `api_key`                    | `kegal[anthropic]`  | Anthropic cloud API. |
+| `anthropic_aws`    | `api_key`                    | `kegal[aws]`        | Anthropic via AWS API Gateway. |
+| `openai`           | `api_key`                    | `kegal[openai]`     | OpenAI cloud API. |
+| `bedrock`          | `aws_region_name`, `aws_access_key`, `aws_secret_key` | `kegal[aws]` | AWS Bedrock. |
+| `gemini`           | `api_key`                    | `kegal[gemini]`     | Google Gemini cloud API. |
 
 ```yaml
 # Ollama
@@ -221,26 +222,73 @@ models:
 models:
   - llm: "anthropic"
     model: "claude-sonnet-4-6"
-    api_key: "sk-ant-..."
+    api_key: "${ANTHROPIC_API_KEY}"
 
 # OpenAI
 models:
   - llm: "openai"
     model: "gpt-4o"
-    api_key: "sk-..."
+    api_key: "${OPENAI_API_KEY}"
+
+# Google Gemini
+models:
+  - llm: "gemini"
+    model: "gemini-2.0-flash"
+    api_key: "${GEMINI_API_KEY}"
 
 # AWS Bedrock
 models:
   - llm: "bedrock"
     model: "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
-    aws_region_name: "us-east-1"
-    aws_access_key: "AKIA..."
-    aws_secret_key: "..."
+    aws_region_name: "${AWS_REGION}"
+    aws_access_key: "${AWS_ACCESS_KEY_ID}"
+    aws_secret_key: "${AWS_SECRET_ACCESS_KEY}"
 ```
 
 ---
 
-## 6. Advanced: `context_window` per model
+## 6. Keeping secrets out of YAML — environment variables
+
+All string fields in a model config support `${ENV_VAR}` substitution. KeGAL
+replaces every `${NAME}` pattern with `os.environ["NAME"]` before parsing the
+YAML. If the variable is not set, a `ValueError` is raised immediately (before
+the graph starts), with a clear message identifying the missing variable.
+
+```yaml
+models:
+  - llm: "anthropic"
+    model: "claude-sonnet-4-6"
+    api_key: "${ANTHROPIC_API_KEY}"
+
+  - llm: "gemini"
+    model: "gemini-2.0-flash"
+    api_key: "${GEMINI_API_KEY}"
+
+  - llm: "bedrock"
+    model: "..."
+    aws_region_name: "${AWS_REGION}"
+    aws_access_key: "${AWS_ACCESS_KEY_ID}"
+    aws_secret_key: "${AWS_SECRET_ACCESS_KEY}"
+```
+
+**Setting variables on Linux / macOS:**
+
+```bash
+# Temporary (current terminal session)
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GEMINI_API_KEY="AIza..."
+
+# Persistent — add to ~/.bashrc or ~/.zshrc
+echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.bashrc
+
+# Conda-env scoped — survives across sessions, isolated to the env
+conda env config vars set GEMINI_API_KEY="AIza..." -n myenv
+conda activate myenv   # reactivate to pick it up
+```
+
+---
+
+## 7. Advanced: `context_window` per model
 
 Declare `context_window` on any model where you need accurate ReAct
 compaction or utilization reporting. The value is specific to each model
@@ -272,6 +320,10 @@ See [Tutorial 13: Context window](13_context_window.md) for how this is used.
   to connect, the error surfaces before the first `compile()` call.
 - `context_window` is optional but enables accurate ReAct compaction and
   per-node utilization display.
+- Use `${ENV_VAR}` in any string field to read the value from `os.environ`.
+  An unset variable raises `ValueError` before the graph starts.
+- Each provider requires its own pip extra: `kegal[anthropic]`, `kegal[openai]`,
+  `kegal[gemini]`, `kegal[ollama]`, `kegal[aws]`. Install `kegal[all]` for all.
 
 ---
 

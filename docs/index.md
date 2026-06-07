@@ -4,17 +4,23 @@ KeGAL is a graph-based agent framework for LLMs. Define multi-node workflows in 
 
 ## Installation
 
+Install with the provider(s) you need:
+
 ```bash
-pip install git+https://github.com/kedos-srl/kegal.git
+pip install "kegal[ollama]"      # Ollama (local)
+pip install "kegal[anthropic]"   # Anthropic
+pip install "kegal[openai]"      # OpenAI
+pip install "kegal[gemini]"      # Google Gemini
+pip install "kegal[aws]"         # AWS Bedrock
+pip install "kegal[all]"         # all providers
 ```
 
-Or clone and install in development mode:
+Or clone and install in development mode (all providers):
 
 ```bash
 git clone https://github.com/kedos-srl/kegal.git
 cd kegal
-pip install -r requirements.txt
-pip install -e .
+pip install -e ".[all]"
 ```
 
 ## Quick Start
@@ -38,7 +44,7 @@ with Compiler(uri="path/to/your_graph.yml") as compiler:
 - **Message passing** — forward outputs between nodes; ordering inferred automatically
 - **MCP support** — connect to external tool servers via stdio or SSE
 - **Python tool executors** — attach plain Python callables as tools
-- **Multi-provider** — mix Anthropic, OpenAI, Ollama, and AWS Bedrock in one graph
+- **Multi-provider** — mix Anthropic, OpenAI, Ollama, AWS Bedrock, and Google Gemini in one graph
 - **Chat history** — inline or file-based scopes with optional auto-append
 - **RAG support** — inject retrieved chunks into prompts
 - **Context window tracking** — accurate compaction thresholds and utilization percentages
@@ -52,10 +58,11 @@ with Compiler(uri="path/to/your_graph.yml") as compiler:
 
 ## Supported Providers
 
-| Provider | Identifier |
-|---|---|
-| Anthropic (direct) | `anthropic` |
-| Anthropic via AWS Bedrock | `anthropic_aws` |
-| OpenAI | `openai` |
-| Ollama (local) | `ollama` |
-| AWS Bedrock (Nova) | `bedrock` |
+| Provider | Identifier | Install extra |
+|---|---|---|
+| Anthropic (direct) | `anthropic` | `kegal[anthropic]` |
+| Anthropic via AWS Bedrock | `anthropic_aws` | `kegal[aws]` |
+| OpenAI | `openai` | `kegal[openai]` |
+| Ollama (local) | `ollama` | `kegal[ollama]` |
+| AWS Bedrock (Nova) | `bedrock` | `kegal[aws]` |
+| Google Gemini | `gemini` | `kegal[gemini]` |

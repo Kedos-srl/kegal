@@ -18,6 +18,7 @@ Topology is not a routing convenience: it is the primary design lever. KeGAL is 
     pip install "kegal[openai]"      # OpenAI
     pip install "kegal[gemini]"      # Google Gemini
     pip install "kegal[ollama]"      # Ollama (local)
+    pip install "kegal[aws]"         # AWS Bedrock
     pip install "kegal[all]"         # all providers
     ```
 

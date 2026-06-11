@@ -536,5 +536,66 @@ class TestUriSchemeGuard(unittest.TestCase):
             load_images_to_base64("http://attacker.com/evil.png")
 
 
+# ===========================================================================
+# Fix 10: compose_node_prompt — dict items in message_passing must be
+#         serialised as JSON (not Python repr)
+# ===========================================================================
+
+class TestMessagePassingDictSerialisation(unittest.TestCase):
+
+    def _template_with_mp(self) -> dict:
+        return {"system": "", "user": "Context:\n{message_passing}"}
+
+    def test_dict_serialised_as_json_not_python_repr(self):
+        """When message_passing contains a dict, the output must use JSON double-quotes,
+        not Python single-quote repr (e.g. {'key': 'value'} is wrong)."""
+        result = compose_node_prompt(
+            prompt_template=self._template_with_mp(),
+            placeholders={},
+            message_passing=[{"key": "value"}],
+        )
+        self.assertIn('{"key": "value"}', result["user"],
+                      "Dict must be serialised as JSON with double quotes")
+
+    def test_python_repr_not_present(self):
+        """The Python repr form must not appear in the output."""
+        result = compose_node_prompt(
+            prompt_template=self._template_with_mp(),
+            placeholders={},
+            message_passing=[{"key": "value"}],
+        )
+        self.assertNotIn("{'key': 'value'}", result["user"],
+                         "Python repr (single-quote) notation must not appear")
+
+    def test_string_items_still_passed_through(self):
+        """String items in message_passing must still appear verbatim."""
+        result = compose_node_prompt(
+            prompt_template=self._template_with_mp(),
+            placeholders={},
+            message_passing=["plain text result"],
+        )
+        self.assertIn("plain text result", result["user"])
+
+    def test_mixed_list_string_and_dict(self):
+        """A list with both strings and dicts must render strings verbatim and
+        dicts as JSON."""
+        result = compose_node_prompt(
+            prompt_template=self._template_with_mp(),
+            placeholders={},
+            message_passing=["first result", {"score": 42}],
+        )
+        self.assertIn("first result", result["user"])
+        self.assertIn('{"score": 42}', result["user"])
+
+    def test_non_ascii_dict_values_preserved(self):
+        """Non-ASCII characters in dict values must be preserved (ensure_ascii=False)."""
+        result = compose_node_prompt(
+            prompt_template=self._template_with_mp(),
+            placeholders={},
+            message_passing=[{"city": "Tòkyò"}],
+        )
+        self.assertIn("Tòkyò", result["user"])
+
+
 if __name__ == "__main__":
     unittest.main()

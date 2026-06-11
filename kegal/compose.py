@@ -1,3 +1,4 @@
+import json
 import re
 from typing import Any
 from .graph import GraphInputData
@@ -59,7 +60,10 @@ def compose_node_prompt(prompt_template: dict[str, str],
         placeholders["user_message"] = user_message.strip()
 
     if message_passing is not None:
-        placeholders["message_passing"] = "\n\n".join(str(m) for m in message_passing).strip()
+        placeholders["message_passing"] = "\n\n".join(
+            json.dumps(m, ensure_ascii=False) if isinstance(m, dict) else str(m)
+            for m in message_passing
+        ).strip()
 
     if retrieved_chunks is not None:
         placeholders["retrieved_chunks"] = retrieved_chunks.strip()

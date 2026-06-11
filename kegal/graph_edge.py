@@ -10,6 +10,8 @@ class GraphEdge(BaseModel):
     react: list["GraphEdge"] | None = None             # ReAct: available agent subgraphs
     ordered_children: list["GraphEdge"] | None = None  # sequential fan-out
     ordered_fan_in: list["GraphEdge"] | None = None    # sequential aggregation chain
+    batch_children: list["GraphEdge"] | None = None    # batch fan-out
+    batch_fan_in: list["GraphEdge"] | None = None      # batch aggregation
 
     @model_validator(mode="after")
     def _check_mutual_exclusivity(self) -> "GraphEdge":
@@ -20,5 +22,21 @@ class GraphEdge(BaseModel):
         if self.react is not None and self.ordered_children is not None:
             raise ValueError(
                 f"Edge for node '{self.node}': 'react' and 'ordered_children' are mutually exclusive"
+            )
+        if self.batch_children is not None and self.children is not None:
+            raise ValueError(
+                f"Edge for node '{self.node}': 'batch_children' and 'children' are mutually exclusive"
+            )
+        if self.batch_children is not None and self.ordered_children is not None:
+            raise ValueError(
+                f"Edge for node '{self.node}': 'batch_children' and 'ordered_children' are mutually exclusive"
+            )
+        if self.batch_fan_in is not None and self.fan_in is not None:
+            raise ValueError(
+                f"Edge for node '{self.node}': 'batch_fan_in' and 'fan_in' are mutually exclusive"
+            )
+        if self.batch_fan_in is not None and self.ordered_fan_in is not None:
+            raise ValueError(
+                f"Edge for node '{self.node}': 'batch_fan_in' and 'ordered_fan_in' are mutually exclusive"
             )
         return self

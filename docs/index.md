@@ -210,6 +210,12 @@ A single YAML file fully specifies the graph (nodes, edges, prompts, models, too
 
     Accurate compaction thresholds and per-node utilization percentages across all providers.
 
+-   :material-layers-triple: **Batch Inference**
+
+    ---
+
+    Submit N LLM calls as a single async batch job. Two levels: intra-node (`batch_user_messages`) and inter-node (`batch_children` / `batch_fan_in`). ~50% cost reduction on all major providers.
+
 </div>
 
 ---
@@ -232,6 +238,7 @@ A single YAML file fully specifies the graph (nodes, edges, prompts, models, too
 - [Quick Reference](quick_reference.md): single-page cheat-sheet for building graphs; ideal as AI assistant context
 - [Graph Reference](graph_doc.md): full field-by-field schema documentation
 - [LLM Providers](llm_doc.md): provider configuration, lazy imports, and `${ENV_VAR}` secrets
+- [Batch Inference](batch_doc.md): intra-node and inter-node batch; provider support; output format
 - [Tutorials](tutorials.md): step-by-step examples from message passing to ReAct
 - [CLI](cli.md): `kegal run` and command-line options
 

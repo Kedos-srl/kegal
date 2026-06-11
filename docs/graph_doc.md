@@ -13,7 +13,8 @@ For each model we list the fields, their types, optionality, and provide concret
 - [3. `NodePrompt`](#3-nodeprompt)
   - [3.1 Prompt Placeholders](#31-prompt-placeholders)
 - [4. `NodeMessagePassing`](#4-nodemessagepassing)
-- [4.1 `ChatHistoryFile`](#41-chathistoryfile)
+- [4.1 `NodeBatchMessagePassing`](#41-nodebatchmessagepassing)
+- [4.2 `ChatHistoryFile`](#42-chathistoryfile)
 - [5. Blackboard models](#5-blackboard-models)
 - [6. `GraphNode`](#6-graphnode)
   - [6.1 `NodeMcpServerRef`](#61-nodemcpserverref)
@@ -66,9 +67,12 @@ graph TD
 | `api_key`        | `str` \| `None`| Yes      | API key if required. Supports `${ENV_VAR}` syntax — KeGAL substitutes the value from `os.environ` at load time (e.g. `"${ANTHROPIC_API_KEY}"`). |
 | `host`           | `str` \| `None`| Yes      | Custom host endpoint. |
 | `context_window` | `int` \| `None`| Yes      | Token context window of the model (e.g. `32768`). When set, used as the compaction threshold in the ReAct `compact` feature instead of `max_tokens`, and shown as a context-utilization percentage in markdown output. |
-| `aws_region_name`| `str` \| `None`| Yes      | AWS region when using Bedrock. |
-| `aws_access_key` | `str` \| `None`| Yes      | AWS access key. |
-| `aws_secret_key` | `str` \| `None`| Yes      | AWS secret key. |
+| `aws_region_name`    | `str` \| `None`| Yes      | AWS region when using Bedrock. |
+| `aws_access_key`     | `str` \| `None`| Yes      | AWS access key. |
+| `aws_secret_key`     | `str` \| `None`| Yes      | AWS secret key. |
+| `batch_role_arn`     | `str` \| `None`| Yes      | IAM role ARN Bedrock assumes to read/write S3 during batch jobs. Required when batch mode is activated on a Bedrock node. |
+| `batch_s3_input_uri` | `str` \| `None`| Yes      | S3 prefix where KeGAL writes the JSONL input file for Bedrock batch jobs. |
+| `batch_s3_output_uri`| `str` \| `None`| Yes      | S3 prefix where Bedrock writes batch results. |
 
 
 Provided Models
@@ -139,7 +143,8 @@ uri: "https://example.com/documents/report.pdf"
 | `prompt_placeholders` | `dict[str, Any]` \| `None` | Yes      | Key/value map used to substitute placeholders in the prompt template. |
 | `user_message`      | `bool` \| `None`         | Yes      | Whether to include the user’s message. |
 | `retrieved_chunks`  | `bool` \| `None`         | Yes      | Whether to include retrieved document chunks. |
-| `chat_history`      | `str` \| `None`          | Yes      | Named key into the top-level `chat_history` dict. When set, the corresponding list of `{role, content}` message pairs is prepended to this node’s LLM call as prior conversation turns. |
+| `chat_history`        | `str` \| `None`          | Yes      | Named key into the top-level `chat_history` dict. When set, the corresponding list of `{role, content}` message pairs is prepended to this node’s LLM call as prior conversation turns. |
+| `batch_use_messages`  | `list[int]` \| `None`    | Yes      | Indices into the graph-level `batch_user_messages` list. When set, the node runs once per index in a single batch job instead of a single real-time call. See [Batch Inference](batch_doc.md). |
 
 
 ### YAML Example
@@ -252,7 +257,30 @@ message_passing:
 
 ---
 
-## 4.1 `ChatHistoryFile`
+## 4.1 `NodeBatchMessagePassing`
+
+Configuration block for the batch-mode message pipe on a node. Analogous to `NodeMessagePassing` but for batch nodes — the two are independent and can coexist on the same node only if they represent different forwarding strategies.
+
+| Field    | Type  | Optional | Description |
+|----------|-------|----------|-------------|
+| `output` | `bool`| Yes (default `false`) | Collect the N batch outputs and forward them to the downstream node. |
+| `input`  | `bool`| Yes (default `false`) | Receive each upstream batch item as a separate call. |
+
+`output` and `input` must be declared on the producing and consuming node respectively. Declaring `output: true` without a corresponding `input: true` downstream raises `ValueError` at `Compiler()` construction.
+
+```yaml
+batch_message_passing:
+  output: true   # on the producing node
+```
+
+```yaml
+batch_message_passing:
+  input: true    # on the consuming node
+```
+
+---
+
+## 4.2 `ChatHistoryFile`
 
 `ChatHistoryFile` is used as a value in the top-level `chat_history` dict to declare a **file-based** history scope instead of an inline array. It is importable from `kegal`.
 
@@ -438,8 +466,9 @@ entry is needed.
 | `temperature`       | `float`                      | No       | Sampling temperature for the LLM. |
 | `max_tokens`        | `int`                        | No       | Maximum token length for the LLM response. |
 | `show`              | `bool`                       | No       | Display hint for `save_outputs_as_markdown()`. When `false`, the node is still executed and included in `get_outputs()`, but omitted from the markdown report. |
-| `message_passing`   | `NodeMessagePassing`         | Yes (default `{input: false, output: false}`) | Configuration of input/output passing. |
-| `blackboard`        | `NodeBlackboardRef` \| `None` | Yes     | References a named board by `id` and declares read/write participation. See §5 Blackboard models. |
+| `message_passing`       | `NodeMessagePassing`            | Yes (default `{input: false, output: false}`) | Configuration of input/output passing (real-time mode). |
+| `batch_message_passing` | `NodeBatchMessagePassing` \| `None` | Yes | Configuration of input/output passing for batch-mode nodes. See §4.1. |
+| `blackboard`            | `NodeBlackboardRef` \| `None`   | Yes | References a named board by `id` and declares read/write participation. See §5 Blackboard models. |
 | `prompt`            | `NodePrompt` \| `None`       | Yes      | Prompt configuration. |
 | `structured_output` | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the node’s structured output (guard nodes, data extraction). |
 | `react_output`      | `dict[str, Any]` \| `None`   | Yes      | JSON schema for the routing output of a ReAct controller. The LLM must return a response conforming to this schema on every iteration. The compiler reads five reserved fields from it — see [Reserved `react_output` Fields](#reserved-react_output-fields) below. |
@@ -757,7 +786,9 @@ The controller and agent nodes have different execution paths and therefore supp
 | `fan_in`   | `list[GraphEdge]` \| `None`| Yes      | **Aggregation**: nodes this node waits for before starting. This node will not execute until every node listed here has completed. |
 | `ordered_children` | `list[GraphEdge]` \| `None` | Yes | **Sequential fan-out**: nodes launch one after another — first depends on this node, each subsequent depends on the previous. Mutually exclusive with `react`. |
 | `ordered_fan_in`   | `list[GraphEdge]` \| `None` | Yes | **Sequential aggregation chain**: predecessors run sequentially (each depends on the previous); this node waits for the last. Mutually exclusive with `react`. |
-| `react`    | `list[GraphEdge]` \| `None`| Yes      | **ReAct agent list**: nodes available to the controller for iterative dispatch. Each entry is a `GraphEdge` (with optional `children`/`fan_in` for multi-step agent subgraphs). Mutually exclusive with `children` and `fan_in`. |
+| `react`            | `list[GraphEdge]` \| `None`| Yes      | **ReAct agent list**: nodes available to the controller for iterative dispatch. Each entry is a `GraphEdge` (with optional `children`/`fan_in` for multi-step agent subgraphs). Mutually exclusive with `children` and `fan_in`. |
+| `batch_children`   | `list[GraphEdge]` \| `None`| Yes      | **Batch fan-out**: nodes submitted as a single async batch job when this node completes. All nodes must reference the same model index. Mutually exclusive with `children` and `ordered_children`. See [Batch Inference](batch_doc.md). |
+| `batch_fan_in`     | `list[GraphEdge]` \| `None`| Yes      | **Batch aggregation**: nodes this node waits for, submitted as a single batch job. Mutually exclusive with `fan_in` and `ordered_fan_in`. See [Batch Inference](batch_doc.md). |
 
 > **Mutual exclusivity**: `react` cannot be combined with `children` or `fan_in` on the same edge entry. `react` + `children` raises a `ValidationError` at parse time; `react` + `fan_in` raises a `ValueError` at `Compiler` construction. Use `message_passing` to order the controller relative to other nodes — the inference stage handles scheduling automatically.
 
@@ -949,7 +980,8 @@ Agent subgraphs can use `children` and `fan_in` internally to structure their ow
 | `prompts`               | `list[GraphInputData]`                 | No       | Prompt templates (indexed by `NodePrompt.template`). |
 | `react_compact_prompts` | `list[GraphInputData]` \| `None`       | Yes      | Custom prompts used to summarize the ReAct conversation buffer when `compact: true` triggers compaction. Accepts `uri` or inline `template` exactly like regular `prompts`. Index 0 overrides the built-in default compaction prompt. |
 | `chat_history`          | `dict[str, list[dict[str, str]] \| ChatHistoryFile]` \| `None` | Yes | Conversation history as a dict mapping scope names to either an inline list of `{role, content}` message pairs or a `ChatHistoryFile` (external JSON file). A node references its history by name via `NodePrompt.chat_history`. Each scope may be assigned to at most one node — sharing a scope between two nodes raises `ValueError` at `Compiler` construction time. |
-| `user_message`          | `str` \| `None`                        | Yes      | Current user prompt. |
+| `user_message`          | `str` \| `None`                        | Yes      | Current user prompt. Mutually exclusive with `batch_user_messages`. |
+| `batch_user_messages`   | `list[str]` \| `None`                  | Yes      | List of user messages for batch inference. Mutually exclusive with `user_message`. Referenced by `NodePrompt.batch_use_messages` via index. See [Batch Inference](batch_doc.md). |
 | `retrieved_chunks`      | `str` \| `None`                        | Yes      | Additional retrieved content (e.g., document snippets). |
 | `blackboard`            | `GraphBlackboard` \| `None`            | Yes      | Multi-board blackboard configuration: directory path and list of named board files. See §5 Blackboard models. |
 | `nodes`                 | `list[GraphNode]`                      | No       | All nodes in the graph. |

@@ -81,6 +81,7 @@ def _bare_compiler(nodes_cfg=None, edges_cfg=None, extra_prompts=0) -> Compiler:
     c._boards = {}
     c._board_paths = {}
     c._blackboard_lock = threading.Lock()
+    c._blackboard_write_buffer = None
     c._graph_dir = Path.cwd()
     c._message_passing_lock = threading.Lock()
     c._outputs_lock = threading.Lock()

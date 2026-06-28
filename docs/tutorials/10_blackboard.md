@@ -25,8 +25,7 @@ This produces three natural node categories:
 | Cat-2 | `true`  | `true`  | **Enricher** — reads then extends |
 | Cat-3 | `true`  | `false` | **Reader** — consumes the final board |
 
-The compiler infers the execution order automatically: Cat-1 → Cat-2 (in
-parallel) → Cat-3.
+The compiler infers the execution order automatically: Cat-1 → Cat-2 → Cat-3. Cat-2 LLM calls run in parallel, but writes are applied to the board in YAML node declaration order after all Cat-2 calls finish, keeping the result deterministic.
 
 ```yaml
 models:

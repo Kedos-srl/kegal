@@ -380,10 +380,12 @@ Three behaviour patterns emerge from the `read`/`write` combination:
 | Category | `read` | `write` | Role |
 |----------|--------|---------|------|
 | Cat-1 | `false` | `true`  | **Writer** — seeds the board (e.g. an assistant that drafts the initial content). |
-| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends the board (e.g. domain analysts). Multiple Cat-2 nodes run in parallel. |
+| Cat-2 | `true`  | `true`  | **Enricher** — reads then extends the board (e.g. domain analysts). LLM calls run in parallel; writes are applied in declaration order after all complete. |
 | Cat-3 | `true`  | `false` | **Reader** — consumes the final board (e.g. a summarizer). |
 
-The compiler infers the correct execution order automatically from these categories even when the `edges` list is flat (no `children`/`fan_in` declarations). Cat-1 nodes run first, Cat-2 nodes in parallel after all Cat-1 nodes complete, and Cat-3 nodes after all Cat-2 nodes complete.
+The compiler infers the correct execution order automatically from these categories even when the `edges` list is flat (no `children`/`fan_in` declarations). Cat-1 nodes run first, Cat-2 LLM calls execute in parallel after all Cat-1 nodes complete, and Cat-3 nodes run after all Cat-2 nodes complete.
+
+> **Cat-2 write ordering:** each Cat-2 node reads only the Cat-1 baseline (not sibling Cat-2 outputs). Writes are collected during the parallel phase and flushed to the board in **YAML node declaration order** after all Cat-2 calls finish. The resulting board content is therefore deterministic regardless of thread-completion order.
 
 ### Import chains
 

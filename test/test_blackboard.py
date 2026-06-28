@@ -42,6 +42,8 @@ def _make_compiler(nodes_cfg: list, edges_cfg: list) -> Compiler:
     c._board_entries = {}
     c._boards = {}
     c._board_paths = {}
+    c._blackboard_lock = threading.Lock()
+    c._blackboard_write_buffer = None
     return c
 
 
@@ -351,6 +353,7 @@ class TestUpdateBlackboard(unittest.TestCase):
         c._boards = {"main": ""}
         c._board_paths = {"main": board_path}
         c._blackboard_lock = threading.Lock()
+        c._blackboard_write_buffer = None
         return c, board_path
 
     def _response(self, text: str):

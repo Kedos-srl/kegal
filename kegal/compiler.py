@@ -110,6 +110,7 @@ class Compiler:
         self._boards: dict[str, str] = {}        # board id → in-memory content
         self._board_paths: dict[str, Path] = {}  # board id → file path
         self._blackboard_lock = threading.Lock()
+        self._blackboard_write_buffer: dict[str, dict[str, str]] | None = None
         if graph.blackboard is not None:
             self._init_boards(graph.blackboard)
         self._message_passing_lock = threading.Lock()
@@ -1008,10 +1009,31 @@ class Compiler:
                     return
 
             # Phase 2 — run regular nodes; parallel if >1, sequential if 1
+            # Pre-initialise write buffer for Cat-2 nodes in declaration order so
+            # that concurrent writes are applied deterministically after the pool
+            # drains, regardless of which thread finishes first.
+            cat2_in_level = [
+                nid for nid in self.nodes          # self.nodes preserves declaration order
+                if nid in set(regular_ids)
+                and self.nodes[nid].blackboard is not None
+                and self.nodes[nid].blackboard.read
+                and self.nodes[nid].blackboard.write
+            ]
+            if cat2_in_level:
+                self._blackboard_write_buffer = {}
+                for nid in cat2_in_level:
+                    board_id = self.nodes[nid].blackboard.id
+                    if board_id not in self._blackboard_write_buffer:
+                        self._blackboard_write_buffer[board_id] = {}
+                    self._blackboard_write_buffer[board_id][nid] = ""
+
             if len(regular_ids) > 1:
                 self._run_parallel(regular_ids)
             elif len(regular_ids) == 1:
                 self._run_node(self.nodes[regular_ids[0]])
+
+            if self._blackboard_write_buffer is not None:
+                self._flush_blackboard_write_buffer()
 
             # Phase 3 — react controller (always sequential, after regular nodes)
             for nid in react_ids:
@@ -1636,8 +1658,14 @@ class Compiler:
     def _update_blackboard(self, node: GraphNode, response: LLmResponse) -> None:
         """Append node response to the board the node is assigned to write.
 
-        Thread-safe: multiple parallel nodes may write concurrently.
-        The updated content is always persisted to the board's file.
+        During the Cat-2 parallel phase (_blackboard_write_buffer is set), stores
+        the output in the buffer keyed by node id instead of writing directly.
+        The buffer is pre-initialised in declaration order; after all Cat-2 threads
+        join, _flush_blackboard_write_buffer writes the entries to the board in that
+        order, making Cat-2 write order deterministic regardless of thread scheduling.
+
+        Outside the Cat-2 phase (buffer is None or node has no buffer entry),
+        writes directly to the board under _blackboard_lock.
         """
         if node.blackboard is None or not node.blackboard.write:
             return
@@ -1645,6 +1673,18 @@ class Compiler:
             return
         board_id = node.blackboard.id
         new_content = "\n\n".join(response.messages)
+        # Cat-2 buffered phase: store instead of writing directly
+        buf = self._blackboard_write_buffer
+        if (buf is not None
+                and board_id in buf
+                and node.id in buf[board_id]):
+            buf[board_id][node.id] = new_content
+            return
+        # Cat-1 or non-buffered: write directly
+        self._write_to_board(board_id, new_content)
+
+    def _write_to_board(self, board_id: str, new_content: str) -> None:
+        """Append new_content to a board under the blackboard lock."""
         with self._blackboard_lock:
             path = self._board_paths.get(board_id)
             # Always read from disk when available — keeps write consistent with
@@ -1657,6 +1697,16 @@ class Compiler:
             self._boards[board_id] = updated
             if path is not None:
                 path.write_text(updated, encoding="utf-8")
+
+    def _flush_blackboard_write_buffer(self) -> None:
+        """Apply buffered Cat-2 writes to boards in declaration order, then clear."""
+        buf = self._blackboard_write_buffer
+        if buf:
+            for board_id, node_writes in buf.items():
+                for _node_id, text in node_writes.items():
+                    if text:
+                        self._write_to_board(board_id, text)
+        self._blackboard_write_buffer = None
 
     def _update_auto_history(self) -> None:
         """Append user+assistant turns to auto-managed history scopes and persist to file.

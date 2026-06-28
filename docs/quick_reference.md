@@ -11,16 +11,17 @@ tested, production-verified behaviour.
 A KeGAL graph is a YAML file with these top-level keys:
 
 ```yaml
-models:       # required — one or more LLM configurations
-verbose:      # optional bool — enable verbose logging
-user_message: # optional string — default user prompt
-mcp_servers:  # optional — out-of-process tool servers
-blackboard:   # optional — named shared markdown buffers
-tools:        # optional — in-process Python tool schemas
-prompts:      # required — prompt templates (0-indexed list)
-nodes:        # required — agent nodes
-edges:        # required — execution topology
-chat_history: # optional — persistent conversation history
+models:              # required — one or more LLM configurations
+verbose:             # optional bool — enable verbose logging
+user_message:        # optional string — default user prompt (mutex with batch_user_messages)
+batch_user_messages: # optional list[str] — N user messages for batch inference (mutex with user_message)
+mcp_servers:         # optional — out-of-process tool servers
+blackboard:          # optional — named shared markdown buffers
+tools:               # optional — in-process Python tool schemas
+prompts:             # required — prompt templates (0-indexed list)
+nodes:               # required — agent nodes
+edges:               # required — execution topology
+chat_history:        # optional — persistent conversation history
 ```
 
 ---
@@ -35,6 +36,10 @@ models:
     context_window: 32768   # required when using react compact: true
     api_key: "${ANTHROPIC_API_KEY}"  # use ${ENV_VAR} to read from environment
     # aws_region_name, aws_access_key, aws_secret_key for bedrock / anthropic_aws
+    # Bedrock batch only:
+    batch_role_arn: "${BEDROCK_BATCH_ROLE_ARN}"
+    batch_s3_input_uri: "s3://my-bucket/kegal/input"
+    batch_s3_output_uri: "s3://my-bucket/kegal/output"
 ```
 
 - The list is **0-indexed**. Nodes reference models by index: `model: 0`.
@@ -92,11 +97,17 @@ nodes:
       user_message: true        # inject {user_message} placeholder
       chunks: false             # inject {retrieved_chunks} placeholder
       chat_history: "session"   # named chat history key
+      batch_use_messages: [0, 1, 2]  # indices into graph-level batch_user_messages
 
     # Data flow
     message_passing:
       input: true               # receive upstream pipe as {message_passing}
       output: true              # write final LLM text to pipe after execution
+
+    # Batch data flow (Level 1 — intra-node batch)
+    batch_message_passing:
+      output: true              # producing node: emit N tagged <message_N> blocks downstream
+      input: true               # consuming node: receive each item individually
 
     # Tools (choose one or both)
     tools: ["tool_name"]        # in-process Python tools (schema declared top-level)
@@ -222,7 +233,29 @@ edges:
 
 A node appears in `children` (who launches it) AND `fan_in` (who waits for it). This double appearance is correct and intentional.
 
-### 5.5 Ordered variants: `ordered_children` and `ordered_fan_in`
+### 5.5 Batch variants: `batch_children` and `batch_fan_in` (Level 2 batch)
+
+Submit a group of sibling nodes as a single async batch API call instead of concurrent real-time calls. All nodes in the group must use the same model index.
+
+```yaml
+edges:
+  - node: "dispatcher"
+    batch_children:           # submit branch_1, branch_2, branch_3 as one batch job
+      - node: "branch_1"
+      - node: "branch_2"
+      - node: "branch_3"
+  - node: "synthesizer"
+    batch_fan_in:
+      - node: "branch_1"
+      - node: "branch_2"
+      - node: "branch_3"
+```
+
+`batch_children` is mutually exclusive with `children` and `ordered_children`. `batch_fan_in` is mutually exclusive with `fan_in` and `ordered_fan_in`.
+
+---
+
+### 5.6 Ordered variants: `ordered_children` and `ordered_fan_in`
 
 `ordered_children` runs siblings **sequentially** instead of in parallel.
 Each entry depends on the previous one, and the first depends on the parent:
@@ -247,7 +280,7 @@ edges:
       - node: "C"        # depends on B → synthesizer waits for C
 ```
 
-Both can coexist with their parallel counterparts on the same edge:
+Both can coexist with their parallel counterparts on the same edge (but not with their batch counterparts):
 
 ```yaml
 edges:
@@ -796,7 +829,7 @@ level. Missing file or missing dict → hard error, exit 1.
 | `ollama` | Local Ollama | `model`, `host` |
 | `anthropic` | Anthropic API | `model`, `api_key` |
 | `anthropic_aws` | Claude via Bedrock | `model` (ARN), `aws_region_name`, `aws_access_key`, `aws_secret_key` |
-| `bedrock` | AWS Bedrock native | `model`, `aws_region_name`, `aws_access_key`, `aws_secret_key` |
+| `bedrock` | AWS Bedrock native | `model`, `aws_region_name`, `aws_access_key`, `aws_secret_key`; add `batch_role_arn`, `batch_s3_input_uri`, `batch_s3_output_uri` for batch mode |
 | `openai` | OpenAI API | `model`, `api_key` |
 | `gemini` | Google Gemini | `model`, `api_key` |
 

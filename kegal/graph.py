@@ -1,7 +1,7 @@
 import yaml
 import json
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, ValidationInfo
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +15,7 @@ from .graph_react import NodeReact
 from .graph_edge import GraphEdge
 from .graph_blackboard import GraphBlackboard, BlackboardEntry, NodeBlackboardRef
 from .graph_history import ChatHistoryFile
-from .graph_node import NodePrompt, NodeMessagePassing, NodeMcpServerRef, GraphNode
+from .graph_node import NodePrompt, NodeMessagePassing, NodeBatchMessagePassing, NodeMcpServerRef, GraphNode
 
 
 class GraphInputData(BaseModel):
@@ -35,10 +35,20 @@ class Graph(BaseModel):
     react_compact_prompts: list[GraphInputData] | None = None
     chat_history: dict[str, list[dict[str, str]] | ChatHistoryFile] | None = None
     user_message: str | None = None
+    batch_user_messages: list[str] | None = None
     retrieved_chunks: str | None = None
     blackboard: GraphBlackboard | None = None
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+    @model_validator(mode="after")
+    def _validate_batch_user_messages_mutex(self) -> "Graph":
+        if self.user_message is not None and self.batch_user_messages is not None:
+            raise ValueError(
+                "'user_message' and 'batch_user_messages' are mutually exclusive; "
+                "provide one or the other, not both"
+            )
+        return self
 
     @model_validator(mode="after")
     def _validate_node_ids(self) -> "Graph":
@@ -83,6 +93,7 @@ __all__ = [
     "ChatHistoryFile",
     "NodePrompt",
     "NodeMessagePassing",
+    "NodeBatchMessagePassing",
     "NodeMcpServerRef",
     "GraphNode",
     "GraphInputData",

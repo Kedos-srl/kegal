@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.5.0] - 2026-06-28](#0150---2026-06-28)
 - [[0.1.4.0] - 2026-06-07](#0140---2026-06-07)
 - [[0.1.3.0] - 2026-05-29](#0130---2026-05-29)
 - [[0.1.2.9] - 2026-05-19](#0129---2026-05-19)
@@ -15,6 +16,25 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.5.0] - 2026-06-28
+
+### Added
+
+- **Batch inference model fields** — new YAML fields for declaring batch workloads at every level of the graph:
+    - `batch_user_messages: list[str]` on `Graph` (mutex with `user_message`): supply N independent user messages to run as a single batch job.
+    - `batch_use_messages: list[int]` on `NodePrompt`: select which batch user message indices a node consumes.
+    - `NodeBatchMessagePassing` model and `batch_message_passing` on `GraphNode`: analogous to `message_passing` for batch output routing (per-item pass-through rather than tagged aggregation).
+    - `batch_children` and `batch_fan_in` on `GraphEdge`: submit a group of sibling nodes as one provider batch API call instead of concurrent real-time calls. Mutually exclusive with `children`/`ordered_children` and `fan_in`/`ordered_fan_in` respectively.
+    - `batch_role_arn`, `batch_s3_input_uri`, `batch_s3_output_uri` on `GraphModel`: Bedrock-specific fields required when using AWS batch (`CreateModelInvocationJob`).
+
+### Fixed
+
+- **`message_passing` dict serialisation** (`kegal/compose.py`): dict items passed through `message_passing` were rendered with Python `repr` (`{'key': 'value'}`) instead of valid JSON. They are now serialised with `json.dumps(..., ensure_ascii=False)`, making them safe to parse downstream.
+
+- **Blackboard Cat-2 non-deterministic write order** (`kegal/compiler.py`): when multiple Cat-2 nodes ran in parallel and all wrote to the same blackboard, the order of writes depended on thread-completion timing, producing non-deterministic board content. The compiler now pre-allocates a dict keyed by node ID in YAML declaration order before the parallel phase, buffers each thread's output into its own slot, and flushes to the board in declaration order after all threads join. Every run therefore produces the same board content regardless of scheduling.
 
 ---
 

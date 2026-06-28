@@ -43,6 +43,8 @@ nav:
     - 11 - Multi-provider graphs: tutorials/11_multi_provider.md
     - 12 - ReAct loop: tutorials/12_react_loop.md
     - 13 - Context window and outputs: tutorials/13_context_window.md
+    - 14 - Batch inference: tutorials/14_batch_inference.md
+  - Batch Inference: batch_doc.md
   - CLI: cli.md
   - Quick Reference: quick_reference.md
 markdown_extensions:

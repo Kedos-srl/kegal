@@ -363,7 +363,9 @@ blackboard:
 | Cat-2 | true | true | Enricher — reads then extends |
 | Cat-3 | true | false | Reader — consumes final board |
 
-**Execution order is inferred automatically: Cat-1 → Cat-2 (parallel) → Cat-3.** No explicit `children`/`fan_in` needed for this basic pattern.
+**Execution order is inferred automatically: Cat-1 → Cat-2 → Cat-3.** No explicit `children`/`fan_in` needed for this basic pattern.
+
+Cat-2 LLM calls run in **parallel** (one thread per node). Writes are applied to the board in **YAML declaration order** after all Cat-2 calls complete, regardless of which thread finishes first. Every Cat-2 node therefore reads only the Cat-1 baseline (not sibling Cat-2 outputs), and the final board content order is deterministic.
 
 ### Blackboard write behaviour
 

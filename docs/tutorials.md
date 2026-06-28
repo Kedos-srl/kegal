@@ -20,3 +20,4 @@ They are self-contained — read them in any order.
 | [11](tutorials/11_multi_provider.md) | [Multi-provider graphs](tutorials/11_multi_provider.md) | Mix providers; fast guard + powerful analysis; provider reference |
 | [12](tutorials/12_react_loop.md) | [ReAct loop](tutorials/12_react_loop.md) | Iterative agent dispatch; tools and MCP in agents; compact/compaction; post-processing |
 | [13](tutorials/13_context_window.md) | [Context window and outputs](tutorials/13_context_window.md) | Token tracking; utilization display; JSON and Markdown output; custom compaction |
+| [14](tutorials/14_batch_inference.md) | [Batch inference](tutorials/14_batch_inference.md) | Intra-node batch with `batch_user_messages`; inter-node batch with `batch_children`/`batch_fan_in`; provider support |

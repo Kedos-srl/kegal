@@ -2,8 +2,6 @@ import json
 import logging
 from typing import Any
 
-AWS_READ_TIMEOUT_SECONDS = 300  # Increased from default 60s to handle large model responses
-
 logger = logging.getLogger(__name__)
 
 from .llm_model import (LlmModel,
@@ -55,9 +53,9 @@ class LlmAnthropic(LlmModel):
                 raise ValueError("Missing required parameter: region_name")
 
             config = Config(
-                read_timeout=AWS_READ_TIMEOUT_SECONDS,
-                connect_timeout=60,
-                retries={'max_attempts': 3}
+                read_timeout=kwargs.get("aws_read_timeout", 60),
+                connect_timeout=kwargs.get("aws_connect_timeout", 60),
+                retries={'max_attempts': kwargs.get("aws_retries", 3)}
             )
 
 

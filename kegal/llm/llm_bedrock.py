@@ -16,7 +16,7 @@ class LlmBedrock(LlmModel):
     """Non-Anthropic (and optionally Anthropic) models via the AWS Bedrock Converse API.
 
     IMPORTANT — two Bedrock code paths exist in this codebase:
-      - LlmBedrock uses boto3 converse (this class, no retry config).
+      - LlmBedrock uses boto3 converse (this class, with botocore retry Config).
       - LlmAnthropic(aws=True) uses boto3 invoke_model with botocore retry Config.
 
     Changes to error handling, retry logic, or tool formats must be applied to BOTH paths
@@ -34,14 +34,22 @@ class LlmBedrock(LlmModel):
 
         try:
             import boto3
+            from botocore.config import Config
         except ImportError:
             raise ImportError("boto3 package required. Install with: pip install kegal[aws]")
+
+        config = Config(
+            read_timeout=kwarg.get("aws_read_timeout", 60),
+            connect_timeout=kwarg.get("aws_connect_timeout", 60),
+            retries={'max_attempts': kwarg.get("aws_retries", 3)}
+        )
 
         super().__init__(kwarg.get("model"))
         self.client = boto3.client(service_name='bedrock-runtime',
                                    region_name=kwarg.get("aws_region_name"),
                                    aws_access_key_id=kwarg.get("aws_access_key"),
-                                   aws_secret_access_key=kwarg.get("aws_secret_key"))
+                                   aws_secret_access_key=kwarg.get("aws_secret_key"),
+                                   config=config)
 
     def complete(self,
                  system_prompt: str | None = None,

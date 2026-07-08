@@ -73,6 +73,9 @@ graph TD
 | `batch_role_arn`     | `str` \| `None`| Yes      | IAM role ARN Bedrock assumes to read/write S3 during batch jobs. Required when batch mode is activated on a Bedrock node. |
 | `batch_s3_input_uri` | `str` \| `None`| Yes      | S3 prefix where KeGAL writes the JSONL input file for Bedrock batch jobs. |
 | `batch_s3_output_uri`| `str` \| `None`| Yes      | S3 prefix where Bedrock writes batch results. |
+| `aws_read_timeout`   | `int` \| `None`| Yes      | botocore read timeout in seconds for `bedrock` and `anthropic_aws` providers. Default 60. |
+| `aws_connect_timeout`| `int` \| `None`| Yes      | botocore connect timeout in seconds for `bedrock` and `anthropic_aws` providers. Default 60. |
+| `aws_retries`        | `int` \| `None`| Yes      | Maximum retry attempts for `bedrock` and `anthropic_aws` providers. Default 3. Set to `0` to disable retries. |
 
 
 Provided Models

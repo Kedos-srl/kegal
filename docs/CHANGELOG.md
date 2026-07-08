@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.3] - 2026-07-08](#0143---2026-07-08)
 - [[0.1.4.2] - 2026-06-28](#0142---2026-06-28)
 - [[0.1.4.0] - 2026-06-07](#0140---2026-06-07)
 - [[0.1.3.0] - 2026-05-29](#0130---2026-05-29)
@@ -16,6 +17,21 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.3] - 2026-07-08
+
+### Added
+
+- **Configurable AWS connection settings** — three optional fields on `GraphModel` allow tuning the botocore client for both the `bedrock` and `anthropic_aws` providers:
+    - `aws_read_timeout: int` — read timeout in seconds (default 60).
+    - `aws_connect_timeout: int` — connect timeout in seconds (default 60).
+    - `aws_retries: int` — maximum retry attempts (default 3). Set to `0` to disable retries.
+
+### Changed
+
+- `LlmBedrock` now applies a `botocore.config.Config` to its `boto3.client` (previously no config was passed, so botocore defaults applied).
 
 ---
 

@@ -13,6 +13,9 @@ class GraphModel(BaseModel):
     batch_role_arn: str | None = None
     batch_s3_input_uri: str | None = None
     batch_s3_output_uri: str | None = None
+    aws_read_timeout: int | None = None
+    aws_connect_timeout: int | None = None
+    aws_retries: int | None = None
 
     def model_dump(self, **kwargs):
         """Override to expose credential values as plain strings for LLM adapter kwargs."""

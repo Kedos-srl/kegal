@@ -114,7 +114,7 @@ context_window: 32768   # optional — enables accurate compact threshold and ut
 
 | Field     | Type              | Optional | Description |
 |-----------|-------------------|----------|-------------|
-| `uri`     | `str` \| `None`   | Yes      | Remote or local path to a file (PDF, image, prompt template file, etc.). |
+| `uri`     | `str` \| `None`   | Yes      | Local path, HTTPS URL, or `s3://bucket/key` URI to a file (PDF, image, prompt template file, etc.). `s3://` is supported for images and documents and requires `pip install kegal[aws]`. |
 | `base64`  | `str` \| `None`   | Yes      | Base-64 encoded binary content (alternative to `uri` for images and documents). |
 | `template`| `dict[str, Any]` \| `None` | Yes | Inline prompt template as a nested dict. Used in the `prompts` and `react_compact_prompts` lists as an alternative to loading a template from a `uri`. The structure is free-form; all keys are passed as-is to the prompt composer. |
 

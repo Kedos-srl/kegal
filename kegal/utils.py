@@ -8,7 +8,7 @@ import yaml
 
 from typing import Tuple, Optional, Dict, Callable
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 
 # =========
@@ -33,6 +33,74 @@ PDF_MIME_TYPES = {
 # UTILS
 # =========
 _ALLOWED_URI_SCHEMES = frozenset({"https"})
+
+# s3:// is handled by a dedicated boto3 loader, not by urllib, so it is kept
+# out of _ALLOWED_URI_SCHEMES (which guards the urllib fetch path).
+_S3_SCHEME = "s3"
+
+# Mirrors the botocore Config used by the Bedrock LLM clients.
+_S3_CONNECT_TIMEOUT = 60
+_S3_READ_TIMEOUT = 60
+_S3_RETRIES = 3
+
+
+def _is_s3_uri(source: str | Path) -> bool:
+    """Return True if source is an s3:// URI."""
+    return urlparse(str(source)).scheme == _S3_SCHEME
+
+
+def _parse_s3_uri(uri: str) -> Tuple[str, str, Optional[str]]:
+    """Split an s3://bucket/key URI into (bucket, key, region).
+
+    An optional ``?region=<aws-region>`` query parameter overrides the region
+    resolved by the boto3 default chain (AWS_REGION / AWS_DEFAULT_REGION / the
+    shared config file).
+    """
+    parsed = urlparse(str(uri))
+    bucket = parsed.netloc
+    key = parsed.path.lstrip('/')
+    if not bucket or not key:
+        raise ValueError(
+            f"Invalid S3 URI '{uri}'. Expected format: s3://bucket/path/to/object"
+        )
+
+    region = None
+    if parsed.query:
+        region_values = parse_qs(parsed.query).get('region')
+        if region_values:
+            region = region_values[0]
+
+    return bucket, key, region
+
+
+def _load_s3_object(uri: str) -> Tuple[bytes, str]:
+    """Download an s3:// object and return its (bytes, content-type).
+
+    Credentials come from the standard boto3 resolution chain (environment
+    variables, shared credentials file, instance/task role). The returned
+    content type is the object's stored ContentType, or '' when unset.
+    """
+    try:
+        import boto3
+        from botocore.config import Config
+        from botocore.exceptions import BotoCoreError, ClientError
+    except ImportError:
+        raise ImportError("boto3 package required for s3:// URIs. Install with: pip install kegal[aws]")
+
+    bucket, key, region = _parse_s3_uri(uri)
+
+    config = Config(
+        connect_timeout=_S3_CONNECT_TIMEOUT,
+        read_timeout=_S3_READ_TIMEOUT,
+        retries={'max_attempts': _S3_RETRIES}
+    )
+    client = boto3.client('s3', region_name=region, config=config)
+
+    try:
+        response = client.get_object(Bucket=bucket, Key=key)
+        return response['Body'].read(), response.get('ContentType', '') or ''
+    except (BotoCoreError, ClientError) as e:
+        raise ValueError(f"Failed to read S3 object '{uri}': {e}") from e
 
 
 def _check_uri_scheme(uri: str) -> None:
@@ -129,7 +197,7 @@ def _is_base64_string(s: str) -> bool:
 
     # Reject anything that looks like a path or URL before trying to decode
     parsed = urlparse(s)
-    if parsed.scheme in ('http', 'https', 'file') or Path(s).exists():
+    if parsed.scheme in ('http', 'https', 'file', _S3_SCHEME) or Path(s).exists():
         return False
 
     try:
@@ -166,7 +234,7 @@ def _load_binary_from_source(
         fallback_type: str = 'application/octet-stream',
         validator: Optional[Callable[[bytes, str | Path], None]] = None
 ) -> Tuple[str, str]:
-    """Generic function to load binary data from file or URL and return content-type and base64."""
+    """Generic function to load binary data from a base64 string, local file, s3:// URI or https URL."""
 
     # Check if source is already base64-encoded
     if isinstance(source, str) and _is_base64_string(source):
@@ -183,6 +251,22 @@ def _load_binary_from_source(
 
         # Return with fallback content type since we can't determine it from base64 alone
         return fallback_type, raw
+
+    # Handle S3 object (checked before Path, since an s3:// URI is never a local file)
+    if _is_s3_uri(source):
+        binary_data, content_type = _load_s3_object(str(source))
+
+        if validator:
+            validator(binary_data, source)
+
+        # Trust the object's stored ContentType only if it matches the expected
+        # type; otherwise deduce it from the key extension.
+        if content_type_check is None or not content_type_check(content_type):
+            key = urlparse(str(source)).path
+            content_type = _determine_content_type(key, extension_map, content_type_check, fallback_type)
+
+        base64_data = base64.b64encode(binary_data).decode('utf-8')
+        return content_type, base64_data
 
     path = Path(source)
 
@@ -228,7 +312,7 @@ def _validate_pdf_data(data: bytes, source: str | Path) -> None:
         raise ValueError(f"File {source} is not a valid PDF (missing PDF header)")
 
 def load_images_to_base64(source: str | Path) -> Tuple[str, str]:
-    """Load image from file path, URL, or base64 string and convert to base64."""
+    """Load image from file path, https URL, s3:// URI, or base64 string and convert to base64."""
     return _load_binary_from_source(
         source=source,
         extension_map=IMAGE_MIME_TYPES,
@@ -237,7 +321,7 @@ def load_images_to_base64(source: str | Path) -> Tuple[str, str]:
     )
 
 def load_pdfs_to_base64(source: str | Path) -> Tuple[str, str]:
-    """Load PDF from file path, URL, or base64 string and convert to base64."""
+    """Load PDF from file path, https URL, s3:// URI, or base64 string and convert to base64."""
     content_type, base64_data = _load_binary_from_source(
         source=source,
         extension_map=PDF_MIME_TYPES,

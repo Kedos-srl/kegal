@@ -24,6 +24,7 @@ All notable changes to KeGAL are documented here.
 
 ### Added
 
+- **S3 sources for images and documents** — `images` and `documents` entries accept an `s3://bucket/key` URI in `uri`, downloaded via boto3 and base64-encoded in memory. Credentials come from the standard boto3 chain; the region comes from the boto3 default chain or an optional `?region=<aws-region>` query parameter. Requires `pip install kegal[aws]`.
 - **Configurable AWS connection settings** — three optional fields on `GraphModel` allow tuning the botocore client for both the `bedrock` and `anthropic_aws` providers:
     - `aws_read_timeout: int` — read timeout in seconds (default 60).
     - `aws_connect_timeout: int` — connect timeout in seconds (default 60).

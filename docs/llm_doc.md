@@ -358,8 +358,8 @@ Utility functions used across the package:
 | `load_json(source)` | Load a JSON file into a Python dict. |
 | `load_contents(source)` | Load a YAML or JSON file based on extension. Applies `${ENV_VAR}` substitution before parsing. |
 | `load_text_from_source(source)` | Load plain text from a local file path or HTTPS URL. |
-| `load_images_to_base64(source)` | Load an image from a path or URL and return `(media_type, base64_str)`. |
-| `load_pdfs_to_base64(source)` | Load a PDF from a path or URL and return `(media_type, base64_str)`. |
+| `load_images_to_base64(source)` | Load an image from a local path, HTTPS URL, `s3://` URI, or base64 string and return `(media_type, base64_str)`. |
+| `load_pdfs_to_base64(source)` | Load a PDF from a local path, HTTPS URL, `s3://` URI, or base64 string and return `(media_type, base64_str)`. |
 
 ### Environment variable substitution
 
@@ -381,7 +381,7 @@ If a referenced variable is not set, `load_contents` raises `ValueError` with th
 
 ### URI security — HTTPS only
 
-All functions that accept a remote URI (`load_text_from_source`, `load_images_to_base64`, `load_pdfs_to_base64`) enforce an allowlist via `_check_uri_scheme()`. Only the `https` scheme is permitted; passing a `http://`, `file://`, `ftp://`, or any other scheme raises `ValueError` before any network call is made.
+Remote HTTP(S) fetches enforce an allowlist via `_check_uri_scheme()`. Only the `https` scheme is permitted; passing a `http://`, `file://`, `ftp://`, or any other unhandled scheme raises `ValueError` before any network call is made.
 
 Local file paths (no scheme, or a relative path) are unaffected and continue to work as before.
 
@@ -389,12 +389,35 @@ Local file paths (no scheme, or a relative path) are unaffected and continue to 
 # Allowed
 load_images_to_base64("https://example.com/diagram.png")
 load_images_to_base64("/local/path/to/image.png")
+load_images_to_base64("s3://my-bucket/diagrams/arch.png")
 
 # Raises ValueError — http is not in the allowlist
 load_images_to_base64("http://internal-host/image.png")
 ```
 
 To extend the allowlist (e.g., to re-enable `http` in a trusted private network), edit the `_ALLOWED_URI_SCHEMES` constant in `kegal/utils.py`.
+
+### Loading images and documents from S3
+
+`load_images_to_base64` and `load_pdfs_to_base64` accept `s3://bucket/key` URIs, so `images` and `documents` entries in a graph can point directly at S3 objects. The object is downloaded with boto3 and base64-encoded in memory; nothing is written to disk.
+
+```yaml
+images:
+  - uri: "s3://my-bucket/scans/invoice.png"
+
+documents:
+  - uri: "s3://my-bucket/reports/q3.pdf?region=eu-west-1"
+```
+
+Details:
+
+- **Install** — requires the AWS extra: `pip install kegal[aws]`. Without boto3 an `ImportError` is raised.
+- **Credentials** — resolved through the standard boto3 chain (environment variables, shared credentials file, instance/task role). They are never read from the graph file.
+- **Region** — taken from the boto3 default chain (`AWS_REGION` / `AWS_DEFAULT_REGION` / shared config). Append `?region=<aws-region>` to the URI to override it per object.
+- **Content type** — the object's stored `ContentType` is used when it matches the expected family (`image/*`, `application/pdf`); otherwise it is deduced from the key extension.
+- **Validation** — PDFs go through the same `%PDF-` header check applied to local and HTTPS sources.
+- **Errors** — any botocore failure (missing key, denied access, bad credentials) is wrapped in a `ValueError` naming the URI.
+- The S3 client uses a 60s connect timeout, 60s read timeout, and 3 retries — matching the Bedrock LLM clients.
 
 ---
 

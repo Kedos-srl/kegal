@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.4] - 2026-08-25](#0144---2026-08-25)
 - [[0.1.4.3] - 2026-07-08](#0143---2026-07-08)
 - [[0.1.4.2] - 2026-06-28](#0142---2026-06-28)
 - [[0.1.4.0] - 2026-06-07](#0140---2026-06-07)
@@ -17,6 +18,14 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.4] - 2026-08-25
+
+### Added
+
+- **S3 sources for images and documents** — `images` and `documents` entries accept an `s3://bucket/key` URI in `uri`, downloaded via boto3 and base64-encoded in memory. Credentials come from the standard boto3 chain; the region comes from the boto3 default chain or an optional `?region=<aws-region>` query parameter. Requires `pip install kegal[aws]`.
 
 ---
 

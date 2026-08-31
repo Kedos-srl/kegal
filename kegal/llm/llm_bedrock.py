@@ -1,4 +1,5 @@
 import base64
+import json
 from typing import Any
 
 from .llm_model import (LlmModel,
@@ -23,8 +24,22 @@ class LlmBedrock(LlmModel):
     or the behaviour will silently diverge. The long-term fix is to route all Anthropic-on-
     Bedrock traffic through this class and remove the aws=True branch in LlmAnthropic.
 
+    Structured output uses Bedrock's NATIVE structured output API (``outputConfig.textFormat``
+    with a ``json_schema`` type), i.e. constrained decoding enforced by Bedrock. It is NOT
+    emulated via a forced tool call any more. Consequences:
+      - Only models that support ``outputConfig`` can use ``structured_output`` through this
+        class (Anthropic Claude 4.5 and recent open-weight models such as Kimi/Moonshot,
+        Qwen, DeepSeek, Mistral). Older models (Claude 3.x, Amazon Nova) return a
+        ``ValidationException``.
+      - Real ``toolConfig`` tools and ``outputConfig`` now coexist without conflict.
+      - If a model still answers with free text instead of the JSON, ``_get_response``
+        raises a ``RuntimeError`` instead of silently returning ``json_output=None``.
+
     Converse API docs: https://docs.aws.amazon.com/nova/latest/userguide/complete-request-schema.html
     """
+
+    # Bedrock stopReason values that indicate the structured response is unusable.
+    _BAD_STRUCTURED_STOP_REASONS = {"malformed_model_output", "content_filtered"}
     def __init__(self, **kwarg):
 
         if "model" not in kwarg.keys():
@@ -91,17 +106,10 @@ class LlmBedrock(LlmModel):
                  }
 
 
-            # Force model to structured JSON output, else use regular tools
+            # Native structured output — constrained decoding enforced by Bedrock.
+            # Coexists with real toolConfig tools (no forced toolChoice any more).
             if structured_output is not None:
-                if "toolConfig" in body:
-                    body["toolConfig"]["tools"].append(self._structured_output_data(structured_output))
-                else:
-                    body["toolConfig"] = {
-                        "tools": [self._structured_output_data(structured_output)]
-                    }
-                body["toolConfig"]["toolChoice"] = {"tool": { "name": DEFAULT_JSON_OUTPUT_NAME }}
-
-
+                body["outputConfig"] = self._structured_output_data(structured_output)
 
             return self._get_response(body)
 
@@ -174,14 +182,40 @@ class LlmBedrock(LlmModel):
         return  schemas
 
     @staticmethod
+    def _force_no_additional_props(schema: Any) -> Any:
+        """Recursively set ``additionalProperties: false`` on every object node.
+
+        Bedrock's native structured output rejects a schema whose object nodes do not
+        explicitly forbid additional properties. This rewrites the schema in place-safe
+        fashion (returns a new structure) and only fills the key where it is missing, so
+        an author who deliberately set ``additionalProperties`` keeps their value.
+        """
+        if isinstance(schema, list):
+            return [LlmBedrock._force_no_additional_props(item) for item in schema]
+        if not isinstance(schema, dict):
+            return schema
+
+        out = {k: LlmBedrock._force_no_additional_props(v) for k, v in schema.items()}
+        is_object = out.get("type") == "object" or "properties" in out
+        if is_object and "additionalProperties" not in out:
+            out["additionalProperties"] = False
+        return out
+
+    @staticmethod
     def _structured_output_data(structured_output: LLMStructuredOutput):
+        schema = LlmBedrock._force_no_additional_props(
+            structured_output.json_output.to_dict()
+        )
         return {
-            "toolSpec": {
-                "name": DEFAULT_JSON_OUTPUT_NAME,
-                "description":"json output schema",
-                "inputSchema": {
-                    "json": structured_output.json_output.model_dump(exclude_none=True)
-                }
+            "textFormat": {
+                "type": "json_schema",
+                "structure": {
+                    "jsonSchema": {
+                        "schema": json.dumps(schema),
+                        "name": DEFAULT_JSON_OUTPUT_NAME,
+                        "description": "json output schema",
+                    }
+                },
             }
         }
 
@@ -222,6 +256,27 @@ class LlmBedrock(LlmModel):
             llm_response.output_size = response_body["usage"]["outputTokens"]
 
             response_contents = response_body["output"]["message"]["content"]
+            stop_reason = response_body.get("stopReason")
+
+            # Native structured output: the JSON arrives as a plain text block.
+            if "outputConfig" in body:
+                text = "".join(
+                    part["text"] for part in response_contents if "text" in part
+                ).strip()
+                if stop_reason in self._BAD_STRUCTURED_STOP_REASONS:
+                    raise RuntimeError(
+                        f"'{self.model}' returned no usable structured output "
+                        f"(stopReason={stop_reason}): {text[:500]!r}"
+                    )
+                try:
+                    llm_response.json_output = json.loads(text)
+                except (json.JSONDecodeError, TypeError) as e:
+                    raise RuntimeError(
+                        f"'{self.model}' was asked for structured output but did not "
+                        f"return valid JSON (stopReason={stop_reason}): {text[:500]!r}"
+                    ) from e
+                return llm_response
+
             for response in response_contents:
                 if "text" in response:
                     if llm_response.messages is None:
@@ -230,17 +285,14 @@ class LlmBedrock(LlmModel):
                         llm_response.messages.append(response["text"])
                 if "toolUse" in response:
                     tool_use = response["toolUse"]
-                    if tool_use["name"] == DEFAULT_JSON_OUTPUT_NAME:
-                        llm_response.json_output = tool_use["input"]
+                    function_call = LLMFunctionCall(
+                        name=tool_use["name"],
+                        parameters=tool_use["input"]
+                    )
+                    if llm_response.tools is None:
+                        llm_response.tools = [function_call]
                     else:
-                        function_call = LLMFunctionCall(
-                            name=tool_use["name"],
-                            parameters=tool_use["input"]
-                        )
-                        if llm_response.tools is None:
-                            llm_response.tools = [function_call]
-                        else:
-                            llm_response.tools.append(function_call)
+                        llm_response.tools.append(function_call)
 
             return  llm_response
         except ClientError as e:

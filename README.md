@@ -221,7 +221,7 @@ kegal run path/to/my_project
 - **Fan-out / fan-in edges** – `children` launches parallel sub-tasks; `fan_in` aggregates multiple branches before continuing; both are recursive and composable
 - **Multi-board blackboard pipeline** – multiple named shared markdown boards (`GraphBlackboard`) written and read across nodes; Cat-1 writers seed a board, Cat-2 enrichers extend it in parallel, Cat-3 readers consume the final result. Boards support `import` chains (prepend another board's content at read time) and `cleanup` control (truncate at init or preserve existing content). Execution order is inferred automatically from `blackboard.read/write` flags even with flat edge declarations.
 - **ReAct loop** – controller node iteratively reasons and dispatches to specialist agent nodes until it signals `done: true`; supports automatic conversation compaction (`compact: true`) for long loops; controller output flows to downstream nodes via `message_passing` like any regular node
-- **Structured output** – enforce JSON schemas on LLM responses
+- **Structured output** – enforce JSON schemas on LLM responses. On AWS Bedrock (`llm: "bedrock"`) this uses Bedrock's native structured-output API, which requires a model that supports it (Anthropic Claude 4.5 or a recent open-weight model such as Kimi/Moonshot, Qwen, DeepSeek, Mistral); Claude 3.x and Amazon Nova are not supported for structured output
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
 - **Message passing** – forward node outputs to downstream nodes; ordering inferred automatically from flags and declaration order — no explicit edge required for linear pipelines
 - **Verbose logging** – set `verbose: true` on the graph to get a colored INFO-level trace on stderr: compile start/done with token totals, per-node start/end with elapsed time and token counts, each tool call (`[mcp]`/`[py]` tagged) with parameters and result preview, and the full ReAct loop trace. ANSI colors are applied automatically on TTY terminals and suppressed on pipes/redirects
@@ -240,7 +240,7 @@ kegal run path/to/my_project
 - **OpenAI** - GPT models (`kegal[openai]`)
 - **Google Gemini** - Gemini models (`kegal[gemini]`)
 - **Ollama** - Local LLM hosting (`kegal[ollama]`)
-- **AWS Bedrock** - Amazon Nova and Anthropic via Bedrock (`kegal[aws]`)
+- **AWS Bedrock** - Amazon Nova, Anthropic, and open-weight models (Kimi/Moonshot, Qwen, DeepSeek, Mistral, …) via the Bedrock Converse API (`kegal[aws]`). Structured output uses Bedrock's native `outputConfig` API — supported on Claude 4.5 and recent open-weight models, not on Claude 3.x / Nova.
 
 ## Copyright
 

@@ -185,7 +185,7 @@ response = instance.complete(
 
 ## 5. `kegal.llm.llm_bedrock`
 
-Concrete implementation for **Amazon Bedrock** native models (e.g. Amazon Nova) — use `llm: "bedrock"`. For Anthropic Claude via Bedrock, use `llm: "anthropic_aws"` instead. Instantiated automatically by `LLMHandler`.
+Concrete implementation for models served through the **Amazon Bedrock Converse API** — use `llm: "bedrock"`. Covers non-Anthropic models (Amazon Nova, Kimi/Moonshot, Qwen, DeepSeek, Mistral, …) and also Anthropic Claude on Bedrock. For Anthropic Claude via the Bedrock `invoke_model` path, use `llm: "anthropic_aws"` instead. Instantiated automatically by `LLMHandler`.
 
 Key attributes set from `GraphModel`:
 
@@ -195,6 +195,25 @@ Key attributes set from `GraphModel`:
 | `aws_region_name` | `str` | AWS region (e.g., `"eu-west-1"`). |
 | `aws_access_key` | `str` | AWS access key ID. |
 | `aws_secret_key` | `str` | AWS secret access key. |
+
+**Notable capabilities:**
+
+| Feature | Support |
+|---------|---------|
+| Text completion | ✓ |
+| Chat history | ✓ |
+| Images | ✓ native inline |
+| PDFs | ✓ native inline |
+| Tool calling | ✓ `toolConfig` |
+| Structured output | ✓ **native** via `outputConfig.textFormat` (`json_schema`) — constrained decoding enforced by Bedrock |
+
+> **Structured output requires a model that supports Bedrock's `outputConfig`.** This
+> includes Anthropic Claude 4.5 and recent open-weight models (Kimi/Moonshot, Qwen,
+> DeepSeek, Mistral, …). Models **without** support — Anthropic Claude 3.x, Amazon Nova —
+> return a `ValidationException` when a node uses `structured_output`. `additionalProperties:
+> false` is injected on every object of the schema before the request (Bedrock rejects
+> schemas that omit it). If a model still answers with free text, `LlmBedrock` raises a
+> `RuntimeError` instead of returning an empty `json_output`.
 
 ---
 

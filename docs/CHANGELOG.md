@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.5] - 2026-08-31](#0145---2026-08-31)
 - [[0.1.4.4] - 2026-08-25](#0144---2026-08-25)
 - [[0.1.4.3] - 2026-07-08](#0143---2026-07-08)
 - [[0.1.4.2] - 2026-06-28](#0142---2026-06-28)
@@ -18,6 +19,31 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.5] - 2026-08-31
+
+### Changed
+
+- **Native structured output on AWS Bedrock** — `LlmBedrock` (`llm: "bedrock"`) now uses
+  Bedrock's native structured output API (`outputConfig.textFormat` with a `json_schema`
+  type, i.e. constrained decoding enforced by Bedrock) instead of emulating it with a
+  forced synthetic tool call. This is far more reliable with models that did not honour
+  the forced `toolChoice` and answered with free text instead (e.g. Kimi / Moonshot).
+  Real `toolConfig` tools and structured output can now be used together on the same node.
+- If a Bedrock model still returns free text (or `stopReason` is `malformed_model_output`
+  / `content_filtered`) when structured output was requested, `LlmBedrock` now raises a
+  `RuntimeError` with the raw response excerpt instead of silently returning
+  `json_output=None`.
+
+### Breaking
+
+- Bedrock models that do **not** support `outputConfig` (Anthropic Claude 3.x, Amazon
+  Nova) can no longer be used with `structured_output` under `llm: "bedrock"` — Bedrock
+  returns a `ValidationException`. Use a supported model (Anthropic Claude 4.5 or a
+  recent open-weight model such as Kimi/Moonshot, Qwen, DeepSeek, Mistral). The
+  `anthropic_aws` provider (`LlmAnthropic`, `invoke_model`) is unaffected.
 
 ---
 

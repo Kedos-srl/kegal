@@ -35,3 +35,4 @@ class NodeBlackboardRef(BaseModel):
     id: str
     read: bool = False
     write: bool = False
+    chain: bool = False

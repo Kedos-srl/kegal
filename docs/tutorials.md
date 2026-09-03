@@ -16,7 +16,7 @@ They are self-contained — read them in any order.
 | [07](tutorials/07_multimodal.md) | [Multimodal](tutorials/07_multimodal.md) | Attach images and PDFs; base64 encoding; runtime injection; parallel media analysts |
 | [08](tutorials/08_tool_executors.md) | [Python tool executors](tutorials/08_tool_executors.md) | In-process function tools; multi-tool nodes; tool + structured output |
 | [09](tutorials/09_mcp_servers.md) | [MCP servers](tutorials/09_mcp_servers.md) | stdio and SSE transports; chaining; MCP inside ReAct agents |
-| [10](tutorials/10_blackboard.md) | [Blackboard](tutorials/10_blackboard.md) | Shared markdown buffers; multiple boards; import chains; multi-session accumulation |
+| [10](tutorials/10_blackboard.md) | [Blackboard](tutorials/10_blackboard.md) | Shared markdown buffers; multiple boards; import chains; sequential chains (`chain: true`); multi-session accumulation |
 | [11](tutorials/11_multi_provider.md) | [Multi-provider graphs](tutorials/11_multi_provider.md) | Mix providers; fast guard + powerful analysis; provider reference |
 | [12](tutorials/12_react_loop.md) | [ReAct loop](tutorials/12_react_loop.md) | Iterative agent dispatch; tools and MCP in agents; compact/compaction; post-processing |
 | [13](tutorials/13_context_window.md) | [Context window and outputs](tutorials/13_context_window.md) | Token tracking; utilization display; JSON and Markdown output; custom compaction |

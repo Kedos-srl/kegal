@@ -1,0 +1,109 @@
+
+models:
+  - llm: ollama
+    model: ministral-3:3b
+    host: "http://localhost:11434"
+
+# =============================================================================
+# PROMPTS
+# =============================================================================
+prompts:
+  # 0 - seed (Cat-1): opens the discussion
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You open a written discussion on a topic.
+        behavioral_guidelines: |
+          - Write one short paragraph, max 60 words.
+          - Avoid direct address in your response.
+      prompt_template:
+        instruction: |
+          Open the discussion on: "{user_message}"
+
+  # 1 - chained step: reads the board so far, adds one point building on it
+  - template:
+      system_template:
+        role_and_capabilities: |
+          You continue a written discussion that is already in progress.
+        behavioral_guidelines: |
+          - Read the discussion so far and add exactly one new point that
+            explicitly builds on the most recent contribution.
+          - Max 60 words.
+          - Avoid direct address in your response.
+      prompt_template:
+        context: |
+          Discussion so far:
+          {blackboard}
+        instruction: |
+          Add one new point that continues from the latest contribution above.
+
+user_message: "The long-term impacts of switching to renewable energy."
+
+blackboard:
+  path: ./
+  boards:
+    - id: main
+      file: CHAIN_BLACKBOARD.md
+      cleanup: true
+
+# =============================================================================
+# NODES — flat list; DAG stage-4 infers the chain ordering from chain: true
+# =============================================================================
+nodes:
+  - id: "seed"
+    model: 0
+    temperature: 0.3
+    max_tokens: 160
+    show: false
+    blackboard:
+      id: main
+      read: false
+      write: true
+    prompt:
+      template: 0
+      user_message: true
+
+  - id: "step1"
+    model: 0
+    temperature: 0.5
+    max_tokens: 160
+    show: false
+    blackboard:
+      id: main
+      read: true
+      write: true
+      chain: true
+    prompt:
+      template: 1
+
+  - id: "step2"
+    model: 0
+    temperature: 0.5
+    max_tokens: 160
+    show: false
+    blackboard:
+      id: main
+      read: true
+      write: true
+      chain: true
+    prompt:
+      template: 1
+
+  - id: "step3"
+    model: 0
+    temperature: 0.5
+    max_tokens: 160
+    show: true
+    blackboard:
+      id: main
+      read: true
+      write: true
+      chain: true
+    prompt:
+      template: 1
+
+edges:
+  - node: "seed"
+  - node: "step1"
+  - node: "step2"
+  - node: "step3"

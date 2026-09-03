@@ -48,7 +48,7 @@ def _make_compiler(nodes_cfg: list, edges_cfg: list) -> Compiler:
 
 
 def _node(nid: str, bb_read: bool = False, bb_write: bool = False,
-          bb_id: str = "main") -> dict:
+          bb_id: str = "main", bb_chain: bool = False) -> dict:
     n: dict = {
         "id": nid, "model": 0, "temperature": 0.0, "max_tokens": 10,
         "show": False,
@@ -56,7 +56,9 @@ def _node(nid: str, bb_read: bool = False, bb_write: bool = False,
         "prompt": {"template": 0},
     }
     if bb_read or bb_write:
-        n["blackboard"] = {"id": bb_id, "read": bb_read, "write": bb_write}
+        n["blackboard"] = {
+            "id": bb_id, "read": bb_read, "write": bb_write, "chain": bb_chain,
+        }
     return n
 
 
@@ -89,6 +91,11 @@ class TestNodeBlackboardRef(unittest.TestCase):
         self.assertEqual(bb.id, "board1")
         self.assertFalse(bb.read)
         self.assertFalse(bb.write)
+        self.assertFalse(bb.chain)
+
+    def test_chain_flag(self):
+        bb = NodeBlackboardRef(id="x", read=True, write=True, chain=True)
+        self.assertTrue(bb.chain)
 
     def test_read_only(self):
         bb = NodeBlackboardRef(id="x", read=True)
@@ -555,6 +562,132 @@ class TestBlackboardDagInference(unittest.TestCase):
         self.assertEqual(_level_of(levels, "analyst_a"), _level_of(levels, "analyst_b"))
         self.assertLess(_level_of(levels, "assistant"), _level_of(levels, "analyst_a"))
         self.assertLess(_level_of(levels, "analyst_a"), _level_of(levels, "summarizer"))
+
+
+# ---------------------------------------------------------------------------
+# DAG stage-4: Cat-2 sequential chains (blackboard.chain=True)
+# ---------------------------------------------------------------------------
+
+class TestBlackboardChainDagInference(unittest.TestCase):
+
+    def _build(self, nodes, edges):
+        c = _make_compiler(nodes, edges)
+        deps = c._build_dag()
+        levels = c._topological_levels(deps)
+        return deps, levels
+
+    def test_three_chained_nodes_form_a_sequential_chain(self):
+        """3 Cat-2 nodes with chain=True on the same board:
+        - first depends on prior Cat-1 (like today), not on siblings
+        - second depends only on the first
+        - third depends only on the second (NOT on the first)
+        """
+        deps, levels = self._build([
+            _node("seed", bb_write=True),
+            _node("c1", bb_read=True, bb_write=True, bb_chain=True),
+            _node("c2", bb_read=True, bb_write=True, bb_chain=True),
+            _node("c3", bb_read=True, bb_write=True, bb_chain=True),
+        ], [])
+
+        # first chained node: same Cat-1 dependency as an unchained Cat-2 node
+        self.assertIn("seed", deps["c1"])
+        self.assertNotIn("c2", deps["c1"])
+        self.assertNotIn("c3", deps["c1"])
+
+        # second depends on first only
+        self.assertEqual(deps["c2"], {"c1"})
+
+        # third depends on second only — crucially NOT on the first
+        self.assertEqual(deps["c3"], {"c2"})
+        self.assertNotIn("c1", deps["c3"])
+        self.assertNotIn("seed", deps["c3"])
+
+        # topological consequence: strictly increasing levels
+        self.assertLess(_level_of(levels, "seed"), _level_of(levels, "c1"))
+        self.assertLess(_level_of(levels, "c1"), _level_of(levels, "c2"))
+        self.assertLess(_level_of(levels, "c2"), _level_of(levels, "c3"))
+
+    def test_chains_on_different_boards_are_independent(self):
+        """Chained nodes on board 'A' and board 'B' must not depend on each
+        other — each board keeps its own chain."""
+        deps, levels = self._build([
+            _node("seed_a", bb_write=True, bb_id="A"),
+            _node("seed_b", bb_write=True, bb_id="B"),
+            _node("a1", bb_read=True, bb_write=True, bb_id="A", bb_chain=True),
+            _node("b1", bb_read=True, bb_write=True, bb_id="B", bb_chain=True),
+            _node("a2", bb_read=True, bb_write=True, bb_id="A", bb_chain=True),
+            _node("b2", bb_read=True, bb_write=True, bb_id="B", bb_chain=True),
+        ], [])
+
+        # chain A: a1 -> a2, no coupling to board B's chain
+        self.assertEqual(deps["a2"], {"a1"})
+        self.assertNotIn("b1", deps["a2"])
+        self.assertNotIn("b2", deps["a2"])
+
+        # chain B: b1 -> b2, no coupling to board A's chain
+        self.assertEqual(deps["b2"], {"b1"})
+        self.assertNotIn("a1", deps["b2"])
+        self.assertNotIn("a2", deps["b2"])
+
+        # first node of each chain keeps the legacy Cat-1 dependency (all prior
+        # writers) but never depends on the other board's chain nodes
+        self.assertIn("seed_a", deps["a1"])
+        self.assertIn("seed_b", deps["b1"])
+        self.assertNotIn("b1", deps["a1"])
+        self.assertNotIn("b2", deps["a1"])
+        self.assertNotIn("a1", deps["b1"])
+        self.assertNotIn("a2", deps["b1"])
+
+        # the two chains can advance in parallel — a1/b1 share a level, a2/b2 share a level
+        self.assertEqual(_level_of(levels, "a1"), _level_of(levels, "b1"))
+        self.assertEqual(_level_of(levels, "a2"), _level_of(levels, "b2"))
+
+    def test_chained_and_unchained_on_same_board_do_not_interfere(self):
+        """Some Cat-2 nodes chain=True, others chain=False on the same board:
+        - unchained nodes keep the old behaviour (parallel, depend on Cat-1 only)
+        - chained nodes form their own sequential chain
+        - the two groups do not depend on each other
+        """
+        deps, levels = self._build([
+            _node("seed", bb_write=True),
+            _node("free_a", bb_read=True, bb_write=True),                 # unchained
+            _node("ch_1",  bb_read=True, bb_write=True, bb_chain=True),   # chained
+            _node("free_b", bb_read=True, bb_write=True),                 # unchained
+            _node("ch_2",  bb_read=True, bb_write=True, bb_chain=True),   # chained
+        ], [])
+
+        # unchained group: depends on Cat-1 only, never on siblings or chain nodes
+        self.assertEqual(deps["free_a"], {"seed"})
+        self.assertEqual(deps["free_b"], {"seed"})
+        self.assertNotIn("free_a", deps["free_b"])
+        self.assertNotIn("ch_1", deps["free_b"])
+        self.assertNotIn("ch_2", deps["free_b"])
+
+        # chained group: ch_1 depends on Cat-1, ch_2 depends on ch_1 only
+        self.assertEqual(deps["ch_1"], {"seed"})
+        self.assertEqual(deps["ch_2"], {"ch_1"})
+        self.assertNotIn("free_a", deps["ch_2"])
+        self.assertNotIn("free_b", deps["ch_2"])
+
+        # unchained nodes and the first chain node share a level (all wait on seed only)
+        self.assertEqual(_level_of(levels, "free_a"), _level_of(levels, "ch_1"))
+        self.assertEqual(_level_of(levels, "free_b"), _level_of(levels, "ch_1"))
+        # the rest of the chain comes strictly later
+        self.assertLess(_level_of(levels, "ch_1"), _level_of(levels, "ch_2"))
+
+    def test_chain_false_is_bit_for_bit_identical_to_legacy(self):
+        """With chain omitted/False the inferred deps must match the pre-chain
+        behaviour exactly (regression guard for backward compatibility)."""
+        nodes = [
+            _node("seed", bb_write=True),
+            _node("e_a", bb_read=True, bb_write=True),
+            _node("e_b", bb_read=True, bb_write=True),
+            _node("final", bb_read=True),
+        ]
+        deps, _ = self._build(nodes, [])
+        self.assertEqual(deps["e_a"], {"seed"})
+        self.assertEqual(deps["e_b"], {"seed"})
+        self.assertEqual(deps["final"], {"seed", "e_a", "e_b"})
 
 
 # ---------------------------------------------------------------------------

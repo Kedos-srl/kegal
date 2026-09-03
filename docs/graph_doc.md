@@ -375,6 +375,7 @@ Three models make up the system:
 | `id` | `str` | No | ID of the board this node reads from / writes to. Must match a `BlackboardEntry.id` declared in `Graph.blackboard.boards`. |
 | `read` | `bool` | Yes (default `false`) | Inject the current board content (including imported boards, in declaration order) into the node's prompt via the `{blackboard}` placeholder. |
 | `write` | `bool` | Yes (default `false`) | Append the node's LLM response to this board after execution. The updated content is written back to disk immediately after each write. |
+| `chain` | `bool` | Yes (default `false`) | Cat-2 only. Join the sequential chain of same-board chained nodes: each chained node depends on the previous one (declaration order) instead of running in parallel, so it reads what the previous chained node already wrote. The first node of a chain still waits for prior Cat-1 writers. Chains are grouped per board and are independent of each other; chained and unchained Cat-2 nodes on one board do not interfere. Default `false` keeps the classic parallel behaviour. |
 
 ### Node categories
 
@@ -389,6 +390,8 @@ Three behaviour patterns emerge from the `read`/`write` combination:
 The compiler infers the correct execution order automatically from these categories even when the `edges` list is flat (no `children`/`fan_in` declarations). Cat-1 nodes run first, Cat-2 LLM calls execute in parallel after all Cat-1 nodes complete, and Cat-3 nodes run after all Cat-2 nodes complete.
 
 > **Cat-2 write ordering:** each Cat-2 node reads only the Cat-1 baseline (not sibling Cat-2 outputs). Writes are collected during the parallel phase and flushed to the board in **YAML node declaration order** after all Cat-2 calls finish. The resulting board content is therefore deterministic regardless of thread-completion order.
+
+> **Cat-2 sequential chains (`chain: true`):** setting `blackboard.chain: true` on a group of same-board Cat-2 nodes opts them out of the parallel phase. They run one after another in declaration order, and each one reads the board *after* the previous chained node has written to it — so a chained enricher sees the running thread, not just the Cat-1 seed. The first node of each chain still depends on prior Cat-1 writers. Chains are per-board and independent; unchained Cat-2 nodes on the same board keep running in parallel as before. See tutorial 10 §7.
 
 ### Import chains
 

@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.6] - 2026-09-03](#0146---2026-09-03)
 - [[0.1.4.5] - 2026-08-31](#0145---2026-08-31)
 - [[0.1.4.4] - 2026-08-25](#0144---2026-08-25)
 - [[0.1.4.3] - 2026-07-08](#0143---2026-07-08)
@@ -19,6 +20,33 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.6] - 2026-09-03
+
+### Added
+
+- **Blackboard sequential chains** (`kegal/graph_blackboard.py`, `kegal/compiler.py`) — new
+  optional `chain: bool` field on `NodeBlackboardRef` (default `false`). Cat-2 enricher nodes
+  (`blackboard.read: true` + `blackboard.write: true`) that set `chain: true` on the same
+  board form a **sequential chain**: instead of all running in parallel off the Cat-1
+  baseline, each chained node depends on the previous one and reads the board *after* that
+  node has written to it. The first node of each chain still waits for prior Cat-1 writers.
+  Chains are grouped per board and are independent of one another; chained and unchained
+  Cat-2 nodes on the same board do not interfere. With `chain` absent or `false` the
+  dependency inference and execution are byte-for-byte identical to before. See tutorial 10 §7.
+
+### Tests
+
+- `test/test_blackboard.py::TestBlackboardChainDagInference` — DAG-inference coverage:
+  three-node chain on one board (each node depends only on its predecessor), independent
+  chains on separate boards, mixed chained/unchained nodes on one board, and a
+  backward-compatibility guard proving `chain=False` produces the legacy dependency set.
+- `test/test_blackboard_chain.py` — end-to-end coverage: a mocked-LLM `compile()` run
+  proving a chained enricher sees the previous chained node's written content in its own
+  `{blackboard}` (not just the Cat-1 seed), plus a live-Ollama integration test
+  (`test/graphs/chain_blackboard_graph.yml`, skipped when Ollama is unreachable).
 
 ---
 

@@ -351,6 +351,92 @@ print(board_content)
 
 ---
 
+## 7. Advanced: sequential chains — `chain: true`
+
+By default every Cat-2 enricher on a board reads the **same** starting point —
+whatever the Cat-1 writer(s) seeded — and all enrichers run in parallel. Their
+writes are merged back afterwards in declaration order, but no enricher ever
+sees another enricher's contribution.
+
+Sometimes you want the opposite: a line of enrichers where each one builds on
+what the previous one just wrote. Set `chain: true` on the board reference of
+the nodes that should form the chain. Chained nodes on the same board run
+**one after another, in declaration order**; each reads the board *after* the
+previous chained node has written to it.
+
+```yaml
+prompts:
+  - template:  # 0 — opener (Cat-1)
+      system_template:
+        role: Open a written discussion on the topic in one short paragraph.
+      prompt_template:
+        topic: "{user_message}"
+
+  - template:  # 1 — chained step: continue from the latest contribution
+      system_template:
+        role: |
+          Read the discussion so far and add one new point that explicitly
+          builds on the most recent contribution.
+      prompt_template:
+        sofar: |
+          {blackboard}
+
+nodes:
+  - id: "opener"           # Cat-1 — seeds the board
+    model: 0
+    max_tokens: 200
+    show: false
+    blackboard: { id: main, read: false, write: true }
+    prompt: { template: 0, user_message: true }
+
+  - id: "step_1"           # Cat-2, chained — sees: opener
+    model: 0
+    max_tokens: 200
+    show: false
+    blackboard: { id: main, read: true, write: true, chain: true }
+    prompt: { template: 1 }
+
+  - id: "step_2"           # Cat-2, chained — sees: opener + step_1
+    model: 0
+    max_tokens: 200
+    show: false
+    blackboard: { id: main, read: true, write: true, chain: true }
+    prompt: { template: 1 }
+
+  - id: "step_3"           # Cat-2, chained — sees: opener + step_1 + step_2
+    model: 0
+    max_tokens: 200
+    show: true
+    blackboard: { id: main, read: true, write: true, chain: true }
+    prompt: { template: 1 }
+
+edges:
+  - node: "opener"
+  - node: "step_1"
+  - node: "step_2"
+  - node: "step_3"
+```
+
+Inferred execution order:
+
+```
+opener  →  step_1  →  step_2  →  step_3      (each on its own level)
+```
+
+Notes:
+- `chain` defaults to `false`; leaving it off keeps the classic
+  Cat-1 → Cat-2 (parallel) → Cat-3 behaviour exactly as before.
+- The **first** chained node still waits for all prior Cat-1 writers, just like
+  an unchained enricher.
+- Chains are grouped **per board**: chained nodes on board `a` and chained
+  nodes on board `b` form two independent chains that can advance in parallel.
+- Chained and unchained Cat-2 nodes can coexist on the same board — the
+  unchained ones stay parallel, the chained ones form their sequential line;
+  the two groups do not depend on each other.
+- Cat-3 readers still wait for every Cat-2 node, chained or not.
+
+---
+
 ## Key points
 
 - Board IDs must be unique within the graph; duplicate IDs raise `ValueError`
@@ -359,6 +445,9 @@ print(board_content)
   `ValueError` at `Compiler` construction.
 - Cat-1 → Cat-2 (parallel) → Cat-3 ordering is inferred automatically — no
   `children`/`fan_in` declarations are needed for the basic pattern.
+- `chain: true` on a Cat-2 node's `blackboard` ref turns the same-board chained
+  nodes into a sequential line — each reads what the previous one wrote.
+  Default is `false` (parallel, unchanged).
 - `cleanup: true` (default) truncates the board at init; `cleanup: false`
   preserves existing content.
 - `import` is evaluated at read time — imported boards are prepended to the

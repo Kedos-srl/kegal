@@ -901,16 +901,40 @@ class Compiler:
         #
         # This lets enrichers (Cat-2) run in parallel after the writer(s) finish,
         # and the final reader(s) wait for all of them — with flat edge declarations.
+        #
+        # Opt-in exception: a Cat-2 node with blackboard.chain=True joins a
+        # sequential chain of the same-board chained nodes (declaration order).
+        # Each chained node depends on the previous one instead of running in
+        # parallel, so it reads what the previous node already wrote. The first
+        # node of each chain still depends on prior Cat-1 nodes as usual.
+        # With chain absent/False the behaviour is identical to before.
         def _fp(nid): return self.nodes[nid].blackboard
 
         cat1 = [n for n in ordered_ids if _fp(n) and _fp(n).write and not _fp(n).read]
         cat2 = [n for n in ordered_ids if _fp(n) and _fp(n).read  and     _fp(n).write]
         cat3 = [n for n in ordered_ids if _fp(n) and _fp(n).read  and not _fp(n).write]
 
-        for r in cat2:
+        chained = [n for n in cat2 if _fp(n).chain]
+        unchained = [n for n in cat2 if not _fp(n).chain]
+
+        for r in unchained:
             for w in cat1:
                 if ordered_ids.index(w) < ordered_ids.index(r):
                     deps[r].add(w)
+
+        chains_by_board: dict[str, list[str]] = {}
+        for n in chained:
+            chains_by_board.setdefault(_fp(n).id, []).append(n)
+
+        for board_id, chain_nodes in chains_by_board.items():
+            chain_nodes.sort(key=ordered_ids.index)
+            for i, r in enumerate(chain_nodes):
+                if i == 0:
+                    for w in cat1:
+                        if ordered_ids.index(w) < ordered_ids.index(r):
+                            deps[r].add(w)
+                else:
+                    deps[r].add(chain_nodes[i - 1])
 
         for r in cat3:
             for w in cat1 + cat2:

@@ -403,6 +403,21 @@ blackboard:
 
 Cat-2 LLM calls run in **parallel** (one thread per node). Writes are applied to the board in **YAML declaration order** after all Cat-2 calls complete, regardless of which thread finishes first. Every Cat-2 node therefore reads only the Cat-1 baseline (not sibling Cat-2 outputs), and the final board content order is deterministic.
 
+### Sequential chains — `chain: true`
+
+Add `chain: true` to a Cat-2 node's `blackboard` ref to opt it out of the parallel phase:
+
+```yaml
+- id: "step_1"
+  blackboard: { id: main, read: true, write: true, chain: true }
+- id: "step_2"
+  blackboard: { id: main, read: true, write: true, chain: true }   # reads step_1's write
+- id: "step_3"
+  blackboard: { id: main, read: true, write: true, chain: true }   # reads step_1 + step_2
+```
+
+Same-board chained nodes run **one after another in declaration order**; each reads the board *after* the previous chained node wrote to it (running thread, not just the Cat-1 seed). The first chained node still waits for prior Cat-1 writers. Chains are grouped **per board** and are independent; chained and unchained Cat-2 nodes on the same board do not interfere. Default `false` = classic parallel behaviour. See [tutorial 10 §7](tutorials/10_blackboard.md).
+
 ### Blackboard write behaviour
 
 `write: true` appends the node's `response.messages` (the LLM's final text) to the board file.

@@ -1,17 +1,20 @@
 # KeGAL - Kedos Graph Agent for LLM
 
-KeGAL is a graph-based agent framework for LLMs. It enables the development
-of workflows structured as graphs, where each node represents an agent, 
-and input and output messages are formatted as structured JSON files.
+KeGAL is a graph-based agent orchestration framework for LLMs. You describe the
+entire pipeline — nodes, edges, prompts, models, and tools — in a single YAML or
+JSON file. KeGAL compiles that definition into a validated, typed graph and
+executes it, scheduling nodes in parallel wherever the topology allows.
 
-An agent can be designed using prompt engineering for specific tasks. 
-Additionally, each agent can utilize tools written in Python to connect to
-external knowledge sources. Moreover, agents can invoke external services via HTTP,
-allowing seamless integration with various systems.
+Each node is an LLM call. Edges define execution order and data flow. Fan-out
+branches spawn in parallel; fan-in waits for all of them before the next node
+runs. Blackboard buffers let nodes share structured context without explicit
+message chains. ReAct controller loops drive iterative reason-and-act cycles with
+automatic context-window compaction. Nodes can call Python tool executors, MCP
+servers, and HTTP services, and can be constrained to emit schema-validated JSON.
 
-The core concept of KeGAL is to leverage one or more LLMs to manage workflow
-execution within the architecture. Agents contain no traditional code; instead,
-everything is controlled by the LLM through its tooling capabilities.
+Topology is not a routing convenience: it is the primary design lever. KeGAL is
+built around a rigorous formal model in which the graph structure itself carries
+coordination guarantees.
 
 ## Installation
 
@@ -40,7 +43,8 @@ Full documentation is available at **https://kedos-srl.github.io/kegal/**
 
 - [Graph Reference](docs/graph_doc.md) - Full field reference for the `Graph` model hierarchy
 - [LLM Providers](docs/llm_doc.md) - Guide on LLM providers and integration
-- [Tutorials](docs/tutorials.md) - 13 topic tutorials from basics to advanced: structured output, RAG, chat history, blackboard, ReAct, and more
+- [Batch Inference](docs/batch_doc.md) - Intra-node and inter-node batch; provider support; output format
+- [Tutorials](docs/tutorials.md) - 14 topic tutorials from basics to advanced: structured output, RAG, chat history, blackboard, ReAct, batch inference, and more
 - [Changelog](docs/CHANGELOG.md) - Version history and release notes
 
 ## Quick Start
@@ -225,6 +229,7 @@ kegal run path/to/my_project
 - **Validation gate** – nodes with a `validation` boolean field in their structured output act as guards: when the LLM returns `validation: false`, the graph execution stops immediately, preventing downstream nodes from running. Useful for content moderation and prompt injection prevention.
 - **Message passing** – forward node outputs to downstream nodes; ordering inferred automatically from flags and declaration order — no explicit edge required for linear pipelines
 - **Verbose logging** – set `verbose: true` on the graph to get a colored INFO-level trace on stderr: compile start/done with token totals, per-node start/end with elapsed time and token counts, each tool call (`[mcp]`/`[py]` tagged) with parameters and result preview, and the full ReAct loop trace. ANSI colors are applied automatically on TTY terminals and suppressed on pipes/redirects
+- **Batch inference** – submit many LLM calls as a single async batch job; intra-node (`batch_user_messages`) and inter-node (`batch_children` / `batch_fan_in`) levels, with roughly 50% cost reduction on providers that offer a batch API
 - **MCP support** – connect nodes to external tool servers via the Model Context Protocol (stdio and SSE transports)
 - **Python tool executors** – attach plain Python callables as tools without running a separate process
 - **Multi-provider support** – use different LLMs in the same graph
@@ -236,11 +241,12 @@ kegal run path/to/my_project
 
 ## Supported LLM Providers
 
-- **Anthropic** - Direct API (`kegal[anthropic]`)
-- **OpenAI** - GPT models (`kegal[openai]`)
-- **Google Gemini** - Gemini models (`kegal[gemini]`)
-- **Ollama** - Local LLM hosting (`kegal[ollama]`)
-- **AWS Bedrock** - Amazon Nova, Anthropic, and open-weight models (Kimi/Moonshot, Qwen, DeepSeek, Mistral, …) via the Bedrock Converse API (`kegal[aws]`). Structured output uses Bedrock's native `outputConfig` API — supported on Claude 4.5 and recent open-weight models, not on Claude 3.x / Nova.
+- **Anthropic** - Direct API — `llm: "anthropic"` (`kegal[anthropic]`)
+- **Anthropic on AWS** - Claude via a Bedrock inference profile — `llm: "anthropic_aws"` (`kegal[aws]`)
+- **OpenAI** - GPT models — `llm: "openai"` (`kegal[openai]`)
+- **Google Gemini** - Gemini models — `llm: "gemini"` (`kegal[gemini]`)
+- **Ollama** - Local LLM hosting — `llm: "ollama"` (`kegal[ollama]`)
+- **AWS Bedrock** - Amazon Nova and open-weight models (Kimi/Moonshot, Qwen, DeepSeek, Mistral, …), plus Claude, via the Bedrock Converse API — `llm: "bedrock"` (`kegal[aws]`). Structured output uses Bedrock's native `outputConfig` API — supported on Claude 4.5 and recent open-weight models, not on Claude 3.x / Nova.
 
 ## Copyright
 

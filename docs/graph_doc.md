@@ -1,4 +1,4 @@
-# Documentation – `Graph` Framework
+# Graph Reference
 
 Below is a detailed description of every Pydantic model that constitutes the `Graph` class hierarchy.  
 For each model we list the fields, their types, optionality, and provide concrete YAML and JSON examples that represent a minimal valid instance of the model.

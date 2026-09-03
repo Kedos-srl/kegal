@@ -248,8 +248,7 @@ A single YAML file fully specifies the graph (nodes, edges, prompts, models, too
 
 !!! info "A forthcoming paper"
     KeGAL is designed around a formal framework in which **graph topology is a first-order design variable**,
-    not routing sugar. The framework establishes provable coordination properties rooted in
-    **cooperative game theory**, with structural, schematic, and probabilistic enforcement levels
-    and **Strong Nash Equilibrium** guarantees for well-formed graphs.
+    not routing sugar. The framework defines structural, schematic, and probabilistic
+    enforcement levels that give well-formed graphs provable coordination properties.
 
     *A paper detailing the formal foundations is forthcoming.*

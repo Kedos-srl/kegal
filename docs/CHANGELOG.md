@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.7] - 2026-09-03](#0147---2026-09-03)
 - [[0.1.4.6] - 2026-09-03](#0146---2026-09-03)
 - [[0.1.4.5] - 2026-08-31](#0145---2026-08-31)
 - [[0.1.4.4] - 2026-08-25](#0144---2026-08-25)
@@ -20,6 +21,30 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.7] - 2026-09-03
+
+### Changed
+
+- **Docs — README / site framing realigned.** The README intro now matches the
+  documentation site's topology-first framing and drops the stale "input and
+  output messages are formatted as structured JSON files" / "agents contain no
+  traditional code; everything is controlled by the LLM through its tooling"
+  pitch. The README also now lists **14** tutorials (was 13), adds a
+  *Batch inference* feature bullet and a link to `docs/batch_doc.md`, and lists
+  the `anthropic_aws` provider with an explicit `llm:` identifier for every
+  provider.
+- **Docs — `docs/graph_doc.md` title** renamed from "Documentation – `Graph`
+  Framework" to "Graph Reference", matching the mkdocs nav label and every
+  inbound link.
+- **Docs — "Formal Foundations" box** on the site home (`docs/index.md`) no
+  longer references *cooperative game theory* or *Strong Nash Equilibrium*; it
+  now states the structural/schematic/probabilistic enforcement levels and
+  their coordination properties without the game-theoretic claims.
+
+No code, API, or behaviour changes in this release.
 
 ---
 

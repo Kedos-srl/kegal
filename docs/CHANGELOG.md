@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.8] - 2026-09-22](#0148---2026-09-22)
 - [[0.1.4.7] - 2026-09-03](#0147---2026-09-03)
 - [[0.1.4.6] - 2026-09-03](#0146---2026-09-03)
 - [[0.1.4.5] - 2026-08-31](#0145---2026-08-31)
@@ -21,6 +22,21 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.8] - 2026-09-22
+
+### Fixed
+
+- **`temperature` is now optional** (`kegal/graph_node.py`, `kegal/llm/llm_bedrock.py`).
+  `GraphNode.temperature` changed from a required `float` to `float | None = None`. On the
+  `bedrock` provider, when `temperature` is `None` (or simply omitted from the node's YAML),
+  it is no longer sent in `inferenceConfig` at all. Some Bedrock models (e.g.
+  `moonshotai.kimi-k3`) reject the Converse API call outright with a `ValidationException`
+  ("This model doesn't support the temperature field") if `temperature` is present — every
+  node previously had to set one regardless, with no way to omit it. Other providers
+  (`anthropic_aws`, `gemini`, `openai`, `ollama`) are unchanged.
 
 ---
 

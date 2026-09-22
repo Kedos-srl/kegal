@@ -42,7 +42,7 @@ class NodeMcpServerRef(BaseModel):
 class GraphNode(BaseModel):
     id: str
     model: int
-    temperature: float
+    temperature: float | None = None
     max_tokens: int
     show: bool
     message_passing: NodeMessagePassing = NodeMessagePassing()

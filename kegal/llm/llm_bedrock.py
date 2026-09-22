@@ -74,7 +74,7 @@ class LlmBedrock(LlmModel):
                  pdfs_b64: list[LLMPdfData] | None = None,
                  tools_data: list[LLMTool] | None = None,
                  structured_output: LLMStructuredOutput | None = None,
-                 temperature: float = 0.5,
+                 temperature: float | None = 0.5,
                  max_tokens: int = 3000) -> LLmResponse:
 
 
@@ -86,12 +86,13 @@ class LlmBedrock(LlmModel):
             )
 
             # Model setup and chat messages
+            inference_config: dict[str, Any] = {"maxTokens": max_tokens}
+            if temperature is not None:
+                inference_config["temperature"] = temperature
+
             body: dict[str, Any] = {
                 "modelId": self.model,
-                "inferenceConfig": {
-                    "temperature": temperature,
-                    "maxTokens": max_tokens
-                },
+                "inferenceConfig": inference_config,
                 "messages": messages
             }
 

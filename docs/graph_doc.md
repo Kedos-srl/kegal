@@ -1236,6 +1236,8 @@ tools:
 
 This model is used inside `LLMTool.parameters` and `structured_output.parameters` / `react_output.parameters` on `GraphNode` to describe each field of a schema the LLM should return.
 
+**`parameters` vs `properties`**: in a node's `structured_output` / `react_output`, `parameters` is accepted as an alias of the standard JSON Schema key `properties`. It is normalized to `properties` and `type: "object"` is added when missing, so both forms produce the same schema. If both keys are present, `properties` wins.
+
 ### YAML Example (String with enum)
 
 ```yaml

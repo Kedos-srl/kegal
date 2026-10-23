@@ -22,7 +22,7 @@ _EXTRAS["all"] = sorted({dep for deps in _EXTRAS.values() for dep in deps})
 
 setup(
     name="kegal",
-    version="0.1.4.8",
+    version="0.1.4.9",
     author="Kedos srl",
     author_email="fabio.gagliardi@kedos-srl.it",
     description="KeGAL - Kedos Graph Agent for LLM",

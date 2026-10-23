@@ -3,7 +3,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import fitz
 import logging
 
@@ -120,6 +120,23 @@ class LLMStructuredSchema(BaseModel):
         "extra": "ignore",
         "populate_by_name": True,
     }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_object_schema(cls, data: Any) -> Any:
+        """Accept the legacy kegal ``parameters`` key as an alias of ``properties`` and
+        make sure an object schema declares ``type: object`` (required by Bedrock native
+        structured output)."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "parameters" in data:
+            params = data.pop("parameters")
+            if "properties" not in data and isinstance(params, dict):
+                data["properties"] = params
+        if "properties" in data and "type" not in data:
+            data["type"] = "object"
+        return data
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict, excluding None values and using correct JSON Schema keys."""

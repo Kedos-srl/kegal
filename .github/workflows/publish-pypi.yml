@@ -1,0 +1,36 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da pubblicare (es. v0.1.4.10)'
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write  # trusted publishing, nessun token da salvare
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Il tag deve coincidere con la versione in setup.py
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          v=$(python3 -c "import re;print(re.search(r'version=\"([^\"]+)\"',open('setup.py').read()).group(1))")
+          [ "v$v" = "$TAG" ] || { echo "tag $TAG != setup.py v$v"; exit 1; }
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - uses: pypa/gh-action-pypi-publish@release/v1

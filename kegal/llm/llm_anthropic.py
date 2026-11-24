@@ -77,7 +77,7 @@ class LlmAnthropic(LlmModel):
                  pdfs_b64: list[LLMPdfData] | None = None,
                  tools_data: list[LLMTool] | None = None,
                  structured_output: LLMStructuredOutput | None = None,
-                 temperature: float = 0.5,
+                 temperature: float | None = 0.5,
                  max_tokens: int = 3000) -> LLmResponse:
         # Compose messages to pass to the model
         messages = self._compose_messages(
@@ -89,10 +89,13 @@ class LlmAnthropic(LlmModel):
 
         # Model setup and chat messages
         body : dict[str, Any] = {
-            "temperature": temperature,
             "messages": messages,
             "max_tokens": max_tokens
         }
+
+        # Alcuni modelli (es. nuovi Claude) rifiutano `temperature`, anche null: omessa se None
+        if temperature is not None:
+            body["temperature"] = temperature
 
         # Add system prompt if provided
         if system_prompt is not None:

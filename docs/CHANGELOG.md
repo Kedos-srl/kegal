@@ -4,6 +4,7 @@ All notable changes to KeGAL are documented here.
 
 ## Table of Contents
 
+- [[0.1.4.10] - 2026-11-24](#01410---2026-11-24)
 - [[0.1.4.8] - 2026-09-22](#0148---2026-09-22)
 - [[0.1.4.7] - 2026-09-03](#0147---2026-09-03)
 - [[0.1.4.6] - 2026-09-03](#0146---2026-09-03)
@@ -22,6 +23,18 @@ All notable changes to KeGAL are documented here.
 - [[0.1.2.3] - 2026-03-16](#0123---2026-03-16)
 - [[0.1.2.2] - 2025](#0122---2025)
 - [[0.1.2.1] - 2025](#0121---2025)
+
+---
+
+## [0.1.4.10] - 2026-11-24
+
+### Fixed
+
+- **`anthropic_aws` no longer sends `temperature: null`** (`kegal/llm/llm_anthropic.py`).
+  When `temperature` is `None` (or omitted from the node) the key is now left out of the
+  `invoke_model` body. Previously it was serialized as `null`, which Bedrock rejects
+  (`temperature: Input should be a valid number`) on models that have deprecated the
+  parameter. The `0.1.4.8` change had only covered the `bedrock` provider.
 
 ---
 

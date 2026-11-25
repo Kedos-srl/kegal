@@ -92,7 +92,7 @@ Every node entry follows this schema:
 nodes:
   - id: "node_id"               # required — unique string
     model: 0                    # required — index into models list
-    temperature: 0.0            # float 0.0–1.0
+    temperature: 0.0            # optional, float 0.0–1.0 — omit it for models that reject it (not sent when unset)
     max_tokens: 512             # int — max output tokens
     show: true                  # bool — include in output report (ignored on react agents — use message_passing.output instead)
     prompt:

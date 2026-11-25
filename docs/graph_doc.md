@@ -471,7 +471,7 @@ entry is needed.
 |---------------------|------------------------------|----------|-------------|
 | `id`                | `str`                        | No       | Unique identifier of the node. |
 | `model`             | `int`                        | No       | Index of the model in the global `models` list. |
-| `temperature`       | `float`                      | No       | Sampling temperature for the LLM. |
+| `temperature`       | `float` \| `None`            | Yes (default `None`) | Sampling temperature for the LLM. When omitted or `null` it is **not sent** to the provider (`bedrock` and `anthropic_aws`). Some recent models reject the parameter outright, so leave it out for them. |
 | `max_tokens`        | `int`                        | No       | Maximum token length for the LLM response. |
 | `show`              | `bool`                       | No       | Display hint for `save_outputs_as_markdown()`. When `false`, the node is still executed and included in `get_outputs()`, but omitted from the markdown report. |
 | `message_passing`       | `NodeMessagePassing`            | Yes (default `{input: false, output: false}`) | Configuration of input/output passing (real-time mode). |

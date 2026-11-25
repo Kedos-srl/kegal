@@ -1,0 +1,32 @@
+name: Publish to TestPyPI
+
+# Solo manuale: TestPyPI rifiuta di ricaricare una versione gia' presente,
+# quindi non parte a ogni push. Serve per provare il pacchetto prima di PyPI.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch o tag da pubblicare (default: il branch da cui lanci)'
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      contents: read
+      id-token: write  # trusted publishing, nessun token da salvare
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
